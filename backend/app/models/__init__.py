@@ -14,6 +14,7 @@ from app.models.announcement import Announcement
 from app.models.teacher_audit import TeacherAudit
 from app.models.admin_application import AdminApplication
 from app.models.learning_progress import LearningProgress
+from app.models.course import Course, CourseMaterial, CourseTag
 
 __all__ = [
     "Base",
@@ -31,4 +32,7 @@ __all__ = [
     "TeacherAudit",
     "AdminApplication",
     "LearningProgress",
+    "Course",
+    "CourseMaterial",
+    "CourseTag",
 ]

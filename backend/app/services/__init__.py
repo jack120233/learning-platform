@@ -20,6 +20,12 @@ from app.services.user_service import (
     teacher_audit_service,
     user_service,
 )
+from app.services.course_service import (
+    CourseService,
+    MaterialService,
+    course_service,
+    material_service,
+)
 
 __all__ = [
     "AuthService",
@@ -36,4 +42,8 @@ __all__ = [
     "user_service",
     "teacher_audit_service",
     "admin_application_service",
+    "CourseService",
+    "MaterialService",
+    "course_service",
+    "material_service",
 ]

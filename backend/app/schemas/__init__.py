@@ -44,6 +44,15 @@ from app.schemas.user import (
     UserListResponse,
     UserStatusUpdate,
 )
+from app.schemas.course import (
+    CourseCreate,
+    CourseUpdate,
+    CourseResponse,
+    CourseListResponse,
+    CourseSearchParams,
+    MaterialCreate,
+    MaterialResponse,
+)
 
 __all__ = [
     # 通用模型
@@ -87,4 +96,13 @@ __all__ = [
     "AdminApplicationCreate",
     "AdminApplicationResponse",
     "AdminApplicationReview",
+    # 课程模型
+    "CourseCreate",
+    "CourseUpdate",
+    "CourseResponse",
+    "CourseListResponse",
+    "CourseSearchParams",
+    # 配套资料模型
+    "MaterialCreate",
+    "MaterialResponse",
 ]
