@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+env/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 环境配置
+.env
+.env.local
+.env.*.local
+
+# 日志和缓存
+*.log
+.cache/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# Spec Workflow 审批临时文件
+.spec-workflow/approvals/*.json
