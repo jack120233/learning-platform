@@ -1,1 +1,48 @@
-# Pydantic 数据模型
+"""Pydantic 数据模型模块
+
+导出所有 Pydantic 模型。
+"""
+
+from app.schemas.common import (
+    ApiResponse,
+    BusinessCode,
+    ErrorResponse,
+    PageData,
+)
+from app.schemas.user import (
+    AdminApplicationCreate,
+    AdminApplicationResponse,
+    AdminApplicationReview,
+    ChangePasswordRequest,
+    LearningRecordResponse,
+    TeacherAuditApply,
+    TeacherAuditResponse,
+    TeacherAuditReview,
+    UserProfileUpdate,
+    UserResponse,
+    UserListResponse,
+    UserStatusUpdate,
+)
+
+__all__ = [
+    # 通用模型
+    "ApiResponse",
+    "BusinessCode",
+    "ErrorResponse",
+    "PageData",
+    # 用户模型
+    "UserProfileUpdate",
+    "ChangePasswordRequest",
+    "UserResponse",
+    "UserListResponse",
+    "UserStatusUpdate",
+    "LearningRecordResponse",
+    # 讲师审核模型
+    "TeacherAuditApply",
+    "TeacherAuditResponse",
+    "TeacherAuditReview",
+    # 管理员申请模型
+    "AdminApplicationCreate",
+    "AdminApplicationResponse",
+    "AdminApplicationReview",
+]
