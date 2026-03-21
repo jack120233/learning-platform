@@ -5,7 +5,7 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import health
+from app.api.v1 import content, health
 
 # v1 版本路由器
 router = APIRouter()
@@ -14,4 +14,8 @@ router = APIRouter()
 router.include_router(
     health.router,
     tags=["健康检查"],
+)
+router.include_router(
+    content.router,
+    tags=["课程内容"],
 )
