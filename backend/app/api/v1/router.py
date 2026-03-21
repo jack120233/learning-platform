@@ -5,7 +5,7 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, health, categories, tags, announcements, users, courses, content
+from app.api.v1 import auth, health, categories, tags, announcements, users, courses, content, learning
 
 # v1 版本路由器
 router = APIRouter()
@@ -19,3 +19,4 @@ router.include_router(announcements.router, tags=["公告管理"])
 router.include_router(users.router, tags=["用户管理"])
 router.include_router(courses.router, tags=["课程管理"])
 router.include_router(content.router, tags=["课程内容"])
+router.include_router(learning.router, tags=["学习模块"])

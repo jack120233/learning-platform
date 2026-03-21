@@ -28,6 +28,10 @@ from app.schemas.content import (
     SectionCreate, SectionResponse, SectionUpdate,
     ResourceCreate, ResourceResponse, CourseContentResponse,
 )
+from app.schemas.learning import (
+    ContinueLearningResponse, PlayUrlResponse, PreviewResponse,
+    ProgressResponse, SaveProgressRequest, StartLearningRequest,
+)
 
 __all__ = [
     "ApiResponse", "BusinessCode", "ErrorResponse", "PageData",
@@ -46,4 +50,6 @@ __all__ = [
     "ChapterCreate", "ChapterUpdate", "ChapterResponse",
     "SectionCreate", "SectionUpdate", "SectionResponse",
     "ResourceCreate", "ResourceResponse", "CourseContentResponse",
+    "StartLearningRequest", "SaveProgressRequest", "ProgressResponse",
+    "ContinueLearningResponse", "PlayUrlResponse", "PreviewResponse",
 ]

@@ -16,6 +16,7 @@ from app.models.admin_application import AdminApplication
 from app.models.learning_progress import LearningProgress
 from app.models.course import Course, CourseMaterial, CourseTag
 from app.models.content import Chapter, Section, Resource
+from app.models.learning import ResourceProgress
 
 __all__ = [
     "Base", "BaseModel", "IDMixin", "TimestampMixin", "SoftDeleteMixin",
@@ -24,4 +25,5 @@ __all__ = [
     "TeacherAudit", "AdminApplication", "LearningProgress",
     "Course", "CourseMaterial", "CourseTag",
     "Chapter", "Section", "Resource",
+    "ResourceProgress",
 ]
