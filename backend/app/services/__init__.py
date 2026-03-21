@@ -20,6 +20,8 @@ from app.services.content_service import (
     chapter_service, section_service, resource_service,
 )
 from app.services.learning_service import LearningService, learning_service
+from app.services.feedback_service import FeedbackService, feedback_service
+from app.services.message_service import MessageService, message_service
 
 __all__ = [
     "AuthService", "auth_service",
@@ -31,4 +33,6 @@ __all__ = [
     "ChapterService", "SectionService", "ResourceService",
     "chapter_service", "section_service", "resource_service",
     "LearningService", "learning_service",
+    "FeedbackService", "feedback_service",
+    "MessageService", "message_service",
 ]

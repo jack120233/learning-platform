@@ -32,6 +32,12 @@ from app.schemas.learning import (
     ContinueLearningResponse, PlayUrlResponse, PreviewResponse,
     ProgressResponse, SaveProgressRequest, StartLearningRequest,
 )
+from app.schemas.feedback import (
+    FeedbackCreate, FeedbackResponse, FeedbackProcess,
+)
+from app.schemas.message import (
+    MessageResponse, MessageSend, UnreadCountResponse,
+)
 
 __all__ = [
     "ApiResponse", "BusinessCode", "ErrorResponse", "PageData",
@@ -52,4 +58,6 @@ __all__ = [
     "ResourceCreate", "ResourceResponse", "CourseContentResponse",
     "StartLearningRequest", "SaveProgressRequest", "ProgressResponse",
     "ContinueLearningResponse", "PlayUrlResponse", "PreviewResponse",
+    "FeedbackCreate", "FeedbackResponse", "FeedbackProcess",
+    "MessageResponse", "MessageSend", "UnreadCountResponse",
 ]
