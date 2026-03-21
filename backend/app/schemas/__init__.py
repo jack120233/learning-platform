@@ -20,6 +20,16 @@ from app.schemas.common import (
     ErrorResponse,
     PageData,
 )
+from app.schemas.system import (
+    AnnouncementCreate,
+    AnnouncementResponse,
+    AnnouncementUpdate,
+    CategoryCreate,
+    CategoryResponse,
+    CategoryUpdate,
+    TagCreate,
+    TagResponse,
+)
 
 __all__ = [
     # 通用模型
@@ -37,4 +47,15 @@ __all__ = [
     "UserResponse",
     "CaptchaResponse",
     "TokenResponse",
+    # 分类模型
+    "CategoryCreate",
+    "CategoryUpdate",
+    "CategoryResponse",
+    # 标签模型
+    "TagCreate",
+    "TagResponse",
+    # 公告模型
+    "AnnouncementCreate",
+    "AnnouncementUpdate",
+    "AnnouncementResponse",
 ]

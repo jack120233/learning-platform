@@ -8,6 +8,9 @@ from app.models.captcha import CaptchaRecord
 from app.models.email_code import EmailCode
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
+from app.models.category import Category
+from app.models.tag import Tag
+from app.models.announcement import Announcement
 
 __all__ = [
     "Base",
@@ -19,4 +22,7 @@ __all__ = [
     "CaptchaRecord",
     "EmailCode",
     "RefreshToken",
+    "Category",
+    "Tag",
+    "Announcement",
 ]
