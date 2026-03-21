@@ -11,6 +11,9 @@ from app.models.user import User
 from app.models.category import Category
 from app.models.tag import Tag
 from app.models.announcement import Announcement
+from app.models.teacher_audit import TeacherAudit
+from app.models.admin_application import AdminApplication
+from app.models.learning_progress import LearningProgress
 
 __all__ = [
     "Base",
@@ -25,4 +28,7 @@ __all__ = [
     "Category",
     "Tag",
     "Announcement",
+    "TeacherAudit",
+    "AdminApplication",
+    "LearningProgress",
 ]

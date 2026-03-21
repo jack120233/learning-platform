@@ -12,6 +12,14 @@ from app.services.system_service import (
     category_service,
     tag_service,
 )
+from app.services.user_service import (
+    AdminApplicationService,
+    TeacherAuditService,
+    UserService,
+    admin_application_service,
+    teacher_audit_service,
+    user_service,
+)
 
 __all__ = [
     "AuthService",
@@ -22,4 +30,10 @@ __all__ = [
     "category_service",
     "tag_service",
     "announcement_service",
+    "UserService",
+    "TeacherAuditService",
+    "AdminApplicationService",
+    "user_service",
+    "teacher_audit_service",
+    "admin_application_service",
 ]

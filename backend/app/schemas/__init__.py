@@ -12,7 +12,7 @@ from app.schemas.auth import (
     ResetPasswordRequest,
     SendEmailCodeRequest,
     TokenResponse,
-    UserResponse,
+    UserResponse as AuthUserResponse,
 )
 from app.schemas.common import (
     ApiResponse,
@@ -30,6 +30,20 @@ from app.schemas.system import (
     TagCreate,
     TagResponse,
 )
+from app.schemas.user import (
+    AdminApplicationCreate,
+    AdminApplicationResponse,
+    AdminApplicationReview,
+    ChangePasswordRequest,
+    LearningRecordResponse,
+    TeacherAuditApply,
+    TeacherAuditResponse,
+    TeacherAuditReview,
+    UserProfileUpdate,
+    UserResponse,
+    UserListResponse,
+    UserStatusUpdate,
+)
 
 __all__ = [
     # 通用模型
@@ -44,7 +58,7 @@ __all__ = [
     "RefreshTokenRequest",
     "SendEmailCodeRequest",
     "ResetPasswordRequest",
-    "UserResponse",
+    "AuthUserResponse",
     "CaptchaResponse",
     "TokenResponse",
     # 分类模型
@@ -58,4 +72,19 @@ __all__ = [
     "AnnouncementCreate",
     "AnnouncementUpdate",
     "AnnouncementResponse",
+    # 用户模型
+    "UserProfileUpdate",
+    "ChangePasswordRequest",
+    "UserResponse",
+    "UserListResponse",
+    "UserStatusUpdate",
+    "LearningRecordResponse",
+    # 讲师审核模型
+    "TeacherAuditApply",
+    "TeacherAuditResponse",
+    "TeacherAuditReview",
+    # 管理员申请模型
+    "AdminApplicationCreate",
+    "AdminApplicationResponse",
+    "AdminApplicationReview",
 ]
