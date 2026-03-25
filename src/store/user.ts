@@ -91,6 +91,37 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     localStorage.removeItem('user_info')
+    localStorage.removeItem('edu_remember_login_id')
+  }
+
+  // 设置登录信息（登录/注册成功后调用）
+  interface LoginInfo {
+    user_id: number
+    username: string
+    email: string
+    nickname?: string
+    avatar_url?: string
+    role: UserRole
+    status?: UserStatus
+    access_token: string
+    refresh_token: string
+  }
+
+  function setLoginInfo(data: LoginInfo) {
+    // 设置用户信息
+    userInfo.value = {
+      userId: data.user_id,
+      username: data.username,
+      email: data.email,
+      nickname: data.nickname || data.username,
+      avatarUrl: data.avatar_url || '',
+      role: data.role,
+      status: data.status || 'active',
+    }
+    localStorage.setItem('user_info', JSON.stringify(userInfo.value))
+
+    // 设置 Token
+    setTokens(data.access_token, data.refresh_token)
   }
 
   // 初始化时恢复状态
@@ -108,6 +139,7 @@ export const useUserStore = defineStore('user', () => {
     setUserInfo,
     setTokens,
     setUnreadCount,
+    setLoginInfo,
     logout,
     restoreFromStorage,
   }

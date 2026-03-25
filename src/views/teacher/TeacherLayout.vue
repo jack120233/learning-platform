@@ -1,45 +1,37 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { User, Key, Bell, ChatDotRound, Back } from '@element-plus/icons-vue'
+import { VideoPlay, Notebook, Back } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 
 // 当前激活的菜单项
-const activeMenu = computed(() => route.path)
-
-// 菜单项配置
-const menuItems = [
-  { index: '/admin/users', title: '用户管理', icon: User },
-  { index: '/admin/roles', title: '角色权限', icon: Key },
-  { index: '/admin/announcements', title: '公告管理', icon: Bell },
-  { index: '/admin/feedbacks', title: '反馈管理', icon: ChatDotRound },
-]
+const activeMenu = computed(() => {
+  const path = route.path
+  if (path.startsWith('/teacher/courses')) return '/teacher/courses'
+  return path
+})
 </script>
 
 <template>
-  <div class="admin-layout">
+  <div class="teacher-layout">
     <el-container>
       <!-- 侧边菜单 -->
       <el-aside width="220px" class="side-menu">
         <div class="menu-header">
-          <el-icon :size="24" color="#1890ff"><Key /></el-icon>
-          <span class="menu-title">管理后台</span>
+          <el-icon :size="24" color="#1890ff"><VideoPlay /></el-icon>
+          <span class="menu-title">讲师工作台</span>
         </div>
 
         <el-menu
           :default-active="activeMenu"
           :router="true"
-          class="admin-menu"
+          class="teacher-menu"
         >
-          <el-menu-item
-            v-for="item in menuItems"
-            :key="item.index"
-            :index="item.index"
-          >
-            <el-icon><component :is="item.icon" /></el-icon>
-            <span>{{ item.title }}</span>
+          <el-menu-item index="/teacher/courses">
+            <el-icon><Notebook /></el-icon>
+            <span>课程管理</span>
           </el-menu-item>
         </el-menu>
 
@@ -62,7 +54,7 @@ const menuItems = [
 <style lang="scss" scoped>
 @import '@/assets/styles/variables.scss';
 
-.admin-layout {
+.teacher-layout {
   min-height: calc(100vh - 64px);
 
   .el-container {
@@ -71,7 +63,8 @@ const menuItems = [
 }
 
 .side-menu {
-  background: #333;
+  background: #fff;
+  border-right: 1px solid $border-color-light;
   min-height: inherit;
   display: flex;
   flex-direction: column;
@@ -81,49 +74,42 @@ const menuItems = [
     align-items: center;
     gap: 12px;
     padding: 20px 20px 16px;
-    border-bottom: 1px solid #444;
+    border-bottom: 1px solid $border-color-light;
   }
 
   .menu-title {
     font-size: 18px;
     font-weight: 600;
-    color: #fff;
+    color: $text-primary;
   }
 }
 
-.admin-menu {
+.teacher-menu {
   flex: 1;
   border-right: none;
-  background: transparent;
+  padding: 8px 0;
 
   :deep(.el-menu-item) {
-    color: #fff;
     height: 48px;
     line-height: 48px;
     margin: 4px 12px;
     border-radius: $radius-sm;
 
     &:hover {
-      background: #444;
+      background: #e6f7ff;
     }
 
     &.is-active {
-      background: $primary-color;
+      background: #e6f7ff;
+      color: $primary-color;
+      font-weight: 500;
     }
   }
 }
 
 .menu-footer {
   padding: 16px 20px;
-  border-top: 1px solid #444;
-
-  .el-button {
-    color: #fff;
-
-    &:hover {
-      color: $primary-color;
-    }
-  }
+  border-top: 1px solid $border-color-light;
 }
 
 .main-content {

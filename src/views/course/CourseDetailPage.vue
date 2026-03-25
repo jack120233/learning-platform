@@ -20,7 +20,7 @@ import {
   fetchContinueInfo,
   startLearning,
   submitFeedback,
-  uploadFile,
+  uploadFile as uploadFileApi,
   type CourseDetail,
   type CourseMaterial,
 } from '@/api/learning'
@@ -233,8 +233,9 @@ async function handleDownload(material: CourseMaterial) {
 }
 
 // 处理图片上传
-async function handleImageUpload(options: { file: File }) {
-  const file = options.file
+async function handleImageUpload(uploadFile: { raw?: File }) {
+  const file = uploadFile.raw
+  if (!file) return
 
   // 校验文件类型
   if (!['image/jpeg', 'image/png'].includes(file.type)) {
@@ -256,7 +257,7 @@ async function handleImageUpload(options: { file: File }) {
 
   feedbackForm.value.uploading = true
   try {
-    const result = await uploadFile(file)
+    const result = await uploadFileApi(file)
     feedbackForm.value.images.push(result.file_url)
   } catch {
     ElMessage.error('图片上传失败')

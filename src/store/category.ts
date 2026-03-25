@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { fetchCategories, type Category } from '@/api/category'
+import { fetchCategories, type CategoryItem } from '@/api/category'
 
 export const useCategoryStore = defineStore('category', () => {
   // 状态
-  const categories = ref<Category[]>([])
+  const categories = ref<CategoryItem[]>([])
   const isLoaded = ref(false)
   const loading = ref(false)
 
