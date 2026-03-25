@@ -1040,9 +1040,90 @@ onUnmounted(() => {
     left: 0;
     bottom: 0;
     z-index: 100;
+    width: 280px !important;
 
     &.collapsed {
       transform: translateX(-100%);
+    }
+  }
+
+  .learn-content {
+    width: 100% !important;
+  }
+
+  // 移动端工具栏调整
+  .learn-toolbar {
+    padding: 8px 12px;
+    gap: 8px;
+
+    .toolbar-left {
+      gap: 8px;
+    }
+
+    .resource-title {
+      font-size: 14px;
+      max-width: 150px;
+    }
+  }
+
+  // 视频播放器移动端优化
+  .video-container {
+    min-height: 56.25vw; // 16:9 比例
+  }
+
+  // 音频播放器移动端优化
+  .audio-container {
+    padding: 24px;
+  }
+
+  .audio-cover {
+    width: 150px;
+    height: 150px;
+    margin-bottom: 16px;
+  }
+
+  // 资源导航栏移动端优化
+  .resource-nav {
+    padding: 8px 12px;
+
+    .nav-info {
+      font-size: 13px;
+    }
+  }
+}
+
+// 小屏幕手机适配
+@media (max-width: $breakpoint-sm) {
+  .learn-toolbar {
+    padding: 8px;
+    height: auto;
+    flex-wrap: wrap;
+
+    .toolbar-left {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .toolbar-right {
+      width: 100%;
+      justify-content: flex-end;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+  }
+
+  .video-container {
+    min-height: 56.25vw;
+  }
+
+  .resource-nav {
+    flex-wrap: wrap;
+    gap: 8px;
+
+    .nav-actions {
+      width: 100%;
+      justify-content: space-between;
     }
   }
 }

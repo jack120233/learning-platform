@@ -172,14 +172,27 @@ const cachedPages = ['ProfileRecords', 'ProfileMessages']
 
 // 响应式：平板端以下转为抽屉模式
 @media (max-width: 768px) {
+  .profile-layout {
+    padding: 16px 0;
+  }
+
   .layout-container {
     flex-direction: column;
     padding: 0 16px;
+    gap: 16px;
   }
 
   .side-menu {
     width: 100% !important;
     position: static;
+  }
+
+  .menu-header {
+    padding: 16px;
+  }
+
+  .menu-title {
+    font-size: 16px;
   }
 
   .profile-menu {
@@ -192,11 +205,39 @@ const cachedPages = ['ProfileRecords', 'ProfileMessages']
     :deep(.el-menu-item) {
       flex: 0 0 auto;
       margin: 0;
+      padding: 0 16px;
+      height: 40px;
+      line-height: 40px;
+      font-size: 13px;
     }
   }
 
   .feedback-entry {
     display: none;
+  }
+
+  .main-content {
+    min-height: auto;
+    padding: 16px;
+  }
+}
+
+// 小屏幕手机适配
+@media (max-width: 480px) {
+  .profile-menu {
+    justify-content: flex-start;
+
+    :deep(.el-menu-item) {
+      flex: 1 1 calc(50% - 4px);
+      min-width: calc(50% - 4px);
+      max-width: calc(50% - 4px);
+      justify-content: center;
+      padding: 0 8px;
+
+      span {
+        font-size: 12px;
+      }
+    }
   }
 }
 </style>

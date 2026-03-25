@@ -974,4 +974,121 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
     }
   }
 }
+
+// 移动端适配
+@media (max-width: $breakpoint-sm) {
+  .breadcrumb-section {
+    padding: 0 16px;
+  }
+
+  .hero-section {
+    padding: 0 16px;
+    margin-bottom: 24px;
+  }
+
+  .course-title {
+    font-size: 22px;
+  }
+
+  .teacher-info {
+    flex-wrap: wrap;
+  }
+
+  .tabs-section {
+    padding: 0 16px;
+    border-radius: 0;
+    margin: 0 -16px;
+    width: calc(100% + 32px);
+
+    :deep(.el-tabs__header) {
+      margin: 0 16px;
+    }
+
+    :deep(.el-tabs__nav-wrap) {
+      &::after {
+        display: none;
+      }
+    }
+
+    :deep(.el-tabs__nav-scroll) {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
+    }
+
+    :deep(.el-tabs__nav) {
+      display: flex;
+      flex-wrap: nowrap;
+    }
+
+    :deep(.el-tabs__item) {
+      padding: 0 16px;
+      white-space: nowrap;
+    }
+
+    :deep(.el-tabs__content) {
+      padding: 16px;
+    }
+  }
+
+  .outline-header {
+    justify-content: space-between;
+
+    .el-button {
+      font-size: 13px;
+    }
+  }
+
+  .chapter-list {
+    .chapter-header {
+      padding: 12px;
+    }
+
+    .chapter-title {
+      font-size: 14px;
+    }
+
+    .section-list {
+      padding: 0 12px 12px;
+    }
+
+    .section-item {
+      padding: 10px;
+    }
+
+    .section-info .section-title {
+      font-size: 14px;
+    }
+
+    .resource-item {
+      padding: 6px 10px;
+
+      .resource-name {
+        font-size: 13px;
+      }
+    }
+  }
+
+  .material-list .material-item {
+    padding: 12px;
+    gap: 12px;
+
+    .file-icon {
+      font-size: 24px;
+    }
+  }
+
+  .feedback-form {
+    padding: 16px 0;
+  }
+
+  .action-area {
+    :deep(.el-button) {
+      width: 100%;
+    }
+  }
+}
 </style>
