@@ -75,6 +75,33 @@ class Settings(BaseSettings):
     cors_allow_methods: str | list[str] = ["*"]
     cors_allow_headers: str | list[str] = ["*"]
 
+    # 日志配置
+    log_level: str = "INFO"
+    log_dir: str = "logs"
+    log_to_console: bool = True
+    log_to_file: bool = True
+    log_file_prefix: str = "app"
+    log_backup_count: int = 30
+
+    @field_validator("debug", mode="before")
+    @classmethod
+    def parse_debug_flag(cls, v: bool | str) -> bool:
+        """兼容常见的环境标记写法。"""
+        if isinstance(v, bool):
+            return v
+
+        if isinstance(v, str):
+            normalized = v.strip().lower()
+            truthy = {"1", "true", "yes", "on", "debug", "development", "dev"}
+            falsy = {"0", "false", "no", "off", "release", "production", "prod"}
+
+            if normalized in truthy:
+                return True
+            if normalized in falsy:
+                return False
+
+        return bool(v)
+
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, v: str) -> str:

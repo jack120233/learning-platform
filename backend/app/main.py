@@ -3,6 +3,7 @@
 初始化 FastAPI 应用，配置中间件、路由和异常处理。
 """
 
+import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -13,7 +14,21 @@ from fastapi.responses import JSONResponse
 from app.api.v1.router import router as api_v1_router
 from app.config import settings
 from app.core.exceptions import AppException, app_exception_to_http_exception
+from app.core.logging import get_logger, setup_logging
+from app.middleware import RequestLoggingMiddleware
 from app.schemas.common import ApiResponse
+
+# 初始化日志
+setup_logging(
+    level=settings.log_level,
+    log_dir=settings.log_dir,
+    log_to_console=settings.log_to_console,
+    log_to_file=settings.log_to_file,
+    log_file_prefix=settings.log_file_prefix,
+    backup_count=settings.log_backup_count,
+)
+
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -23,14 +38,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     处理应用启动和关闭时的资源初始化与清理。
     """
     # 启动时执行
-    print(f"🚀 {settings.app_name} v{settings.app_version} 启动中...")
-    print(f"📝 环境: {settings.environment}")
-    print(f"🌐 API 文档: http://{settings.host}:{settings.port}/docs")
+    logger.info(f"🚀 {settings.app_name} v{settings.app_version} 启动中...")
+    logger.info(f"📝 环境: {settings.environment}")
+    logger.info(f"🌐 API 文档: http://{settings.host}:{settings.port}/docs")
+    logger.info(f"📁 日志目录: {settings.log_dir}")
 
     yield
 
     # 关闭时执行
-    print(f"👋 {settings.app_name} 正在关闭...")
+    logger.info(f"👋 {settings.app_name} 正在关闭...")
 
 
 # 创建 FastAPI 应用实例
@@ -52,6 +68,9 @@ app.add_middleware(
     allow_methods=["*"] if isinstance(settings.cors_allow_methods, str) else settings.cors_allow_methods,
     allow_headers=["*"] if isinstance(settings.cors_allow_headers, str) else settings.cors_allow_headers,
 )
+
+# 添加请求日志中间件
+app.add_middleware(RequestLoggingMiddleware)
 
 
 # 注册异常处理器
@@ -96,10 +115,11 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
     捕获未处理的异常，返回统一错误响应。
     """
-    # 开发环境打印详细错误信息
-    if settings.debug:
-        import traceback
-        traceback.print_exc()
+    # 记录错误日志
+    logger.error(
+        f"未处理的异常: {exc.__class__.__name__}: {exc}",
+        exc_info=True,
+    )
 
     return JSONResponse(
         status_code=500,

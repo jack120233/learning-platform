@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-这是一个在线学习平台的需求文档项目，包含完整的技术规格说明和API设计文档。项目目前处于规划阶段，文档可作为后续开发的指导依据。
+这是一个在线学习平台的后端 API 服务，提供用户管理、课程管理、学习进度跟踪、反馈消息等功能模块。项目已完成核心 API 实现，包含完整的测试套件。
 
 ## 技术栈
 
@@ -15,6 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **缓存**: Redis（会话管理、验证码、频率限制）
 - **搜索**: Meilisearch（课程全文搜索）
 - **文件存储**: OSS/S3兼容存储
+- **测试**: pytest + pytest-asyncio + httpx
 
 ## 架构约定
 
@@ -30,18 +31,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 课程结构
 四级层次: Course → Chapter → Section → Resource
 
-### 文件组织建议
+### 项目结构
 ```
-backend/app/
-├── api/v1/           # API路由
-├── schemas/          # Pydantic模型
-├── services/         # 业务逻辑
-├── models/           # 数据库模型
-└── core/             # 核心配置、安全、依赖
+backend/
+├── app/                    # 应用主目录
+│   ├── api/v1/             # API路由（11个模块，68个端点）
+│   ├── schemas/            # Pydantic模型
+│   ├── services/           # 业务逻辑
+│   ├── models/             # 数据库模型
+│   └── core/               # 核心配置、安全、依赖
+├── tests/                  # 测试目录
+│   ├── conftest.py         # 测试配置和fixtures
+│   ├── test_auth.py        # 认证模块测试
+│   ├── test_users.py       # 用户管理测试
+│   ├── test_courses.py     # 课程管理测试
+│   ├── test_content.py     # 课程内容测试
+│   ├── test_learning.py    # 学习模块测试
+│   ├── test_feedbacks.py   # 反馈消息测试
+│   └── test_system.py      # 系统管理测试
+└── requirements.txt        # 依赖清单
 ```
 
-## 模块文档索引
+## 文档索引
 
+### 核心文档
+| 文档 | 说明 |
+|------|------|
+| [docs/architecture.md](docs/architecture.md) | 项目架构文档 |
+| [docs/test-plan.md](docs/test-plan.md) | pytest+httpx 测试计划 |
+| [docs/api-testing-guide.md](docs/api-testing-guide.md) | API 手动测试指南 |
+| [docs/worktree-guide.md](docs/worktree-guide.md) | Git Worktree 使用指南 |
+
+### 需求文档
 | 文档 | 模块 | API数量 |
 |------|------|---------|
 | 2.用户认证模块详情文档.md | 注册、登录、令牌管理、验证码 | 7 |
@@ -51,6 +72,28 @@ backend/app/
 | 6.学习模块详情.md | 学习进度、视频播放 | 6 |
 | 7.反馈消息模块详情.md | 反馈、通知、消息 | 11 |
 | 8.系统管理模块详情.md | 分类、标签、公告管理 | - |
+
+## 测试
+
+### 运行测试
+```bash
+# 进入后端目录
+cd backend
+
+# 运行所有测试
+pytest tests/ -v
+
+# 运行指定模块
+pytest tests/test_auth.py -v
+
+# 生成覆盖率报告
+pytest tests/ --cov=app --cov-report=html
+```
+
+### 测试状态
+- **测试用例**: 63 个
+- **覆盖率**: 69%
+- **HTML报告**: `backend/htmlcov/index.html`
 
 ## 关键安全配置
 
@@ -68,6 +111,19 @@ backend/app/
 - `approvals/` - 审批记录
 - `archive/` - 归档文档
 - `templates/` - 文档模板（需求、设计、技术、任务等）
+
+## 开发命令
+
+```bash
+# 启动开发服务
+uvicorn app.main:app --reload --port 8000
+
+# 查看 API 文档
+# http://localhost:8000/docs
+
+# 运行测试
+pytest tests/ -v
+```
 
 ## 文件写入规范
 

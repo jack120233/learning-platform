@@ -3,13 +3,19 @@
 提供密码加密、JWT 令牌生成与验证等功能。
 """
 
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import bcrypt
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.config import settings
+
+# 兼容 bcrypt 4.x 移除了 __about__ 的情况，避免 passlib 反复打印告警。
+if not hasattr(bcrypt, "__about__") and hasattr(bcrypt, "__version__"):
+    bcrypt.__about__ = SimpleNamespace(__version__=bcrypt.__version__)
 
 # 密码加密上下文
 pwd_context = CryptContext(

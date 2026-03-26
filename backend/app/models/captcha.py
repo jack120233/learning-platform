@@ -5,7 +5,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import BaseModel
@@ -38,7 +38,7 @@ class CaptchaRecord(BaseModel):
         comment="验证码文本内容",
     )
     image_base64: Mapped[str] = mapped_column(
-        String(50000),
+        Text,
         nullable=False,
         comment="Base64 编码的图片数据",
     )

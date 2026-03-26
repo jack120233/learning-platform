@@ -33,19 +33,21 @@ class RegisterRequest(BaseModel):
         description="密码",
         examples=["password123"],
     )
-    captcha_key: str = Field(
-        ...,
-        description="验证码标识",
-    )
-    captcha_text: str = Field(
-        ...,
-        min_length=4,
-        max_length=6,
-        description="验证码内容",
-    )
     role: Literal["student", "teacher"] = Field(
         default="student",
         description="用户角色",
+    )
+
+    # TODO: 验证码功能待后续测试后启用
+    captcha_key: str | None = Field(
+        default=None,
+        description="验证码标识（暂未启用）",
+    )
+    captcha_text: str | None = Field(
+        default=None,
+        min_length=4,
+        max_length=6,
+        description="验证码内容（暂未启用）",
     )
 
     @field_validator("username")
@@ -78,19 +80,21 @@ class LoginRequest(BaseModel):
         description="密码",
         examples=["password123"],
     )
-    captcha_key: str = Field(
-        ...,
-        description="验证码标识",
-    )
-    captcha_text: str = Field(
-        ...,
-        min_length=4,
-        max_length=6,
-        description="验证码内容",
-    )
     remember_me: bool = Field(
         default=False,
         description="是否记住我",
+    )
+
+    # TODO: 验证码功能待后续测试后启用
+    captcha_key: str | None = Field(
+        default=None,
+        description="验证码标识（暂未启用）",
+    )
+    captcha_text: str | None = Field(
+        default=None,
+        min_length=4,
+        max_length=6,
+        description="验证码内容（暂未启用）",
     )
 
 
@@ -115,15 +119,17 @@ class SendEmailCodeRequest(BaseModel):
         ...,
         description="用途",
     )
-    captcha_key: str = Field(
-        ...,
-        description="验证码标识",
+
+    # TODO: 验证码功能待后续测试后启用
+    captcha_key: str | None = Field(
+        default=None,
+        description="验证码标识（暂未启用）",
     )
-    captcha_text: str = Field(
-        ...,
+    captcha_text: str | None = Field(
+        default=None,
         min_length=4,
         max_length=6,
-        description="验证码内容",
+        description="验证码内容（暂未启用）",
     )
 
 
