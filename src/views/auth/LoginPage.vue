@@ -64,23 +64,27 @@ const handleLogin = async () => {
 
   try {
     const response = await login({
-      login_id: formData.value.loginId,
+      username: formData.value.loginId,
       password: formData.value.password,
       remember_me: formData.value.rememberMe,
     })
 
-    // 存储登录信息
+    // 存储登录信息（后端返回 user 对象嵌套结构）
     userStore.setLoginInfo({
-      user_id: response.user_id,
-      username: response.username,
-      email: response.email,
-      nickname: response.nickname,
-      avatar_url: response.avatar_url,
-      role: response.role,
-      status: response.status,
+      user_id: response.user.id,
+      username: response.user.username,
+      email: response.user.email,
+      nickname: response.user.nickname,
+      avatar_url: response.user.avatar || '',
+      role: response.user.role,
+      status: response.user.status,
       access_token: response.access_token,
       refresh_token: response.refresh_token,
     })
+
+    if (!userStore.isLoggedIn || userStore.userInfo.role !== response.user.role) {
+      throw new Error('登录状态初始化失败，请重试')
+    }
 
     // 处理"记住我"
     if (formData.value.rememberMe) {
@@ -94,7 +98,7 @@ const handleLogin = async () => {
     // 角色跳转
     if (redirectUrl.value) {
       router.replace(redirectUrl.value)
-    } else if (response.role === 'admin') {
+    } else if (response.user.role === 'admin') {
       router.replace('/admin/users')
     } else {
       router.replace('/')

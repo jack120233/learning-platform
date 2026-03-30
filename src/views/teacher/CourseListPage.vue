@@ -331,7 +331,6 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-@import '@/assets/styles/variables.scss';
 
 .course-list-page {
   .page-header {

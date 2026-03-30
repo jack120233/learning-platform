@@ -116,7 +116,6 @@ const handleMenuClick = (path?: string) => {
 </template>
 
 <style lang="scss" scoped>
-@import '@/assets/styles/variables.scss';
 
 .teacher-layout {
   min-height: calc(100vh - 64px);

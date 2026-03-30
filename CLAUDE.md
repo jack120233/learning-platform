@@ -79,7 +79,7 @@ src/
 - `requiresTeacher: true` - 需要讲师权限
 - `requiresAdmin: true` - 需要管理员权限
 
-路由守卫在 `src/router/index.ts` 中实现，检查 localStorage 中的 `access_token` 和 `user_info.role`。
+路由守卫在 `src/router/index.ts` 中实现，统一检查 `useUserStore()` 提供的 `isLoggedIn`、`isTeacher`、`isAdmin` 计算属性。
 
 ### 状态管理
 
@@ -98,6 +98,44 @@ Vite 配置了 `unplugin-auto-import` 和 `unplugin-vue-components`：
 
 ## 开发约定
 
+### 认证状态管理规范（最高优先级）
+
+> ⚠️ **强制要求**：本项目必须遵循单一数据源原则，所有认证状态统一由 Pinia Store 管理。
+
+**核心原则**：
+- **禁止**业务代码直接读取 `localStorage`（唯一例外：API 请求拦截器注入 Token）
+- **必须**统一通过 `useUserStore()` 获取认证状态
+- **必须**使用 Store 提供的计算属性判断权限
+
+**Store 提供的计算属性**：
+- `isLoggedIn` - 是否已登录（accessToken + userId 双重校验）
+- `isTeacher` - 是否讲师角色
+- `isAdmin` - 是否管理员角色
+- `userInfo` - 用户完整信息对象
+
+**正确示例**：
+```ts
+// ✅ 路由守卫 - 使用 Store
+router.beforeEach((to, _from, next) => {
+  const userStore = useUserStore()
+  if (userStore.isLoggedIn) { ... }
+  if (to.meta.requiresAuth && !userStore.isLoggedIn) { ... }
+})
+
+// ✅ 组件 - 使用 Store
+const userStore = useUserStore()
+if (userStore.isTeacher) { ... }
+```
+
+**禁止示例**：
+```ts
+// ❌ 禁止直接读 localStorage
+const token = localStorage.getItem('access_token')
+const userInfo = JSON.parse(localStorage.getItem('user_info'))
+```
+
+详细规范见 `docs/login-auth-issue-review.md` 第九章节。
+
 ### 样式规范
 
 - 全局 SCSS 变量定义在 `_variables.scss`
@@ -111,6 +149,12 @@ Vite 配置了 `unplugin-auto-import` 和 `unplugin-vue-components`：
 - 视图文件：PascalCase + Page 后缀 (如 `HomePage.vue`)
 - API 函数：`fetch` / `get` / `post` 前缀 (如 `fetchHomepageCourses`)
 - Store：`use` 前缀 + Store 后缀 (如 `useUserStore`)
+
+### 响应式与移动端适配
+
+- 要求采用响应式设计，必须同时保证 PC 和移动端网页的适配。
+- 默认编写并保留 PC 端样式，对于移动端等小屏幕设备，必须使用 CSS 媒体查询（如 `@media (max-width: 768px)`）进行样式调整，例如缩减各处的页面外边距与内边距、修改布局排列方式或隐藏次要操作元素。
+- 在后续开发新页面和组件时，都要遵循上述多端适配习惯，不能出现小屏幕横向溢出问题。
 
 ### 类型定义
 

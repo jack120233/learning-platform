@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { useUserStore } from '@/store/user'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -185,15 +186,13 @@ const router = createRouter({
 
 // 路由守卫
 router.beforeEach((to, _from, next) => {
+  const userStore = useUserStore()
+
   // 设置页面标题
   document.title = `${to.meta.title || '在线学习平台'} - 职业培训课堂`
 
-  // 检查登录状态
-  const token = localStorage.getItem('access_token')
-  const isLoggedIn = !!token
-
   // 已登录用户访问登录/注册/找回密码页 → 重定向到首页
-  if (isLoggedIn && ['Login', 'Register', 'ForgotPassword'].includes(to.name as string)) {
+  if (userStore.isLoggedIn && ['Login', 'Register', 'ForgotPassword'].includes(to.name as string)) {
     next({ name: 'Home' })
     return
   }
@@ -205,22 +204,18 @@ router.beforeEach((to, _from, next) => {
   }
 
   // 需要登录但未登录 → 跳转登录页
-  if (to.meta.requiresAuth && !isLoggedIn) {
+  if (to.meta.requiresAuth && !userStore.isLoggedIn) {
     next({ name: 'Login', query: { redirect: to.fullPath } })
     return
   }
 
   // 检查角色权限
-  const userInfoStr = localStorage.getItem('user_info')
-  const userInfo = userInfoStr ? JSON.parse(userInfoStr) : null
-  const role = userInfo?.role
-
-  if (to.meta.requiresTeacher && role !== 'teacher' && role !== 'admin') {
+  if (to.meta.requiresTeacher && !userStore.isTeacher && !userStore.isAdmin) {
     next({ name: 'Home' })
     return
   }
 
-  if (to.meta.requiresAdmin && role !== 'admin') {
+  if (to.meta.requiresAdmin && !userStore.isAdmin) {
     next({ name: 'Home' })
     return
   }

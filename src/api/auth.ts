@@ -31,24 +31,30 @@ export interface RegisterResponse {
 
 /** 登录请求参数 */
 export interface LoginRequest {
-  login_id: string
+  username: string
   password: string
   remember_me: boolean
 }
 
-/** 登录响应 */
-export interface LoginResponse {
-  user_id: number
+/** 登录响应中的用户信息 */
+export interface LoginUser {
+  id: number
   username: string
   email: string
   nickname: string
-  avatar_url: string
+  avatar: string | null
   role: 'student' | 'teacher' | 'admin'
   status: 'active' | 'pending' | 'disabled'
+  created_at: string
+}
+
+/** 登录响应 */
+export interface LoginResponse {
   access_token: string
   refresh_token: string
   token_type: string
   expires_in: number
+  user: LoginUser
 }
 
 /** 图形验证码响应 */
@@ -70,7 +76,7 @@ export interface SendEmailCodeResponse {
 
 /** 密码重置请求参数 */
 export interface ResetPasswordRequest {
-  login_id: string
+  username: string
   email_code: string
   new_password: string
   confirm_password: string

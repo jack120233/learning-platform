@@ -614,7 +614,6 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
 </template>
 
 <style lang="scss" scoped>
-@import '@/assets/styles/variables.scss';
 
 .course-detail-page {
   padding: 24px 0 40px;

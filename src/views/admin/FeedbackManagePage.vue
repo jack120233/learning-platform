@@ -352,7 +352,6 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-@import '@/assets/styles/variables.scss';
 
 .feedback-manage-page {
   .page-header {

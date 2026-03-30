@@ -529,7 +529,6 @@ onMounted(async () => {
 </template>
 
 <style lang="scss" scoped>
-@import '@/assets/styles/variables.scss';
 
 .course-form-page {
   .page-header {

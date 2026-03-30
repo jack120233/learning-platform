@@ -394,7 +394,6 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-@import '@/assets/styles/variables.scss';
 
 .user-manage-page {
   .page-header {

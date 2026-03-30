@@ -1,3 +1,19 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(ls -la E:/video_project/UI/前端页面详细设计说明书*.md)",
+      "Bash(powershell -Command \"Get-Process -Id 5116,7388,16876 -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, Parent, Path, StartTime | Format-List\")",
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter 'ProcessId=5116 or ProcessId=7388 or ProcessId=16876' | Select-Object ProcessId, Name, ParentProcessId, CommandLine | Format-List\")",
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter 'ProcessId=5052 or ProcessId=7352 or ProcessId=16860' | Select-Object ProcessId, Name, ParentProcessId, CommandLine | Format-List\")",
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter 'ProcessId=4740 or ProcessId=6076 or ProcessId=5820' -ErrorAction SilentlyContinue | Select-Object ProcessId, Name, ParentProcessId, CommandLine | Format-List\")",
+      "Bash(C:/Users/Administrator/.claude/bin/codeagent-wrapper.exe --backend:*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(timeout 30 npm run dev)",
+      "Bash(npx eslint:*)",
+      "Bash(npm run:*)",
+      "mcp__augment-context-engine__codebase-retrieval"
+    ],
+    "bypassPermissions": true
+  },
   "enabledPlugins": {}
 }

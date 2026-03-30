@@ -126,7 +126,6 @@ const handleMenuClick = (path?: string) => {
 </template>
 
 <style lang="scss" scoped>
-@import '@/assets/styles/variables.scss';
 
 .admin-layout {
   min-height: calc(100vh - 64px);

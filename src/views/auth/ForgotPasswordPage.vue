@@ -189,7 +189,7 @@ const handleResetPassword = async () => {
 
   try {
     await resetPassword({
-      login_id: formData.value.loginId,
+      username: formData.value.loginId,
       email_code: formData.value.emailCode,
       new_password: formData.value.newPassword,
       confirm_password: formData.value.confirmPassword,
