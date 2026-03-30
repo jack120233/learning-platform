@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     cors_allow_headers: str | list[str] = ["*"]
 
     # 日志配置
-    log_level: str = "INFO"
+    log_level: str = "DEBUG"
     log_dir: str = "logs"
     log_to_console: bool = True
     log_to_file: bool = True
