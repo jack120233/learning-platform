@@ -26,33 +26,40 @@ const loadCourses = async () => {
   try {
     const { keyword, category_id, sort_by, page, page_size } = route.query
 
-    let result
-
     if (keyword) {
       // 搜索模式
-      result = await searchCourses({
+      const res = await searchCourses({
         q: keyword as string,
         page: Number(page) || 1,
         page_size: Number(page_size) || 20,
       })
+      courseList.value = res.items || []
+      total.value = res.total || 0
     } else if (category_id || sort_by) {
       // 筛选模式
-      result = await fetchCourseList({
+      const res = await fetchCourseList({
         category_id: category_id ? Number(category_id) : undefined,
         sort_by: sort_by as 'latest' | 'popular',
         page: Number(page) || 1,
         page_size: Number(page_size) || 20,
       })
+      courseList.value = res.items || []
+      total.value = res.total || 0
     } else {
       // 首页模式
-      result = await fetchHomepageCourses({
+      const res = await fetchHomepageCourses({
         page: Number(page) || 1,
         page_size: Number(page_size) || 20,
       })
+      // 兼容直接返回数组或分页对象
+      if (Array.isArray(res)) {
+        courseList.value = res
+        total.value = res.length
+      } else {
+        courseList.value = (res as any).items || []
+        total.value = (res as any).total || 0
+      }
     }
-
-    courseList.value = result.items
-    total.value = result.total
   } catch (err) {
     console.error('加载课程失败:', err)
     error.value = true
