@@ -185,12 +185,12 @@ onMounted(() => {
 
     <!-- 筛选栏 -->
     <div class="filter-bar">
-      <el-radio-group v-model="statusFilter" @change="() => fetchData()">
-        <el-radio-button value="all">全部</el-radio-button>
-        <el-radio-button value="draft">草稿</el-radio-button>
-        <el-radio-button value="published">已发布</el-radio-button>
-        <el-radio-button value="archived">已下架</el-radio-button>
-      </el-radio-group>
+      <el-tabs v-model="statusFilter" @tab-change="() => fetchData()" class="status-tabs">
+        <el-tab-pane label="全部" name="all" />
+        <el-tab-pane label="草稿" name="draft" />
+        <el-tab-pane label="已发布" name="published" />
+        <el-tab-pane label="已下架" name="archived" />
+      </el-tabs>
 
       <div class="search-area">
         <el-input
@@ -357,6 +357,16 @@ onMounted(() => {
   margin-bottom: 20px;
   flex-wrap: wrap;
   gap: 16px;
+
+  .status-tabs {
+    :deep(.el-tabs__header) {
+      margin-bottom: 0;
+    }
+    :deep(.el-tabs__nav-wrap::after) {
+      height: 1px;
+      background-color: $border-color-light;
+    }
+  }
 
   .search-area {
     display: flex;
