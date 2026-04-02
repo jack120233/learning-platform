@@ -18,10 +18,7 @@ const showMobileNav = ref(false)
 const navItems = [
   { label: '首页', path: '/' },
   { label: '职业培训课堂', path: '/courses' },
-  { label: '考培活动报名', path: '/activities' },
-  { label: '职业技能竞赛', path: '/competitions' },
-  { label: '师资培训', path: '/teacher-training' },
-  { label: '考试考核中心', path: '/exams' },
+
 ]
 
 // 搜索关键词
@@ -44,7 +41,7 @@ const userDropdownItems = computed(() => {
     { label: '消息中心', path: '/profile/messages', icon: 'Bell' },
   ]
 
-  if (userStore.isTeacher) {
+  if (userStore.isTeacher || userStore.isAdmin) {
     items.push({ label: '课程管理', path: '/teacher/courses', icon: 'Notebook' })
   }
 
@@ -248,7 +245,7 @@ const handleMobileNavClick = (path: string) => {
                 <span>消息中心</span>
                 <el-badge v-if="userStore.unreadMessageCount > 0" :value="userStore.unreadMessageCount" :max="99" />
               </div>
-              <div v-if="userStore.isTeacher" class="menu-item" @click="handleMobileNavClick('/teacher/courses')">
+              <div v-if="userStore.isTeacher || userStore.isAdmin" class="menu-item" @click="handleMobileNavClick('/teacher/courses')">
                 <el-icon><Notebook /></el-icon>
                 <span>课程管理</span>
               </div>
