@@ -116,6 +116,9 @@ class BaseModel(Base, IDMixin, TimestampMixin):
     """
 
     __abstract__ = True
+    # 在 flush 阶段主动取回 server_default/onupdate 生成的值，
+    # 避免异步 ORM 对 created_at 等字段进行后续懒加载。
+    __mapper_args__ = {"eager_defaults": True}
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}(id={self.id})>"
