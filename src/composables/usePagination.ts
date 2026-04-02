@@ -67,8 +67,10 @@ export function usePagination<T, P extends object = Record<string, unknown>>(
         page_size: pageSize.value,
       } as P & { page: number; page_size: number })
 
-      items.value = result.items
-      total.value = result.total
+      const rawResult = result as any
+      const list = rawResult?.items || rawResult?.list || (Array.isArray(rawResult) ? rawResult : [])
+      items.value = list || []
+      total.value = rawResult?.total || list?.length || 0
     } catch (error) {
       console.error('分页数据加载失败:', error)
       items.value = []

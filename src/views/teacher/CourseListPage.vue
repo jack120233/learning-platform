@@ -58,7 +58,8 @@ function formatTime(time: string | null) {
 }
 
 // 格式化浏览量
-function formatViewCount(count: number) {
+function formatViewCount(count: number | undefined | null) {
+  if (count == null) return '0'
   if (count >= 10000) {
     return `${(count / 10000).toFixed(1)}万`
   }
