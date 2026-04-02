@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
+    "@types/cropperjs": "^1.1.5",
     "axios": "^1.13.6",
+    "cropperjs": "^1.6.2",
     "element-plus": "^2.13.6",
     "lodash-es": "^4.17.23",
     "pinia": "^3.0.4",

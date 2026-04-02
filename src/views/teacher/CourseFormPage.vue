@@ -3,6 +3,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus, Upload, Delete, Back } from '@element-plus/icons-vue'
+import Cropper from 'cropperjs'
+import 'cropperjs/dist/cropper.css'
 import {
   fetchCourseDetail,
   createCourse,
@@ -34,6 +36,13 @@ const pageTitle = computed(() => isEdit.value ? '编辑课程' : '创建课程')
 const isLoading = ref(false)
 const isSaving = ref(false)
 const isUploading = ref(false)
+
+// 裁切状态
+const cropVisible = ref(false)
+const currentCropImage = ref('')
+const currentCropFileName = ref('')
+const imageRef = ref<HTMLImageElement>()
+let cropper: Cropper | null = null
 
 // 表单数据
 const form = ref({
@@ -131,33 +140,74 @@ async function loadCourseDetail() {
   }
 }
 
-// 封面上传
-async function handleCoverUpload(options: { file: File }) {
-  const file = options.file
+// 封面图片加载
+function handleCoverChange(uploadFile: any) {
+  const file = uploadFile.raw
+  if (!file) return
 
-  // 校验文件类型
   const validTypes = ['image/jpeg', 'image/png']
   if (!validTypes.includes(file.type)) {
     ElMessage.warning('仅支持 JPG/PNG 格式')
     return
   }
 
-  // 校验文件大小
   if (file.size > 10 * 1024 * 1024) {
     ElMessage.warning('图片最大 10MB')
     return
   }
 
-  isUploading.value = true
-  try {
-    const result = await uploadFile(file)
-    form.value.cover_url = result.file_url
-    ElMessage.success('封面上传成功')
-  } catch (error) {
-    ElMessage.error('封面上传失败')
-  } finally {
-    isUploading.value = false
+  currentCropFileName.value = file.name || 'cover.jpg'
+  currentCropImage.value = URL.createObjectURL(file)
+  cropVisible.value = true
+}
+
+function initCropper() {
+  if (imageRef.value) {
+    cropper = new Cropper(imageRef.value, {
+      aspectRatio: 16 / 9,
+      viewMode: 1,
+      dragMode: 'move',
+      background: false,
+    })
   }
+}
+
+function destroyCropper() {
+  if (cropper) {
+    cropper.destroy()
+    cropper = null
+  }
+  if (currentCropImage.value) {
+    URL.revokeObjectURL(currentCropImage.value)
+    currentCropImage.value = ''
+  }
+}
+
+function confirmCrop() {
+  if (!cropper) return
+  isUploading.value = true
+  cropper.getCroppedCanvas({
+    width: 1280,
+    height: 720,
+    fillColor: '#fff',
+  }).toBlob(async (blob: Blob | null) => {
+    if (!blob) {
+      ElMessage.error('裁切失败')
+      isUploading.value = false
+      return
+    }
+    const file = new File([blob], currentCropFileName.value, { type: 'image/jpeg' })
+    try {
+      const result = await uploadFile(file)
+      form.value.cover_url = result.file_url
+      ElMessage.success('封面上传成功')
+      cropVisible.value = false
+    } catch (error) {
+      ElMessage.error('封面上传失败')
+    } finally {
+      isUploading.value = false
+    }
+  }, 'image/jpeg', 0.9)
 }
 
 // 添加标签
@@ -388,8 +438,8 @@ onMounted(async () => {
           <el-upload
             class="cover-upload"
             :show-file-list="false"
-            :before-upload="() => false"
-            :http-request="handleCoverUpload"
+            :auto-upload="false"
+            :on-change="handleCoverChange"
             accept=".jpg,.jpeg,.png"
           >
             <template v-if="form.cover_url">
@@ -525,6 +575,26 @@ onMounted(async () => {
         </el-button>
       </el-form-item>
     </el-form>
+
+    <el-dialog
+      v-model="cropVisible"
+      title="裁切封面"
+      width="800px"
+      append-to-body
+      destroy-on-close
+      @opened="initCropper"
+      @closed="destroyCropper"
+    >
+      <div class="cropper-container">
+        <img ref="imageRef" :src="currentCropImage" alt="crop" style="max-width: 100%; display: block;" />
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="cropVisible = false">取消</el-button>
+          <el-button type="primary" :loading="isUploading" @click="confirmCrop">确认裁切并上传</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -561,6 +631,11 @@ onMounted(async () => {
     overflow: hidden;
     cursor: pointer;
     transition: border-color 0.2s;
+
+    :deep(.el-upload) {
+      width: 100%;
+      height: 100%;
+    }
 
     &:hover {
       border-color: $primary-color;
@@ -663,6 +738,16 @@ onMounted(async () => {
       color: $text-tertiary;
     }
   }
+}
+
+.cropper-container {
+  width: 100%;
+  height: 400px;
+  background-color: #f0f2f5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
 }
 
 .form-actions {
