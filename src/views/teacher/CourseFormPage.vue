@@ -128,7 +128,10 @@ async function loadCourseDetail() {
     form.value.summary = detail.summary
     form.value.description = detail.description || ''
     form.value.category_id = detail.category_id
-    form.value.tags = detail.tags || []
+    
+    // 兼容后端返回对象数组的情况，提取出纯字符串标签名
+    const loadedTags = detail.tags || []
+    form.value.tags = loadedTags.map((t: any) => typeof t === 'string' ? t : (t.name || t))
 
     chapters.value = detail.chapters || []
     materials.value = detail.materials || []
@@ -243,6 +246,22 @@ async function handleAddTag() {
 // 移除标签
 function handleRemoveTag(index: number) {
   form.value.tags.splice(index, 1)
+}
+
+// 切换已存在标签的状态
+function toggleAvailableTag(tag: string) {
+  const index = form.value.tags.indexOf(tag)
+  if (index > -1) {
+    // 如果已选中，则移除
+    form.value.tags.splice(index, 1)
+  } else {
+    // 如果未选中，则添加，同时检查数量限制
+    if (form.value.tags.length >= 5) {
+      ElMessage.warning('最多添加 5 个标签')
+      return
+    }
+    form.value.tags.push(tag)
+  }
 }
 
 // 上传配套资料
@@ -477,7 +496,7 @@ onMounted(async () => {
           <div class="tag-list">
             <el-tag
               v-for="(tag, index) in form.tags"
-              :key="tag"
+              :key="index"
               closable
               @close="handleRemoveTag(index)"
             >
@@ -487,14 +506,32 @@ onMounted(async () => {
           <div class="tag-add" v-if="form.tags.length < 5">
             <el-input
               v-model="newTagInput"
-              placeholder="输入标签"
+              placeholder="自定义标签回车添加"
               size="small"
-              style="width: 120px"
+              style="width: 140px"
               @keyup.enter="handleAddTag"
             />
-            <el-button size="small" @click="handleAddTag">添加</el-button>
+            <el-button size="small" type="primary" plain @click="handleAddTag">添加</el-button>
           </div>
-          <span class="tag-tip">最多 5 个标签</span>
+          <span class="tag-tip" v-if="form.tags.length >= 5">已达到 5 个标签上限</span>
+          
+          <!-- 推荐标签/已有标签库 -->
+          <div class="available-tags-box" v-if="tags.length > 0">
+            <div class="available-title">可选标签池 (点击添加/移除)</div>
+            <div class="available-tags-list">
+              <el-tag
+                v-for="tag in tags"
+                :key="tag"
+                :type="form.tags.includes(tag) ? 'primary' : 'info'"
+                :effect="form.tags.includes(tag) ? 'dark' : 'plain'"
+                class="available-tag-item"
+                :class="{ 'is-selected': form.tags.includes(tag) }"
+                @click="toggleAvailableTag(tag)"
+              >
+                {{ tag }}
+              </el-tag>
+            </div>
+          </div>
         </div>
       </el-form-item>
 
@@ -635,6 +672,8 @@ onMounted(async () => {
     :deep(.el-upload) {
       width: 100%;
       height: 100%;
+      position: relative;
+      display: block;
     }
 
     &:hover {
@@ -696,8 +735,58 @@ onMounted(async () => {
   .tag-tip {
     display: block;
     font-size: $font-size-xs;
-    color: $text-tertiary;
+    color: $text-secondary;
     margin-top: 8px;
+  }
+
+  .available-tags-box {
+    margin-top: 16px;
+    padding: 12px 16px;
+    background-color: $bg-color;
+    border-radius: $radius-md;
+    border: 1px solid $border-color-light;
+
+    .available-title {
+      font-size: $font-size-sm;
+      color: $text-tertiary;
+      margin-bottom: 12px;
+    }
+
+    .available-tags-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      max-height: 110px;
+      overflow-y: auto;
+      padding-right: 4px;
+
+      /* 自定义滚动条，使其轻量美观 */
+      &::-webkit-scrollbar {
+        width: 4px;
+      }
+      &::-webkit-scrollbar-thumb {
+        background-color: #dcdfe6;
+        border-radius: 4px;
+      }
+      &::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      .available-tag-item {
+        cursor: pointer;
+        transition: all 0.2s ease;
+        user-select: none;
+
+        &:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        &.is-selected {
+          font-weight: 500;
+        }
+      }
+    }
   }
 }
 

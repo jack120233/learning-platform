@@ -152,12 +152,20 @@ export interface UploadFileResponse {
 
 /** 获取标签列表 */
 export function fetchTags() {
-  return request.get<unknown, string[]>('/tags')
+  return request.get<unknown, any>('/tags', { params: { page_size: 100 } }).then(res => {
+    const list = res.items || res.list || (Array.isArray(res) ? res : [])
+    return list.map((item: any) => typeof item === 'string' ? item : item.name)
+  })
 }
 
 /** 创建标签 */
-export function createTag(data: { name: string }) {
-  return request.post<unknown, { name: string }>('/tags', data)
+export function createTag(data: { name: string, slug?: string, color?: string }) {
+  const payload = {
+    name: data.name,
+    slug: data.slug || `t-${Math.random().toString(36).slice(2, 8)}`,
+    ...(data.color ? { color: data.color } : {})
+  }
+  return request.post<unknown, any>('/tags', payload)
 }
 
 // ==================== API 函数 ====================
