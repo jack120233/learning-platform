@@ -67,9 +67,10 @@ src/
 ### API 层设计
 
 - `src/api/index.ts` 导出 Axios 实例和通用类型 (`ApiResponse`, `PaginatedData`)
-- 请求拦截器自动注入 JWT Token
+- 请求拦截器自动注入 JWT Token（从 localStorage 读取，这是唯一允许直接读取 localStorage 的地方）
 - 响应拦截器处理 Token 过期刷新（401 自动刷新机制）
 - 各模块 API 独立文件，导出类型化的请求函数
+- 开发环境代理配置在 `vite.config.ts` 中，`/api` 代理到 `http://localhost:8000`
 
 ### 路由权限控制
 
@@ -93,7 +94,9 @@ Store 在初始化时自动从 localStorage 恢复持久化状态。
 
 Vite 配置了 `unplugin-auto-import` 和 `unplugin-vue-components`：
 - Vue API (`ref`, `computed`, `watch` 等) 无需手动导入
+- Vue Router 和 Pinia API 也配置了自动导入
 - Element Plus 组件按需自动注册
+- Element Plus 图标在 `main.ts` 中全局注册
 - 类型定义生成在 `src/auto-imports.d.ts` 和 `src/components.d.ts`
 
 ## 开发约定
@@ -138,7 +141,8 @@ const userInfo = JSON.parse(localStorage.getItem('user_info'))
 
 ### 样式规范
 
-- 全局 SCSS 变量定义在 `_variables.scss`
+- 全局 SCSS 变量定义在 `@/assets/styles/_variables.scss`
+- SCSS 变量通过 Vite 配置 `additionalData` 自动导入所有组件，无需手动 `@use`
 - 组件样式使用 `<style lang="scss" scoped>`
 - 页面容器类名：`.page-container`（max-width: 1440px）
 - 文字省略工具类：`.text-ellipsis`, `.text-ellipsis-2`
@@ -169,4 +173,8 @@ const userInfo = JSON.parse(localStorage.getItem('user_info'))
 - 响应格式：`{ code: number, message: string, data: T }`
 - 分页格式：`{ items: T[], total: number, page: number, page_size: number, total_pages: number }`
 
-详细接口文档见 `5.接口文档.md`。
+## 参考文档
+
+- `docs/login-auth-issue-review.md` - 登录认证问题复盘与开发规范（重要，必读）
+- `docs/前端接口文档.md` - 前端接口详细文档
+- `5.接口文档.md` - 后端接口文档
