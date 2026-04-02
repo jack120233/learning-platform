@@ -89,7 +89,7 @@ async function handlePublish(course: TeacherCourseItem) {
       }
     )
 
-    await publishCourse(course.course_id)
+    await publishCourse(course.course_id || course.id!)
     ElMessage.success('课程发布成功')
     fetchData()
   } catch (error) {
@@ -118,7 +118,7 @@ async function handleArchive(course: TeacherCourseItem) {
     )
 
     if (reason) {
-      await archiveCourse(course.course_id, { archive_reason: reason })
+      await archiveCourse(course.course_id || course.id!, { archive_reason: reason })
       ElMessage.success('课程已下架')
       fetchData()
     }
@@ -146,7 +146,7 @@ async function handleDelete(course: TeacherCourseItem) {
       }
     )
 
-    await deleteCourse(course.course_id)
+    await deleteCourse(course.course_id || course.id!)
     ElMessage.success('课程已删除')
     fetchData()
   } catch (error) {
@@ -273,7 +273,7 @@ onMounted(() => {
 
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button text size="small" :icon="Edit" @click="handleEdit(row.course_id)">
+            <el-button text size="small" :icon="Edit" @click="handleEdit(row.course_id || row.id)">
               编辑
             </el-button>
             <el-button

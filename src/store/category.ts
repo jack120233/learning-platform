@@ -14,7 +14,12 @@ export const useCategoryStore = defineStore('category', () => {
 
     loading.value = true
     try {
-      categories.value = await fetchCategories()
+      const res = await fetchCategories()
+      // 兼容后端返回字段为 id 的情况
+      categories.value = res.map((cat: any) => ({
+        ...cat,
+        category_id: cat.category_id !== undefined ? cat.category_id : cat.id,
+      }))
       isLoaded.value = true
       return categories.value
     } catch (error) {

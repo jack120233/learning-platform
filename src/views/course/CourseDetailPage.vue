@@ -614,6 +614,7 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
 </template>
 
 <style lang="scss" scoped>
+@use 'sass:color';
 
 .course-detail-page {
   padding: 24px 0 40px;
@@ -778,7 +779,7 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
     user-select: none;
 
     &:hover {
-      background: darken($bg-color, 3%);
+      background: color.adjust($bg-color, $lightness: -3%);
     }
 
     .expand-icon {

@@ -2,8 +2,8 @@ import request, { type PaginatedData } from './index'
 
 // ==================== 讲师课程管理 ====================
 
-/** 讲师课程列表项 */
 export interface TeacherCourseItem {
+  id?: number
   course_id: number
   title: string
   cover_url: string

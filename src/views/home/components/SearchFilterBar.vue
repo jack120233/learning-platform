@@ -16,7 +16,7 @@ const selectedCategory = computed({
   get: () => route.query.category_id ? Number(route.query.category_id) : 0,
   set: (val) => {
     router.push({
-      query: { ...route.query, category_id: val || undefined, page: 1 },
+      query: { ...route.query, category_id: val === 0 ? undefined : val, page: 1 },
     })
   },
 })
@@ -185,11 +185,11 @@ watch(
           size="default"
           aria-labelledby="category-label"
         >
-          <el-radio-button value="">全部</el-radio-button>
+          <el-radio-button :value="0">全部</el-radio-button>
           <el-radio-button
             v-for="cat in categoryStore.getTopCategories()"
             :key="cat.category_id"
-            :value="cat.category_id"
+            :value="Number(cat.category_id)"
           >
             {{ cat.name }}
           </el-radio-button>

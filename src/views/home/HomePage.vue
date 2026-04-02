@@ -2,7 +2,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCategoryStore } from '@/store/category'
-import { fetchHomepageCourses, fetchCourseList, searchCourses, type CourseBaseItem } from '@/api/course'
+import { fetchHomepageCourses, fetchCourseList, type CourseBaseItem } from '@/api/course'
 
 import BannerCarousel from './components/BannerCarousel.vue'
 import SearchFilterBar from './components/SearchFilterBar.vue'
@@ -26,20 +26,12 @@ const loadCourses = async () => {
   try {
     const { keyword, category_id, sort_by, page, page_size } = route.query
 
-    if (keyword) {
-      // 搜索模式
-      const res = await searchCourses({
-        q: keyword as string,
-        page: Number(page) || 1,
-        page_size: Number(page_size) || 20,
-      })
-      courseList.value = res.items || []
-      total.value = res.total || 0
-    } else if (category_id || sort_by) {
-      // 筛选模式
+    if (keyword || category_id || sort_by) {
+      // 搜索与筛选组合模式
       const res = await fetchCourseList({
+        keyword: keyword as string | undefined,
         category_id: category_id ? Number(category_id) : undefined,
-        sort_by: sort_by as 'latest' | 'popular',
+        sort_by: sort_by as 'latest' | 'popular' | undefined,
         page: Number(page) || 1,
         page_size: Number(page_size) || 20,
       })

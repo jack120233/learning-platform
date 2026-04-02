@@ -440,6 +440,7 @@ const currentResourceSection = computed(() => {
 </template>
 
 <style lang="scss" scoped>
+@use 'sass:color';
 
 .chapter-manager {
   .manager-header {
@@ -478,7 +479,7 @@ const currentResourceSection = computed(() => {
   cursor: pointer;
 
   &:hover {
-    background: darken($bg-color, 3%);
+    background: color.adjust($bg-color, $lightness: -3%);
   }
 
   .expand-icon {

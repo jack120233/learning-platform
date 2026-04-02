@@ -11,7 +11,10 @@
       "Bash(timeout 30 npm run dev)",
       "Bash(npx eslint:*)",
       "Bash(npm run:*)",
-      "mcp__augment-context-engine__codebase-retrieval"
+      "mcp__augment-context-engine__codebase-retrieval",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git show:*)"
     ],
     "bypassPermissions": true
   },
