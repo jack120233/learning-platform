@@ -14,7 +14,7 @@ from pathlib import Path
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 from app.core.dependencies import engine
 from app.models import Base
@@ -36,13 +36,25 @@ async def init_database() -> None:
             await conn.run_sync(Base.metadata.create_all)
             print("✅ 数据库表初始化完成")
 
+            def has_course_summary_column(sync_conn) -> bool:
+                columns = inspect(sync_conn).get_columns("courses")
+                return any(column["name"] == "summary" for column in columns)
+
+            if not await conn.run_sync(has_course_summary_column):
+                await conn.execute(
+                    text("ALTER TABLE courses ADD COLUMN summary VARCHAR(500)")
+                )
+                print("✅ 已为 courses 表补充 summary 字段")
+
         # 显示创建的表
         async with engine.connect() as conn:
-            result = await conn.execute(text("SHOW TABLES"))
-            tables = result.fetchall()
+            def get_table_names(sync_conn) -> list[str]:
+                return inspect(sync_conn).get_table_names()
+
+            tables = await conn.run_sync(get_table_names)
             print(f"\n已创建 {len(tables)} 张表:")
             for t in tables:
-                print(f"  - {t[0]}")
+                print(f"  - {t}")
 
     except Exception as e:
         print(f"❌ 初始化失败: {e}")

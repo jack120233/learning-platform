@@ -11,12 +11,14 @@ from app.schemas.common import ApiResponse
 from app.schemas.content import (
     ChapterCreate,
     ChapterResponse,
+    ChapterSortRequest,
     ChapterUpdate,
     CourseContentResponse,
     ResourceCreate,
     ResourceResponse,
     SectionCreate,
     SectionResponse,
+    SectionSortRequest,
     SectionUpdate,
 )
 from app.services.content_service import (
@@ -66,6 +68,23 @@ async def create_chapter(
         data=ChapterResponse.model_validate(chapter),
         message="创建成功",
     )
+
+
+@router.post(
+    "/courses/{course_id}/chapters/sort",
+    response_model=ApiResponse[None],
+    summary="章节排序",
+    description="根据传入顺序批量更新指定课程章节的 sort_order",
+)
+async def sort_chapters(
+    course_id: int,
+    data: ChapterSortRequest,
+    db: DBSession,
+    user_id: CurrentUserId,
+) -> ApiResponse[None]:
+    """章节排序接口"""
+    await chapter_service.sort(db, course_id, data.chapter_ids)
+    return ApiResponse.success(message="排序成功")
 
 
 @router.post(
@@ -145,6 +164,24 @@ async def create_section(
         data=SectionResponse.model_validate(section),
         message="创建成功",
     )
+
+
+@router.post(
+    "/courses/{course_id}/chapters/{chapter_id}/sections/sort",
+    response_model=ApiResponse[None],
+    summary="小节排序",
+    description="根据传入顺序批量更新指定章节小节的 sort_order",
+)
+async def sort_sections(
+    course_id: int,
+    chapter_id: int,
+    data: SectionSortRequest,
+    db: DBSession,
+    user_id: CurrentUserId,
+) -> ApiResponse[None]:
+    """小节排序接口"""
+    await section_service.sort(db, chapter_id, data.section_ids)
+    return ApiResponse.success(message="排序成功")
 
 
 @router.post(

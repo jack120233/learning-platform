@@ -19,6 +19,7 @@ class Course(BaseModel):
     Attributes:
         title: 课程标题
         subtitle: 课程副标题
+        summary: 课程简介
         description: 课程描述
         cover_url: 封面图片URL
         teacher_id: 讲师ID
@@ -48,6 +49,11 @@ class Course(BaseModel):
         String(300),
         nullable=True,
         comment="课程副标题",
+    )
+    summary: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="课程简介",
     )
     description: Mapped[str | None] = mapped_column(
         Text,

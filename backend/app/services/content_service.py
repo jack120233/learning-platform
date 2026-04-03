@@ -112,6 +112,44 @@ class ChapterService:
         await db.flush()
         return chapter
 
+    async def sort(
+        self,
+        db: AsyncSession,
+        course_id: int,
+        chapter_ids: list[int],
+    ) -> None:
+        """批量排序章节。
+
+        Args:
+            db: 数据库会话
+            course_id: 课程ID
+            chapter_ids: 按目标顺序排列的章节ID数组
+
+        Raises:
+            ValidationException: 参数不合法或未包含课程全部章节
+        """
+        if not chapter_ids:
+            raise ValidationException("chapter_ids 不能为空")
+
+        if len(set(chapter_ids)) != len(chapter_ids):
+            raise ValidationException("chapter_ids 不能包含重复ID")
+
+        chapters = await self.get_list(db, course_id)
+        if not chapters:
+            raise ValidationException("该课程下没有可排序的章节")
+
+        chapter_map = {chapter.id: chapter for chapter in chapters}
+        current_ids = set(chapter_map.keys())
+        provided_ids = set(chapter_ids)
+
+        if provided_ids != current_ids:
+            raise ValidationException("chapter_ids 必须包含该课程全部章节ID")
+
+        for index, chapter_id in enumerate(chapter_ids, start=1):
+            chapter_map[chapter_id].sort_order = index
+
+        await db.flush()
+
     async def delete(
         self,
         db: AsyncSession,
@@ -244,6 +282,44 @@ class SectionService:
 
         await db.flush()
         return section
+
+    async def sort(
+        self,
+        db: AsyncSession,
+        chapter_id: int,
+        section_ids: list[int],
+    ) -> None:
+        """批量排序小节。
+
+        Args:
+            db: 数据库会话
+            chapter_id: 章节ID
+            section_ids: 按目标顺序排列的小节ID数组
+
+        Raises:
+            ValidationException: 参数不合法或未包含章节全部小节
+        """
+        if not section_ids:
+            raise ValidationException("section_ids 不能为空")
+
+        if len(set(section_ids)) != len(section_ids):
+            raise ValidationException("section_ids 不能包含重复ID")
+
+        sections = await self.get_list(db, chapter_id)
+        if not sections:
+            raise ValidationException("该章节下没有可排序的小节")
+
+        section_map = {section.id: section for section in sections}
+        current_ids = set(section_map.keys())
+        provided_ids = set(section_ids)
+
+        if provided_ids != current_ids:
+            raise ValidationException("section_ids 必须包含该章节全部小节ID")
+
+        for index, section_id in enumerate(section_ids, start=1):
+            section_map[section_id].sort_order = index
+
+        await db.flush()
 
     async def delete(
         self,

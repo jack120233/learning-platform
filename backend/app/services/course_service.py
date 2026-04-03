@@ -101,6 +101,7 @@ class CourseService:
         course = Course(
             title=data.title,
             subtitle=data.subtitle,
+            summary=data.summary,
             description=data.description,
             cover_url=data.cover_url,
             teacher_id=teacher_id,

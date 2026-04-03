@@ -219,6 +219,30 @@ Tag (标签)
 Announcement (公告)
 ```
 
+#### 3.3.3 Course 核心字段
+
+| 字段名 | 类型 | 可空 | 说明 |
+|-------|------|------|------|
+| id | INTEGER | 否 | 课程主键ID |
+| title | VARCHAR(200) | 否 | 课程标题 |
+| subtitle | VARCHAR(300) | 是 | 课程副标题 |
+| summary | VARCHAR(500) | 是 | 课程简介 |
+| description | TEXT | 是 | 课程详细描述 |
+| cover_url | VARCHAR(500) | 是 | 课程封面地址 |
+| teacher_id | INTEGER | 否 | 创建讲师ID |
+| category_id | INTEGER | 是 | 课程分类ID |
+| price | FLOAT | 否 | 课程价格 |
+| original_price | FLOAT | 是 | 原价 |
+| level | VARCHAR(20) | 否 | 难度等级 |
+| status | VARCHAR(20) | 否 | 课程状态 |
+| is_free | BOOLEAN | 否 | 是否免费 |
+| total_duration | INTEGER | 否 | 总时长（秒） |
+| total_sections | INTEGER | 否 | 小节数量 |
+| student_count | INTEGER | 否 | 学员数量 |
+| rating | FLOAT | 否 | 评分 |
+| rating_count | INTEGER | 否 | 评分人数 |
+| published_at | DATETIME | 是 | 发布时间 |
+
 ### 3.4 API 响应格式
 
 #### 3.4.1 统一响应结构

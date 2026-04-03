@@ -25,6 +25,11 @@ class CourseCreate(BaseModel):
         max_length=300,
         description="课程副标题",
     )
+    summary: str | None = Field(
+        default=None,
+        max_length=500,
+        description="简介",
+    )
     description: str | None = Field(
         default=None,
         max_length=5000,
@@ -77,6 +82,11 @@ class CourseUpdate(BaseModel):
         max_length=300,
         description="课程副标题",
     )
+    summary: str | None = Field(
+        default=None,
+        max_length=500,
+        description="简介",
+    )
     description: str | None = Field(
         default=None,
         max_length=5000,
@@ -121,6 +131,7 @@ class CourseResponse(BaseModel):
     id: int = Field(description="课程ID")
     title: str = Field(description="课程标题")
     subtitle: str | None = Field(default=None, description="课程副标题")
+    summary: str | None = Field(default=None, description="简介")
     description: str | None = Field(default=None, description="课程描述")
     cover_url: str | None = Field(default=None, description="封面图片URL")
     teacher_id: int = Field(description="讲师ID")
@@ -204,6 +215,18 @@ class MaterialResponse(BaseModel):
     created_at: datetime = Field(description="创建时间")
 
     model_config = {"from_attributes": True}
+
+
+# ==================== 文件上传模型 ====================
+
+class UploadFileResponse(BaseModel):
+    """文件上传响应"""
+
+    file_name: str = Field(description="原始文件名")
+    file_url: str = Field(description="文件访问地址")
+    url: str = Field(description="兼容前端的文件访问地址")
+    file_size: int = Field(description="文件大小（字节）")
+    content_type: str | None = Field(default=None, description="文件 MIME 类型")
 
 
 # ==================== 课程搜索模型 ====================

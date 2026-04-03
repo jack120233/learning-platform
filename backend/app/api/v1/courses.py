@@ -195,6 +195,7 @@ async def get_course(
         "id": course.id,
         "title": course.title,
         "subtitle": course.subtitle,
+        "summary": course.summary,
         "description": course.description,
         "cover_url": course.cover_url,
         "teacher_id": course.teacher_id,

@@ -9,7 +9,9 @@ from datetime import datetime, timedelta
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
+from app.core.security import create_access_token
 from app.models.user import User
 from app.models.course import Course
 from app.models.category import Category
@@ -18,6 +20,27 @@ from app.models.content import Chapter, Section
 
 def unique_key(prefix: str = "content") -> str:
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
+
+
+async def create_content_test_user(
+    db_session: AsyncSession,
+    role: str = "teacher",
+) -> tuple[User, dict[str, str]]:
+    """创建课程内容测试用户并返回认证头。"""
+    user = User(
+        username=unique_key(role),
+        email=f"{unique_key(role)}@example.com",
+        password_hash="test-password-hash",
+        nickname=f"{role}-tester",
+        role=role,
+        status="active",
+    )
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.refresh(user)
+
+    headers = {"Authorization": f"Bearer {create_access_token(user.id)}"}
+    return user, headers
 
 
 class TestChapterList:
@@ -193,6 +216,104 @@ class TestChapterCRUD:
 
         assert response.status_code == 200
 
+    @pytest.mark.asyncio
+    async def test_sort_chapters(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试章节排序"""
+        teacher, headers = await create_content_test_user(db_session, "teacher")
+
+        category = Category(
+            name="章节排序分类",
+            slug=f"sort-chap-{uuid.uuid4().hex[:8]}",
+            is_active=True,
+        )
+        db_session.add(category)
+        await db_session.flush()
+
+        course = Course(
+            title="章节排序课程",
+            teacher_id=teacher.id,
+            category_id=category.id,
+            status="draft",
+            price=0,
+            level="beginner",
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter1 = Chapter(course_id=course.id, title="章节1", sort_order=1)
+        chapter2 = Chapter(course_id=course.id, title="章节2", sort_order=2)
+        chapter3 = Chapter(course_id=course.id, title="章节3", sort_order=3)
+        db_session.add_all([chapter1, chapter2, chapter3])
+        await db_session.flush()
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/chapters/sort",
+            headers=headers,
+            json={"chapter_ids": [chapter3.id, chapter1.id, chapter2.id]},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["message"] == "排序成功"
+
+        result = await db_session.execute(
+            select(Chapter)
+            .where(Chapter.course_id == course.id)
+            .order_by(Chapter.sort_order, Chapter.id)
+        )
+        sorted_chapters = list(result.scalars().all())
+        assert [chapter.id for chapter in sorted_chapters] == [
+            chapter3.id,
+            chapter1.id,
+            chapter2.id,
+        ]
+        assert [chapter.sort_order for chapter in sorted_chapters] == [1, 2, 3]
+
+    @pytest.mark.asyncio
+    async def test_sort_chapters_requires_all_course_chapter_ids(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试章节排序时必须传入课程全部章节ID"""
+        teacher, headers = await create_content_test_user(db_session, "teacher")
+
+        category = Category(
+            name="章节排序校验分类",
+            slug=f"sort-chap-check-{uuid.uuid4().hex[:8]}",
+            is_active=True,
+        )
+        db_session.add(category)
+        await db_session.flush()
+
+        course = Course(
+            title="章节排序校验课程",
+            teacher_id=teacher.id,
+            category_id=category.id,
+            status="draft",
+            price=0,
+            level="beginner",
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter1 = Chapter(course_id=course.id, title="章节1", sort_order=1)
+        chapter2 = Chapter(course_id=course.id, title="章节2", sort_order=2)
+        db_session.add_all([chapter1, chapter2])
+        await db_session.flush()
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/chapters/sort",
+            headers=headers,
+            json={"chapter_ids": [chapter1.id]},
+        )
+
+        assert response.status_code == 422
+        assert response.json()["message"] == "chapter_ids 必须包含该课程全部章节ID"
+
 
 class TestSectionCRUD:
     """小节CRUD测试类"""
@@ -268,6 +389,137 @@ class TestSectionCRUD:
         )
 
         assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_sort_sections(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试小节排序"""
+        teacher, headers = await create_content_test_user(db_session, "teacher")
+
+        category = Category(
+            name="小节排序分类",
+            slug=f"sort-sec-{uuid.uuid4().hex[:8]}",
+            is_active=True,
+        )
+        db_session.add(category)
+        await db_session.flush()
+
+        course = Course(
+            title="小节排序课程",
+            teacher_id=teacher.id,
+            category_id=category.id,
+            status="draft",
+            price=0,
+            level="beginner",
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter = Chapter(course_id=course.id, title="章节", sort_order=1)
+        db_session.add(chapter)
+        await db_session.flush()
+
+        section1 = Section(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            title="小节1",
+            sort_order=1,
+        )
+        section2 = Section(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            title="小节2",
+            sort_order=2,
+        )
+        section3 = Section(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            title="小节3",
+            sort_order=3,
+        )
+        db_session.add_all([section1, section2, section3])
+        await db_session.flush()
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/chapters/{chapter.id}/sections/sort",
+            headers=headers,
+            json={"section_ids": [section3.id, section1.id, section2.id]},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["message"] == "排序成功"
+
+        result = await db_session.execute(
+            select(Section)
+            .where(Section.chapter_id == chapter.id)
+            .order_by(Section.sort_order, Section.id)
+        )
+        sorted_sections = list(result.scalars().all())
+        assert [section.id for section in sorted_sections] == [
+            section3.id,
+            section1.id,
+            section2.id,
+        ]
+        assert [section.sort_order for section in sorted_sections] == [1, 2, 3]
+
+    @pytest.mark.asyncio
+    async def test_sort_sections_requires_all_chapter_section_ids(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试小节排序时必须传入章节全部小节ID"""
+        teacher, headers = await create_content_test_user(db_session, "teacher")
+
+        category = Category(
+            name="小节排序校验分类",
+            slug=f"sort-sec-check-{uuid.uuid4().hex[:8]}",
+            is_active=True,
+        )
+        db_session.add(category)
+        await db_session.flush()
+
+        course = Course(
+            title="小节排序校验课程",
+            teacher_id=teacher.id,
+            category_id=category.id,
+            status="draft",
+            price=0,
+            level="beginner",
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter = Chapter(course_id=course.id, title="章节", sort_order=1)
+        db_session.add(chapter)
+        await db_session.flush()
+
+        section1 = Section(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            title="小节1",
+            sort_order=1,
+        )
+        section2 = Section(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            title="小节2",
+            sort_order=2,
+        )
+        db_session.add_all([section1, section2])
+        await db_session.flush()
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/chapters/{chapter.id}/sections/sort",
+            headers=headers,
+            json={"section_ids": [section1.id]},
+        )
+
+        assert response.status_code == 422
+        assert response.json()["message"] == "section_ids 必须包含该章节全部小节ID"
 
 
 class TestSectionList:

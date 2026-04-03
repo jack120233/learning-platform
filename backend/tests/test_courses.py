@@ -5,11 +5,15 @@
 
 import uuid
 from datetime import datetime, timedelta
+from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.core.security import create_access_token
 from app.models.user import User
 from app.models.course import Course
 from app.models.category import Category
@@ -18,6 +22,26 @@ from app.models.category import Category
 def unique_key(prefix: str = "course") -> str:
     """生成唯一键"""
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
+
+
+async def create_upload_test_user(
+    db_session: AsyncSession,
+    role: str,
+) -> dict[str, str]:
+    """创建上传接口测试用户并返回认证头。"""
+    user = User(
+        username=unique_key(role),
+        email=f"{unique_key(role)}@example.com",
+        password_hash="test-password-hash",
+        nickname=f"{role}-tester",
+        role=role,
+        status="active",
+    )
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.refresh(user)
+
+    return {"Authorization": f"Bearer {create_access_token(user.id)}"}
 
 
 class TestCourseList:
@@ -73,6 +97,7 @@ class TestCourseDetail:
         course = Course(
             title="测试课程详情",
             subtitle="测试副标题",
+            summary="测试简介",
             description="测试描述",
             teacher_id=test_teacher.id,
             category_id=category.id,
@@ -87,6 +112,7 @@ class TestCourseDetail:
         assert response.status_code == 200
         data = response.json()
         assert data["data"]["title"] == "测试课程详情"
+        assert data["data"]["summary"] == "测试简介"
 
     @pytest.mark.asyncio
     async def test_get_course_not_found(self, client: AsyncClient):
@@ -198,6 +224,7 @@ class TestCourseCRUD:
             json={
                 "title": "新建测试课程",
                 "subtitle": "副标题",
+                "summary": "课程简介",
                 "description": "描述",
                 "category_id": category.id,
                 "price": 99.0,
@@ -206,6 +233,7 @@ class TestCourseCRUD:
         )
 
         assert response.status_code == 200
+        assert response.json()["data"]["summary"] == "课程简介"
 
     @pytest.mark.asyncio
     async def test_update_course(
@@ -342,6 +370,84 @@ class TestCoursePublish:
         )
 
         assert response.status_code in [200, 400, 404]
+
+
+class TestCourseCoverUpload:
+    """课程封面上传测试类"""
+
+    @pytest.mark.asyncio
+    async def test_upload_course_cover_success(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试上传课程封面成功"""
+        teacher_headers = await create_upload_test_user(db_session, "teacher")
+        file_content = b"fake-png-content"
+
+        response = await client.post(
+            "/api/v1/upload/file",
+            headers=teacher_headers,
+            files={"file": ("course-cover.png", file_content, "image/png")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"] == "上传成功"
+        assert data["data"]["file_name"] == "course-cover.png"
+        assert data["data"]["file_size"] == len(file_content)
+        assert data["data"]["url"] == data["data"]["file_url"]
+        assert data["data"]["file_url"].startswith("http://test/uploads/course-covers/")
+
+        upload_path = urlparse(data["data"]["file_url"]).path
+        file_path = Path(settings.upload_dir) / Path(upload_path.lstrip("/")).relative_to("uploads")
+        assert file_path.exists()
+
+        preview_response = await client.get(upload_path)
+        assert preview_response.status_code == 200
+        assert preview_response.content == file_content
+
+        file_path.unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_upload_course_cover_invalid_type(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试上传课程封面文件类型不支持"""
+        teacher_headers = await create_upload_test_user(db_session, "teacher")
+        response = await client.post(
+            "/api/v1/upload/file",
+            headers=teacher_headers,
+            files={"file": ("course-cover.gif", b"gif-content", "image/gif")},
+        )
+
+        assert response.status_code == 422
+        data = response.json()
+        assert data["message"] == "仅支持 JPG/PNG 格式图片"
+
+    @pytest.mark.asyncio
+    async def test_upload_course_cover_requires_teacher_role(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试普通用户不能上传课程封面"""
+        auth_headers = await create_upload_test_user(db_session, "student")
+        response = await client.post(
+            "/api/v1/upload/file",
+            headers=auth_headers,
+            files={"file": ("course-cover.png", b"fake-png-content", "image/png")},
+        )
+
+        assert response.status_code == 403
+        data = response.json()
+        assert data["message"] == "仅讲师或管理员可上传课程封面"
+
+
+class TestCourseArchive:
+    """课程下架测试类"""
 
     @pytest.mark.asyncio
     async def test_archive_course(

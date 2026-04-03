@@ -59,6 +59,16 @@ class ChapterUpdate(BaseModel):
     )
 
 
+class ChapterSortRequest(BaseModel):
+    """章节排序请求"""
+
+    chapter_ids: list[int] = Field(
+        ...,
+        min_length=1,
+        description="按目标顺序排列的章节ID数组",
+    )
+
+
 class ChapterResponse(BaseModel):
     """章节响应"""
 
@@ -122,6 +132,16 @@ class SectionUpdate(BaseModel):
     is_free: bool | None = Field(
         default=None,
         description="是否免费试看",
+    )
+
+
+class SectionSortRequest(BaseModel):
+    """小节排序请求"""
+
+    section_ids: list[int] = Field(
+        ...,
+        min_length=1,
+        description="按目标顺序排列的小节ID数组",
     )
 
 
