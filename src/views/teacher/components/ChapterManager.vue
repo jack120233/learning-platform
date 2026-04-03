@@ -85,8 +85,15 @@ async function handleAddChapter() {
         sort_order: localChapters.value.length,
       })
 
-      localChapters.value.push(newChapter)
-      expandedChapters.value.add(newChapter.chapter_id)
+      // 兼容后端可能返回 id 的情况并赋初值
+      const normalizedChapter: ChapterItem = {
+        ...newChapter,
+        chapter_id: newChapter.chapter_id || (newChapter as any).id,
+        sections: newChapter.sections || [],
+      }
+
+      localChapters.value.push(normalizedChapter)
+      expandedChapters.value.add(normalizedChapter.chapter_id)
       emit('update:chapters', [...localChapters.value])
       ElMessage.success('章节添加成功')
     }
@@ -189,12 +196,22 @@ async function handleAddSection(chapter: ChapterItem) {
       operating.value = true
       const newSection = await createSection(props.courseId, chapter.chapter_id, {
         title: title.trim(),
-        sort_order: chapter.sections.length,
+        sort_order: chapter.sections ? chapter.sections.length : 0,
       })
+
+      // 兼容后端可能返回 id 的情况并赋初值
+      const normalizedSection: SectionItem = {
+        ...newSection,
+        section_id: newSection.section_id || (newSection as any).id,
+        resources: newSection.resources || [],
+      }
 
       const index = localChapters.value.findIndex(ch => ch.chapter_id === chapter.chapter_id)
       if (index > -1) {
-        localChapters.value[index].sections.push(newSection)
+        if (!localChapters.value[index].sections) {
+          localChapters.value[index].sections = []
+        }
+        localChapters.value[index].sections.push(normalizedSection)
       }
       emit('update:chapters', [...localChapters.value])
       ElMessage.success('小节添加成功')

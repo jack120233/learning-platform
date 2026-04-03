@@ -6,6 +6,7 @@ export interface TeacherCourseItem {
   id?: number
   course_id: number
   title: string
+  summary?: string
   cover_url: string
   status: 'draft' | 'published' | 'archived'
   view_count: number
@@ -38,21 +39,35 @@ export interface CreateCourseRequest {
   summary: string
   description?: string
   category_id: number
-  tags?: string[]
+  tag_ids?: number[] // 后端要求 ID
 }
 
 /** 更新课程请求 */
 export interface UpdateCourseRequest extends Partial<CreateCourseRequest> {}
 
 /** 课程详情 */
-export interface TeacherCourseDetail extends CourseFormData {
+export interface TeacherCourseDetail {
   course_id: number
+  title: string
+  cover_url: string
+  summary: string
+  description?: string
+  category_id: number
   status: 'draft' | 'published' | 'archived'
   view_count: number
   created_at: string
   published_at: string | null
+  tags: TagItem[] // 详情返回对象数组
   chapters: ChapterItem[]
   materials: MaterialItem[]
+}
+
+/** 标签项 */
+export interface TagItem {
+  id: number
+  name: string
+  slug?: string
+  color?: string
 }
 
 /** 章节项 */
@@ -153,8 +168,7 @@ export interface UploadFileResponse {
 /** 获取标签列表 */
 export function fetchTags() {
   return request.get<unknown, any>('/tags', { params: { page_size: 100 } }).then(res => {
-    const list = res.items || res.list || (Array.isArray(res) ? res : [])
-    return list.map((item: any) => typeof item === 'string' ? item : item.name)
+    return res.items || res.list || (Array.isArray(res) ? res : [])
   })
 }
 
@@ -204,7 +218,7 @@ export function archiveCourse(courseId: number, data: ArchiveCourseRequest) {
 
 /** 删除课程 */
 export function deleteCourse(courseId: number) {
-  return request.post<unknown, void>(`/courses/${courseId}/delete`)
+  return request.delete<unknown, void>(`/courses/${courseId}`)
 }
 
 // ==================== 章节管理 ====================

@@ -18,6 +18,7 @@ import {
   type TeacherCourseDetail,
   type ChapterItem,
   type MaterialItem,
+  type TagItem,
 } from '@/api/teacher'
 import { fetchCategories, type CategoryItem } from '@/api/category'
 import ChapterManager from './components/ChapterManager.vue'
@@ -51,7 +52,7 @@ const form = ref({
   summary: '',
   description: '',
   category_id: null as number | null,
-  tags: [] as string[],
+  tags: [] as number[], // 改为存储 tag_id
 })
 
 // 表单引用
@@ -60,8 +61,8 @@ const formRef = ref()
 // 分类列表
 const categories = ref<CategoryItem[]>([])
 
-// 标签列表
-const tags = ref<string[]>([])
+// 标签库列表
+const tags = ref<TagItem[]>([])
 
 // 新标签输入
 const newTagInput = ref('')
@@ -90,6 +91,9 @@ const rules = {
   ],
   category_id: [
     { required: true, message: '请选择课程分类', trigger: 'change' },
+  ],
+  tags: [
+    { type: 'array', required: true, message: '请至少添加一个课程标签', trigger: 'change' }
   ],
 }
 
@@ -125,13 +129,15 @@ async function loadCourseDetail() {
     // 填充表单
     form.value.title = detail.title
     form.value.cover_url = detail.cover_url
-    form.value.summary = detail.summary
     form.value.description = detail.description || ''
     form.value.category_id = detail.category_id
     
-    // 兼容后端返回对象数组的情况，提取出纯字符串标签名
+    // 加载标签回显
     const loadedTags = detail.tags || []
-    form.value.tags = loadedTags.map((t: any) => typeof t === 'string' ? t : (t.name || t))
+    form.value.tags = loadedTags.map((t: any) => typeof t === 'number' ? t : (t.id || t.tag_id))
+
+    // 简介字段对齐
+    form.value.summary = detail.summary || ''
 
     chapters.value = detail.chapters || []
     materials.value = detail.materials || []
@@ -224,22 +230,29 @@ async function handleAddTag() {
     return
   }
 
-  if (form.value.tags.includes(tagName)) {
-    ElMessage.warning('标签已存在')
-    return
-  }
-
-  // 添加到本地标签列表
-  if (!tags.value.includes(tagName)) {
+  // 检查是否已经在标签库中
+  let tag = tags.value.find(t => t.name === tagName)
+  
+  if (!tag) {
     try {
-      await createTag({ name: tagName })
-      tags.value.push(tagName)
+      const result = await createTag({ name: tagName })
+      tag = result
+      tags.value.push(result)
     } catch (error) {
-      // 标签可能已存在，忽略错误
+      // 可能已存在，重试获取
+      await loadTags()
+      tag = tags.value.find(t => t.name === tagName)
     }
   }
 
-  form.value.tags.push(tagName)
+  if (tag) {
+    if (form.value.tags.includes(tag.id)) {
+      ElMessage.warning('标签已添加')
+    } else {
+      form.value.tags.push(tag.id)
+    }
+  }
+  
   newTagInput.value = ''
 }
 
@@ -249,8 +262,8 @@ function handleRemoveTag(index: number) {
 }
 
 // 切换已存在标签的状态
-function toggleAvailableTag(tag: string) {
-  const index = form.value.tags.indexOf(tag)
+function toggleAvailableTag(tag: TagItem) {
+  const index = form.value.tags.indexOf(tag.id)
   if (index > -1) {
     // 如果已选中，则移除
     form.value.tags.splice(index, 1)
@@ -260,8 +273,13 @@ function toggleAvailableTag(tag: string) {
       ElMessage.warning('最多添加 5 个标签')
       return
     }
-    form.value.tags.push(tag)
+    form.value.tags.push(tag.id)
   }
+}
+
+// 通过 ID 获取标签名称
+function getTagName(tagId: number) {
+  return tags.value.find(t => t.id === tagId)?.name || `Tag-${tagId}`
 }
 
 // 上传配套资料
@@ -359,10 +377,10 @@ async function handleSaveDraft() {
     const data = {
       title: form.value.title,
       cover_url: form.value.cover_url,
-      summary: form.value.summary,
+      summary: form.value.summary, // 使用后端新增的 summary 字段
       description: form.value.description || undefined,
       category_id: form.value.category_id!,
-      tags: form.value.tags.length > 0 ? form.value.tags : undefined,
+      tag_ids: form.value.tags.length > 0 ? form.value.tags : undefined,
     }
 
     let result: TeacherCourseDetail
@@ -492,44 +510,49 @@ onMounted(async () => {
       </el-form-item>
 
       <!-- 课程标签 -->
-      <el-form-item label="课程标签">
+      <el-form-item label="课程标签" prop="tags">
         <div class="tag-input-area">
-          <div class="tag-list">
+          <div class="tag-list" v-if="form.tags.length > 0">
             <el-tag
-              v-for="(tag, index) in form.tags"
+              v-for="(tagId, index) in form.tags"
               :key="index"
               closable
+              round
+              type="primary"
+              size="large"
               @close="handleRemoveTag(index)"
             >
-              {{ tag }}
+              {{ getTagName(tagId) }}
             </el-tag>
           </div>
           <div class="tag-add" v-if="form.tags.length < 5">
             <el-input
               v-model="newTagInput"
-              placeholder="自定义标签回车添加"
-              size="small"
-              style="width: 140px"
+              placeholder="输入标签后按回车添加"
+              style="width: 220px"
               @keyup.enter="handleAddTag"
             />
-            <el-button size="small" type="primary" plain @click="handleAddTag">添加</el-button>
+            <el-button type="primary" :icon="Plus" plain @click="handleAddTag">添加标签</el-button>
           </div>
-          <span class="tag-tip" v-if="form.tags.length >= 5">已达到 5 个标签上限</span>
+          <div class="tag-tip" v-if="form.tags.length >= 5">
+            温馨提示：已达到 5 个标签上限，可以点击标签上的 'x' 删除后再添加。
+          </div>
           
           <!-- 推荐标签/已有标签库 -->
           <div class="available-tags-box" v-if="tags.length > 0">
-            <div class="available-title">可选标签池 (点击添加/移除)</div>
+            <div class="available-title">可选标签池（点击即可快速添加或移除）</div>
             <div class="available-tags-list">
               <el-tag
                 v-for="tag in tags"
-                :key="tag"
-                :type="form.tags.includes(tag) ? 'primary' : 'info'"
-                :effect="form.tags.includes(tag) ? 'dark' : 'plain'"
+                :key="tag.id"
+                :type="form.tags.includes(tag.id) ? 'primary' : 'info'"
+                :effect="form.tags.includes(tag.id) ? 'dark' : 'plain'"
+                round
                 class="available-tag-item"
-                :class="{ 'is-selected': form.tags.includes(tag) }"
+                :class="{ 'is-selected': form.tags.includes(tag.id) }"
                 @click="toggleAvailableTag(tag)"
               >
-                {{ tag }}
+                {{ tag.name }}
               </el-tag>
             </div>
           </div>
@@ -720,54 +743,81 @@ onMounted(async () => {
 }
 
 .tag-input-area {
+  width: 100%;
+
   .tag-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 12px;
+    gap: 12px;
+    margin-bottom: 16px;
+    
+    .el-tag {
+      padding: 0 14px;
+      font-size: 14px;
+      height: 34px;
+    }
   }
 
   .tag-add {
     display: flex;
-    gap: 8px;
+    gap: 12px;
     align-items: center;
   }
 
   .tag-tip {
     display: block;
-    font-size: $font-size-xs;
-    color: $text-secondary;
-    margin-top: 8px;
+    font-size: 13px;
+    color: #e6a23c;
+    margin-top: 10px;
+    background-color: #fff8e6;
+    padding: 6px 12px;
+    border-radius: 6px;
+    width: fit-content;
   }
 
   .available-tags-box {
-    margin-top: 16px;
-    padding: 12px 16px;
-    background-color: $bg-color;
-    border-radius: $radius-md;
-    border: 1px solid $border-color-light;
+    margin-top: 24px;
+    padding: 16px 20px;
+    background-color: #f8f9fc;
+    border-radius: 8px;
+    border: 1px dashed #dcdfe6;
 
     .available-title {
-      font-size: $font-size-sm;
-      color: $text-tertiary;
-      margin-bottom: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #606266;
+      margin-bottom: 16px;
+      position: relative;
+      padding-left: 10px;
+      
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 4px;
+        height: 14px;
+        background-color: var(--el-color-primary);
+        border-radius: 2px;
+      }
     }
 
     .available-tags-list {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      max-height: 110px;
+      gap: 10px;
+      max-height: 140px;
       overflow-y: auto;
       padding-right: 4px;
 
       /* 自定义滚动条，使其轻量美观 */
       &::-webkit-scrollbar {
-        width: 4px;
+        width: 6px;
       }
       &::-webkit-scrollbar-thumb {
-        background-color: #dcdfe6;
-        border-radius: 4px;
+        background-color: #c0c4cc;
+        border-radius: 3px;
       }
       &::-webkit-scrollbar-track {
         background: transparent;
@@ -775,16 +825,29 @@ onMounted(async () => {
 
       .available-tag-item {
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         user-select: none;
+        padding: 0 14px;
+        height: 30px;
+        line-height: 28px;
+        font-size: 13px;
+        border-radius: 15px;
 
         &:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+          // 为未选中的标签添加 hover 颜色变化
+          &:not(.is-selected) {
+            color: var(--el-color-primary);
+            border-color: var(--el-color-primary-light-5);
+            background-color: var(--el-color-primary-light-9);
+          }
         }
 
         &.is-selected {
           font-weight: 500;
+          transform: scale(1.02);
+          box-shadow: 0 2px 6px rgba(var(--el-color-primary-rgb), 0.3);
         }
       }
     }
