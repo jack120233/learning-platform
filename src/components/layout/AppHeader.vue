@@ -14,11 +14,9 @@ useBreakpoint()
 // 移动端导航抽屉状态
 const showMobileNav = ref(false)
 
-// 导航菜单
 const navItems = [
   { label: '首页', path: '/' },
-  { label: '职业培训课堂', path: '/courses' },
-
+  { label: '职业培训课堂', path: '/' },
 ]
 
 // 搜索关键词
@@ -91,10 +89,12 @@ const handleMobileNavClick = (path: string) => {
       </button>
 
       <!-- Logo区域 -->
-      <div class="logo-section" @click="router.push('/')">
-        <el-icon :size="32" color="#1890ff"><School /></el-icon>
-        <span class="logo-text">职业培训课堂</span>
-      </div>
+      <router-link to="/" class="logo-section" custom v-slot="{ navigate }">
+        <div class="logo-section" @click="navigate">
+          <el-icon :size="32" color="#1890ff"><School /></el-icon>
+          <span class="logo-text">职业培训课堂</span>
+        </div>
+      </router-link>
 
       <!-- 主导航菜单（PC端显示） -->
       <nav class="main-nav">
