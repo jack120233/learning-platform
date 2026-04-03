@@ -125,6 +125,24 @@ async def delete_chapter(
     return ApiResponse.success(message="删除成功")
 
 
+@router.post(
+    "/courses/{course_id}/chapters/{chapter_id}/delete",
+    response_model=ApiResponse[None],
+    summary="删除章节（兼容旧前端）",
+    description="兼容旧版前端仍使用的 POST 删除路径，建议优先使用 DELETE 接口",
+    include_in_schema=False,
+)
+async def delete_chapter_legacy(
+    course_id: int,
+    chapter_id: int,
+    db: DBSession,
+    user_id: CurrentUserId,
+) -> ApiResponse[None]:
+    """兼容旧前端的章节删除接口。"""
+    await chapter_service.delete(db, chapter_id)
+    return ApiResponse.success(message="删除成功")
+
+
 # ==================== 小节管理 ====================
 
 @router.get(
@@ -220,6 +238,25 @@ async def delete_section(
     user_id: CurrentUserId,
 ) -> ApiResponse[None]:
     """删除小节接口"""
+    await section_service.delete(db, section_id)
+    return ApiResponse.success(message="删除成功")
+
+
+@router.post(
+    "/courses/{course_id}/chapters/{chapter_id}/sections/{section_id}/delete",
+    response_model=ApiResponse[None],
+    summary="删除小节（兼容旧前端）",
+    description="兼容旧版前端仍使用的 POST 删除路径，建议优先使用 DELETE 接口",
+    include_in_schema=False,
+)
+async def delete_section_legacy(
+    course_id: int,
+    chapter_id: int,
+    section_id: int,
+    db: DBSession,
+    user_id: CurrentUserId,
+) -> ApiResponse[None]:
+    """兼容旧前端的小节删除接口。"""
     await section_service.delete(db, section_id)
     return ApiResponse.success(message="删除成功")
 

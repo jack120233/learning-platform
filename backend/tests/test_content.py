@@ -217,6 +217,54 @@ class TestChapterCRUD:
         assert response.status_code == 200
 
     @pytest.mark.asyncio
+    async def test_delete_chapter_legacy_post_route(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试兼容旧前端的 POST 删除章节路由"""
+        teacher, headers = await create_content_test_user(db_session, "teacher")
+
+        category = Category(
+            name="删除章节分类",
+            slug=f"delete-chap-{uuid.uuid4().hex[:8]}",
+            is_active=True,
+        )
+        db_session.add(category)
+        await db_session.flush()
+
+        course = Course(
+            title="删除章节课程",
+            teacher_id=teacher.id,
+            category_id=category.id,
+            status="draft",
+            price=0,
+            level="beginner",
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter = Chapter(
+            course_id=course.id,
+            title="待删除章节",
+            sort_order=1,
+        )
+        db_session.add(chapter)
+        await db_session.flush()
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/chapters/{chapter.id}/delete",
+            headers=headers,
+        )
+
+        assert response.status_code == 200
+        await db_session.flush()
+        result = await db_session.execute(
+            select(Chapter.id).where(Chapter.id == chapter.id)
+        )
+        assert result.scalar_one_or_none() is None
+
+    @pytest.mark.asyncio
     async def test_sort_chapters(
         self,
         client: AsyncClient,
@@ -389,6 +437,64 @@ class TestSectionCRUD:
         )
 
         assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_delete_section_legacy_post_route(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试兼容旧前端的 POST 删除小节路由"""
+        teacher, headers = await create_content_test_user(db_session, "teacher")
+
+        category = Category(
+            name="删除小节分类",
+            slug=f"delete-sec-{uuid.uuid4().hex[:8]}",
+            is_active=True,
+        )
+        db_session.add(category)
+        await db_session.flush()
+
+        course = Course(
+            title="删除小节课程",
+            teacher_id=teacher.id,
+            category_id=category.id,
+            status="draft",
+            price=0,
+            level="beginner",
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter = Chapter(
+            course_id=course.id,
+            title="章节",
+            sort_order=1,
+            section_count=1,
+        )
+        db_session.add(chapter)
+        await db_session.flush()
+
+        section = Section(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            title="待删除小节",
+            sort_order=1,
+        )
+        db_session.add(section)
+        await db_session.flush()
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/chapters/{chapter.id}/sections/{section.id}/delete",
+            headers=headers,
+        )
+
+        assert response.status_code == 200
+        await db_session.flush()
+        result = await db_session.execute(
+            select(Section.id).where(Section.id == section.id)
+        )
+        assert result.scalar_one_or_none() is None
 
     @pytest.mark.asyncio
     async def test_sort_sections(
