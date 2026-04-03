@@ -79,7 +79,7 @@ const courseDetail = ref<TeacherCourseDetail | null>(null)
 const rules = {
   title: [
     { required: true, message: '请输入课程标题', trigger: 'blur' },
-    { min: 2, max: 100, message: '标题长度在 2-100 个字符', trigger: 'blur' },
+    { min: 2, max: 30, message: '标题长度在 2-30 个字符', trigger: 'blur' },
   ],
   cover_url: [
     { required: true, message: '请上传课程封面', trigger: 'change' },
@@ -446,8 +446,9 @@ onMounted(async () => {
         <el-input
           v-model="form.title"
           placeholder="请输入课程标题"
-          maxlength="100"
+          maxlength="30"
           show-word-limit
+          style="width: 320px"
         />
       </el-form-item>
 
@@ -480,7 +481,7 @@ onMounted(async () => {
 
       <!-- 课程分类 -->
       <el-form-item label="课程分类" prop="category_id">
-        <el-select v-model="form.category_id" placeholder="请选择分类" style="width: 100%">
+        <el-select v-model="form.category_id" placeholder="请选择分类" style="width: 320px">
           <el-option
             v-for="category in categories"
             :key="category.category_id"
