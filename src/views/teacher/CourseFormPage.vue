@@ -7,6 +7,8 @@ import Cropper from 'cropperjs'
 import 'cropperjs/dist/cropper.css'
 import {
   fetchCourseDetail,
+  fetchChapters,
+  fetchSections,
   createCourse,
   updateCourse,
   publishCourse,
@@ -124,6 +126,8 @@ async function loadCourseDetail() {
   isLoading.value = true
   try {
     const detail = await fetchCourseDetail(courseId.value)
+    // 兼容后端不同字段名
+    detail.course_id = detail.course_id || (detail as any).id
     courseDetail.value = detail
 
     // 填充表单
@@ -139,7 +143,33 @@ async function loadCourseDetail() {
     // 简介字段对齐
     form.value.summary = detail.summary || ''
 
-    chapters.value = detail.chapters || []
+    if (detail.chapters && detail.chapters.length > 0) {
+      chapters.value = detail.chapters
+    } else {
+      // 如果详情接口没返回章节，主动获取
+      const chapterList = await fetchChapters(courseId.value)
+      
+      // 遍历获取每个章节下的小节
+      const chaptersWithSections = await Promise.all((chapterList || []).map(async (ch: any) => {
+        try {
+          const sections = await fetchSections(courseId.value, ch.chapter_id || ch.id)
+          return {
+            ...ch,
+            chapter_id: ch.chapter_id || ch.id,
+            sections: sections || []
+          }
+        } catch (e) {
+          return {
+            ...ch,
+            chapter_id: ch.chapter_id || ch.id,
+            sections: []
+          }
+        }
+      }))
+      
+      chapters.value = chaptersWithSections
+    }
+    
     materials.value = detail.materials || []
   } catch (error) {
     ElMessage.error('加载课程详情失败')
@@ -339,6 +369,16 @@ function formatFileSize(bytes: number) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
+async function validateCourseForm() {
+  try {
+    await formRef.value.validate()
+    return true
+  } catch {
+    ElMessage.warning('请完善必填信息')
+    return false
+  }
+}
+
 // 检查是否可以发布
 function checkPublishReady() {
   const missing: string[] = []
@@ -349,11 +389,10 @@ function checkPublishReady() {
   if (!form.value.category_id) missing.push('课程分类')
   if (chapters.value.length === 0) missing.push('至少 1 个章节')
 
-  const hasSections = chapters.value.some(ch => ch.sections?.length > 0)
-  if (!hasSections) missing.push('至少 1 个小节')
-
+  // 允许章节直接挂资源，不再强制要求必须存在小节
   const hasResources = chapters.value.some(ch =>
-    ch.sections?.some(s => s.resources?.length > 0)
+    (ch.resources && ch.resources.length > 0) ||
+    (ch.sections && ch.sections.some(s => s.resources && s.resources.length > 0))
   )
   if (!hasResources) missing.push('至少 1 个学习资源')
 
@@ -365,12 +404,8 @@ function checkPublishReady() {
 
 // 保存草稿
 async function handleSaveDraft() {
-  try {
-    await formRef.value.validate()
-  } catch {
-    ElMessage.warning('请完善必填信息')
-    return
-  }
+  const isValid = await validateCourseForm()
+  if (!isValid) return false
 
   isSaving.value = true
   try {
@@ -389,13 +424,21 @@ async function handleSaveDraft() {
     } else {
       result = await createCourse(data)
       // 创建成功后跳转到编辑页
-      router.replace(`/teacher/courses/${result.course_id}/edit`)
+      const resolvedCourseId = result.course_id || (result as any).id
+      if (resolvedCourseId) {
+        router.replace(`/teacher/courses/${resolvedCourseId}/edit`)
+      }
     }
 
-    courseDetail.value = result
+    courseDetail.value = {
+      ...result,
+      course_id: result.course_id || (result as any).id
+    }
     ElMessage.success('保存成功')
+    return true
   } catch (error) {
     ElMessage.error('保存失败')
+    return false
   } finally {
     isSaving.value = false
   }
@@ -403,23 +446,29 @@ async function handleSaveDraft() {
 
 // 保存并发布
 async function handleSaveAndPublish() {
-  // 先保存
-  await handleSaveDraft()
+  const isValid = await validateCourseForm()
+  if (!isValid) return
 
-  // 检查是否可以发布
   const check = checkPublishReady()
   if (!check.canPublish) {
     ElMessage.warning(`以下内容缺失，无法发布：${check.missingItems.join('、')}`)
     return
   }
 
-  if (!courseDetail.value?.course_id) {
+  // 先保存草稿，再调用发布接口
+  const saveSuccess = await handleSaveDraft()
+  if (!saveSuccess) return
+
+  // 确定最终使用的课程 ID
+  const finalId = courseDetail.value?.course_id || (courseDetail.value as any)?.id || courseId.value
+
+  if (!finalId) {
     ElMessage.error('请先保存课程')
     return
   }
 
   try {
-    await publishCourse(courseDetail.value.course_id)
+    await publishCourse(finalId)
     ElMessage.success('课程已发布')
     router.push('/teacher/courses')
   } catch (error) {
@@ -628,7 +677,7 @@ onMounted(async () => {
       <!-- 操作按钮 -->
       <el-form-item class="form-actions">
         <el-button @click="handleBack">返回列表</el-button>
-        <el-button type="primary" plain :loading="isSaving" @click="handleSaveDraft">
+        <el-button type="primary" plain :loading="isSaving" @click="handleSaveDraft()">
           保存草稿
         </el-button>
         <el-button v-if="isEdit" type="primary" :loading="isSaving" @click="handleSaveAndPublish">

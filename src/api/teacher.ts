@@ -40,6 +40,7 @@ export interface CreateCourseRequest {
   description?: string
   category_id: number
   tag_ids?: number[] // 后端要求 ID
+  is_published?: boolean // 后端扩展：标识是否直接发布
 }
 
 /** 更新课程请求 */
@@ -47,6 +48,7 @@ export interface UpdateCourseRequest extends Partial<CreateCourseRequest> {}
 
 /** 课程详情 */
 export interface TeacherCourseDetail {
+  id?: number
   course_id: number
   title: string
   cover_url: string
@@ -74,14 +76,17 @@ export interface TagItem {
 export interface ChapterItem {
   chapter_id: number
   title: string
+  description?: string
   sort_order: number
   sections: SectionItem[]
+  resources: ResourceItem[]
 }
 
 /** 小节项 */
 export interface SectionItem {
   section_id: number
   title: string
+  description?: string
   sort_order: number
   resources: ResourceItem[]
 }
@@ -114,12 +119,14 @@ export interface ArchiveCourseRequest {
 /** 章节表单数据 */
 export interface ChapterFormData {
   title: string
+  description?: string
   sort_order?: number
 }
 
 /** 小节表单数据 */
 export interface SectionFormData {
   title: string
+  description?: string
   sort_order?: number
 }
 
@@ -127,12 +134,15 @@ export interface SectionFormData {
 export interface ResourceUploadItem {
   resource_id?: number
   resource_type: 'video' | 'audio' | 'document' | 'image'
+  title?: string
   file_name: string
   file_url: string
   file_size: number
   duration?: number
   resolution?: string
   thumbnail_url?: string
+  sort_order?: number
+  is_free?: boolean
 }
 
 /** 分片上传初始化请求 */
@@ -221,7 +231,15 @@ export function deleteCourse(courseId: number) {
   return request.delete<unknown, void>(`/courses/${courseId}`)
 }
 
-// ==================== 章节管理 ====================
+/** 获取课程章节列表 */
+export function fetchChapters(courseId: number) {
+  return request.get<unknown, ChapterItem[]>(`/courses/${courseId}/chapters`)
+}
+
+/** 获取章节下的小节列表 */
+export function fetchSections(courseId: number, chapterId: number) {
+  return request.get<unknown, SectionItem[]>(`/courses/${courseId}/chapters/${chapterId}/sections`)
+}
 
 /** 创建章节 */
 export function createChapter(courseId: number, data: ChapterFormData) {
@@ -235,7 +253,7 @@ export function updateChapter(courseId: number, chapterId: number, data: Chapter
 
 /** 删除章节 */
 export function deleteChapter(courseId: number, chapterId: number) {
-  return request.post<unknown, void>(`/courses/${courseId}/chapters/${chapterId}/delete`)
+  return request.delete<unknown, void>(`/courses/${courseId}/chapters/${chapterId}`)
 }
 
 /** 更新章节排序 */
@@ -257,7 +275,7 @@ export function updateSection(courseId: number, chapterId: number, sectionId: nu
 
 /** 删除小节 */
 export function deleteSection(courseId: number, chapterId: number, sectionId: number) {
-  return request.post<unknown, void>(`/courses/${courseId}/chapters/${chapterId}/sections/${sectionId}/delete`)
+  return request.delete<unknown, void>(`/courses/${courseId}/chapters/${chapterId}/sections/${sectionId}`)
 }
 
 /** 更新小节排序 */
@@ -266,6 +284,16 @@ export function updateSectionSort(courseId: number, chapterId: number, sectionId
 }
 
 // ==================== 资源管理 ====================
+
+/** 上传资源到章节 */
+export function uploadChapterResource(courseId: number, chapterId: number, data: ResourceUploadItem) {
+  return request.post<unknown, ResourceItem>(`/courses/${courseId}/chapters/${chapterId}/resources`, data)
+}
+
+/** 删除章节资源 */
+export function deleteChapterResource(courseId: number, chapterId: number, resourceId: number) {
+  return request.post<unknown, void>(`/courses/${courseId}/chapters/${chapterId}/resources/${resourceId}/delete`)
+}
 
 /** 上传资源到小节 */
 export function uploadResource(courseId: number, sectionId: number, data: ResourceUploadItem) {

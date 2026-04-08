@@ -173,12 +173,16 @@
 | POST | `/api/v1/courses/{course_id}/chapters` | 是 | 路径：`course_id`；体：`title,description?,sort_order,is_free` | `ChapterResponse` | 创建章节 |
 | POST | `/api/v1/courses/{course_id}/chapters/{chapter_id}` | 是 | 路径：`course_id,chapter_id`；体：`title?,description?,sort_order?,is_free?` | `ChapterResponse` | 非标准更新 `POST` |
 | DELETE | `/api/v1/courses/{course_id}/chapters/{chapter_id}` | 是 | 路径：`course_id,chapter_id` | 仅 `code/message` | 删除章节 |
+| POST | `/api/v1/courses/{course_id}/chapters/{chapter_id}/resources` | 是 | 路径：`course_id,chapter_id`；体：`resource_type,title?,file_name,file_url,file_size,duration?,resolution?,thumbnail_url?,sort_order?,is_free?` | `ResourceResponse` | 上传章节资源 |
+| DELETE | `/api/v1/courses/{course_id}/chapters/{chapter_id}/resources/{resource_id}` | 是 | 路径：`course_id,chapter_id,resource_id` | 仅 `code/message` | 删除章节资源 |
 | GET | `/api/v1/courses/{course_id}/chapters/{chapter_id}/sections` | 否 | 路径：`course_id,chapter_id` | `list[SectionResponse]` | 小节列表 |
 | POST | `/api/v1/courses/{course_id}/chapters/{chapter_id}/sections` | 是 | 路径：`course_id,chapter_id`；体：`title,description?,sort_order,is_free` | `SectionResponse` | 创建小节 |
 | POST | `/api/v1/courses/{course_id}/chapters/{chapter_id}/sections/{section_id}` | 是 | 路径：`course_id,chapter_id,section_id`；体：`title?,description?,sort_order?,is_free?` | `SectionResponse` | 非标准更新 `POST` |
 | DELETE | `/api/v1/courses/{course_id}/chapters/{chapter_id}/sections/{section_id}` | 是 | 路径：`course_id,chapter_id,section_id` | 仅 `code/message` | 删除小节 |
 | POST | `/api/v1/courses/{course_id}/sections/{section_id}/resources` | 是 | 路径：`course_id,section_id`；体：`title,type,file_url,file_size,duration,sort_order,is_free` | `ResourceResponse` | 上传资源 |
 | DELETE | `/api/v1/courses/{course_id}/sections/{section_id}/resources/{resource_id}` | 是 | 路径：`course_id,section_id,resource_id` | 仅 `code/message` | 删除资源 |
+
+`ChapterResponse` 需新增 `resources?: ResourceResponse[]` 字段，供章节级资源管理、编辑页回显和发布校验使用。
 
 ### 5.9 学习模块
 
