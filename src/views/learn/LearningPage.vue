@@ -22,6 +22,9 @@ import {
   startLearning,
   getResourcePlayUrl,
   getProgress,
+  type CourseChapter,
+  type CourseSection,
+  type SectionResource,
 } from '@/api/learning'
 import { useProgressSync } from '@/composables/useProgressSync'
 import { formatDuration } from '@/utils/format'
@@ -86,16 +89,28 @@ interface ChapterTreeNode {
   sections: SectionTreeNode[]
 }
 
+function getChapterId(chapter: CourseChapter): number {
+  return chapter.chapter_id ?? 0
+}
+
+function getSectionId(section: CourseSection): number {
+  return section.section_id ?? 0
+}
+
+function getSectionResources(section: CourseSection): SectionResource[] {
+  return section.resources ?? []
+}
+
 const chapterTree = computed<ChapterTreeNode[]>(() => {
   return courseChapters.value.map(chapter => ({
-    chapter_id: chapter.chapter_id,
+    chapter_id: getChapterId(chapter),
     title: chapter.title,
-    isExpanded: chapterExpandMap.value[chapter.chapter_id] ?? false,
+    isExpanded: chapterExpandMap.value[getChapterId(chapter)] ?? false,
     sections: chapter.sections.map(section => ({
-      section_id: section.section_id,
+      section_id: getSectionId(section),
       title: section.title,
-      resources: section.resources,
-      isActive: activeResource.value.sectionId === section.section_id,
+      resources: getSectionResources(section),
+      isActive: activeResource.value.sectionId === getSectionId(section),
     })),
   }))
 })
@@ -105,9 +120,9 @@ const currentSectionResources = computed(() => {
   if (!activeResource.value.sectionId) return []
 
   for (const chapter of courseChapters.value) {
-    const section = chapter.sections.find(s => s.section_id === activeResource.value.sectionId)
+    const section = chapter.sections.find(s => getSectionId(s) === activeResource.value.sectionId)
     if (section) {
-      return section.resources.map(r => {
+      return getSectionResources(section).map(r => {
         const cache = learnStore.progressCache.get(r.resource_id)
         const progressPercent = cache && cache.totalTime > 0
           ? Math.round((cache.currentTime / cache.totalTime) * 100)
@@ -141,16 +156,17 @@ async function initCourse() {
     }
 
     learnStore.initCourseContext(
-      data.course_id,
+      data.course_id || data.id || courseId.value,
       data.title,
       data.cover_url,
-      data.chapters,
+      data.chapters || [],
       data.status
     )
 
     // 初始化章节展开状态
-    if (data.chapters.length > 0) {
-      chapterExpandMap.value = { [data.chapters[0].chapter_id]: true }
+    const chapters = data.chapters || []
+    if (chapters.length > 0) {
+      chapterExpandMap.value = { [getChapterId(chapters[0])]: true }
     }
   } catch {
     ElMessage.error('课程加载失败')
@@ -176,10 +192,14 @@ async function determineInitialResource(): Promise<{ sectionId: number; resource
 
   // 优先级 3：课程第一个资源
   const chapters = learnStore.currentCourseChapters
-  if (chapters.length > 0 && chapters[0].sections.length > 0 && chapters[0].sections[0].resources.length > 0) {
+  const firstChapter = chapters[0]
+  const firstSection = firstChapter?.sections[0]
+  const firstResource = firstSection ? getSectionResources(firstSection)[0] : null
+
+  if (firstChapter && firstSection && firstResource) {
     return {
-      sectionId: chapters[0].sections[0].section_id,
-      resourceId: chapters[0].sections[0].resources[0].resource_id,
+      sectionId: getSectionId(firstSection),
+      resourceId: firstResource.resource_id,
     }
   }
 
@@ -207,9 +227,9 @@ async function switchResource(sectionId: number, resourceId: number): Promise<vo
   // 找到章节 ID
   let chapterId = 0
   for (const chapter of courseChapters.value) {
-    const section = chapter.sections.find(s => s.section_id === sectionId)
+    const section = chapter.sections.find(s => getSectionId(s) === sectionId)
     if (section) {
-      chapterId = chapter.chapter_id
+      chapterId = getChapterId(chapter)
       break
     }
   }

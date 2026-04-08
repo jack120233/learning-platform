@@ -38,7 +38,7 @@ const isError = ref(false)
 const errorType = ref<'not_found' | 'archived' | 'network' | 'server' | null>(null)
 
 // 标签页
-const activeTab = ref<'outline' | 'intro' | 'exam' | 'materials' | 'feedback'>('outline')
+const activeTab = ref<'outline' | 'intro' | 'description' | 'materials' | 'feedback'>('outline')
 
 // 章节折叠状态
 const chapterExpandMap = ref<Record<number, boolean>>({})
@@ -61,6 +61,12 @@ const feedbackForm = ref({
 const courseId = computed(() => Number(route.params.courseId))
 const hasLearningRecord = computed(() => learnStore.hasLearningRecord)
 const continueInfo = computed(() => learnStore.continueInfo)
+
+// 计算课程总小节数
+const totalSections = computed(() => {
+  if (!course.value?.chapters) return 0
+  return course.value.chapters.reduce((total, chapter) => total + (chapter.sections?.length || 0), 0)
+})
 
 // 是否显示继续学习按钮
 const showContinueBtn = computed(() => userStore.isLoggedIn && hasLearningRecord.value && continueInfo.value)
@@ -95,18 +101,21 @@ async function loadCourseDetail() {
     }
 
     // 初始化章节折叠状态（默认第一章展开）
-    if (data.chapters.length > 0) {
+    const chapters = data.chapters || []
+    if (chapters.length > 0) {
+      const firstChId = chapters[0].chapter_id ?? 0
       chapterExpandMap.value = {
-        [data.chapters[0].chapter_id]: true,
+        [firstChId]: true,
       }
     }
 
     // 写入 LearnStore
+    const resolvedCourseId = data.course_id || data.id || 0
     learnStore.initCourseContext(
-      data.course_id,
+      resolvedCourseId,
       data.title,
       data.cover_url,
-      data.chapters,
+      chapters,
       data.status
     )
 
@@ -182,8 +191,9 @@ function toggleChapter(chapterId: number) {
 // 展开全部章节
 function expandAllChapters() {
   if (course.value) {
-    course.value.chapters.forEach(ch => {
-      chapterExpandMap.value[ch.chapter_id] = true
+    course.value.chapters?.forEach(ch => {
+      const chId = ch.chapter_id ?? 0
+      chapterExpandMap.value[chId] = true
     })
   }
 }
@@ -403,12 +413,12 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
           <div class="meta-row">
             <el-tag type="info" size="small">{{ course.category_name }}</el-tag>
             <el-tag
-              v-for="tag in course.tags?.slice(0, 5)"
-              :key="tag"
+              v-for="(tag, tagIdx) in course.tags?.slice(0, 5)"
+              :key="tagIdx"
               size="small"
               class="tag-item"
             >
-              {{ tag }}
+              {{ typeof tag === 'string' ? tag : tag.name || tag.id }}
             </el-tag>
             <span class="view-count">
               <el-icon><VideoPlay /></el-icon>
@@ -462,8 +472,27 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
           <!-- 课程目录 -->
           <el-tab-pane label="课程目录" name="outline">
             <div class="outline-header">
-              <el-button text size="small" @click="expandAllChapters">展开全部</el-button>
-              <el-button text size="small" @click="collapseAllChapters">折叠全部</el-button>
+              <span class="outline-count">共 {{ course.chapters?.length || 0 }} 章 / {{ totalSections }} 小节</span>
+              <div class="header-actions">
+                <el-button-group>
+                  <el-button 
+                    plain 
+                    size="small" 
+                    :icon="Plus" 
+                    @click="expandAllChapters"
+                  >
+                    全部展开
+                  </el-button>
+                  <el-button 
+                    plain 
+                    size="small" 
+                    :icon="Delete" 
+                    @click="collapseAllChapters"
+                  >
+                    全部折叠
+                  </el-button>
+                </el-button-group>
+              </div>
             </div>
             <div class="chapter-list">
               <div
@@ -471,30 +500,34 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
                 :key="chapter.chapter_id"
                 class="chapter-item"
               >
-                <div class="chapter-header" @click="toggleChapter(chapter.chapter_id)">
-                  <el-icon class="expand-icon" :class="{ expanded: chapterExpandMap[chapter.chapter_id] }">
+                <div 
+                  class="chapter-header" 
+                  :class="{ active: chapterExpandMap[chapter.chapter_id!] }"
+                  @click="toggleChapter(chapter.chapter_id!)"
+                >
+                  <el-icon class="expand-icon" :class="{ expanded: chapterExpandMap[chapter.chapter_id!] }">
                     <ArrowRight />
                   </el-icon>
                   <span class="chapter-title">{{ chapter.title }}</span>
                   <span class="section-count">{{ chapter.sections.length }} 小节</span>
                 </div>
-                <div v-show="chapterExpandMap[chapter.chapter_id]" class="section-list">
+                <div v-show="chapterExpandMap[chapter.chapter_id!]" class="section-list">
                   <div
                     v-for="section in chapter.sections"
                     :key="section.section_id"
                     class="section-item"
-                    @click="handleSectionClick(section.section_id, section.resources[0]?.resource_id)"
+                    @click="handleSectionClick(section.section_id!, section.resources?.[0]?.resource_id ?? 0)"
                   >
                     <div class="section-info">
                       <span class="section-title">{{ section.title }}</span>
-                      <span class="resource-count">{{ section.resources.length }} 个资源</span>
+                      <span class="resource-count">{{ section.resource_count ?? section.resources?.length ?? 0 }} 个资源</span>
                     </div>
-                    <div class="resource-list">
+                    <div class="resource-list" v-if="section.resources?.length">
                       <div
                         v-for="resource in section.resources"
                         :key="resource.resource_id"
                         class="resource-item"
-                        @click.stop="handleSectionClick(section.section_id, resource.resource_id)"
+                        @click.stop="handleSectionClick(section.section_id!, resource.resource_id)"
                       >
                         <el-icon class="resource-icon" :class="resource.resource_type">
                           <component :is="resourceIconMap[resource.resource_type]" />
@@ -513,17 +546,18 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
 
           <!-- 课程简介 -->
           <el-tab-pane label="课程简介" name="intro">
-            <div class="description-content" v-html="course.description"></div>
+            <div class="summary-content">{{ course.summary || '暂无课程简介' }}</div>
           </el-tab-pane>
 
-          <!-- 考试入口 -->
-          <el-tab-pane label="考试入口" name="exam">
-            <el-empty description="考试功能即将上线，敬请期待" />
+          <!-- 课程描述 -->
+          <el-tab-pane label="课程描述" name="description">
+            <div v-if="course.description" class="description-content" v-html="course.description"></div>
+            <el-empty v-else description="暂无课程描述" />
           </el-tab-pane>
 
           <!-- 配套资料 -->
           <el-tab-pane label="配套资料" name="materials">
-            <div v-if="course.materials?.length > 0" class="material-list">
+            <div v-if="(course.materials?.length ?? 0) > 0" class="material-list">
               <div
                 v-for="material in course.materials"
                 :key="material.material_id"
@@ -751,14 +785,71 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
   background: $bg-white;
   border-radius: $radius-lg;
   box-shadow: $shadow-sm;
+
+  :deep(.el-tabs__item) {
+    font-size: 15px;
+    height: 54px;
+    line-height: 54px;
+    transition: all 0.3s;
+
+    &.is-active {
+      font-weight: 600;
+      color: $primary-color;
+    }
+
+    &:hover {
+      color: $primary-color;
+    }
+  }
+
+  :deep(.el-tabs__active-bar) {
+    height: 3px;
+    border-radius: 3px;
+  }
+
+  :deep(.el-tabs__nav-wrap::after) {
+    height: 1px;
+    background-color: $border-color-light;
+  }
 }
 
 // 章节目录
 .outline-header {
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-bottom: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding: 8px 0;
+  border-bottom: 1px dashed $border-color-light;
+
+  .outline-count {
+    font-size: 14px;
+    color: $text-secondary;
+    font-weight: 500;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+
+    :deep(.el-button) {
+      font-weight: 500;
+      color: $text-secondary;
+      transition: all 0.2s ease;
+      
+      &:hover {
+        color: $primary-color;
+        border-color: $primary-color;
+        background-color: color.adjust($primary-color, $lightness: 46%);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(24, 144, 255, 0.2);
+      }
+
+      &:active {
+        transform: translateY(0);
+      }
+    }
+  }
 }
 
 .chapter-list {
@@ -772,18 +863,36 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
   .chapter-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 16px;
-    background: $bg-color;
+    gap: 12px;
+    padding: 14px 16px;
+    background: color.adjust($bg-color, $lightness: 2%);
     cursor: pointer;
     user-select: none;
+    transition: all 0.3s ease;
+    position: relative;
+    border-left: 3px solid transparent;
 
     &:hover {
-      background: color.adjust($bg-color, $lightness: -3%);
+      background: color.adjust($bg-color, $lightness: -1%);
+      padding-left: 20px;
+    }
+
+    &.active {
+      background: color.adjust($primary-color, $lightness: 46%);
+      border-left-color: $primary-color;
+
+      .chapter-title {
+        color: $primary-color;
+        font-weight: 600;
+      }
+
+      .expand-icon {
+        color: $primary-color;
+      }
     }
 
     .expand-icon {
-      transition: transform 0.2s ease;
+      transition: all 0.3s ease;
 
       &.expanded {
         transform: rotate(90deg);
@@ -803,16 +912,23 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
   }
 
   .section-list {
-    padding: 0 16px 16px;
+    padding: 8px 12px 12px;
+    background: #fff;
   }
 
   .section-item {
-    padding: 12px;
-    border-radius: $radius-sm;
+    padding: 10px 12px;
+    border-radius: $radius-md;
     cursor: pointer;
+    transition: all 0.2s;
 
     &:hover {
-      background: $bg-color;
+      background: color.adjust($bg-color, $lightness: 1%);
+      transform: translateX(4px);
+    }
+
+    &:not(:last-child) {
+      margin-bottom: 4px;
     }
   }
 
@@ -820,11 +936,11 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 8px;
 
     .section-title {
       font-weight: 500;
       color: $text-primary;
+      font-size: 15px;
     }
 
     .resource-count {
@@ -835,6 +951,8 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
 
   .resource-list {
     padding-left: 16px;
+    margin-top: 8px;
+    border-left: 2px solid $border-color-light;
   }
 
   .resource-item {
@@ -874,6 +992,13 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
 }
 
 // 课程简介
+.summary-content {
+  line-height: 1.8;
+  color: $text-secondary;
+  white-space: pre-wrap;
+}
+
+// 课程描述
 .description-content {
   line-height: 1.8;
   color: $text-secondary;

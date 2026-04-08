@@ -45,6 +45,10 @@ interface ProgressCacheItem {
   lastSyncedAt: number
 }
 
+function getSectionId(section: CourseChapter['sections'][number]): number {
+  return section.section_id ?? 0
+}
+
 // ==================== Store 定义 ====================
 
 export const useLearnStore = defineStore('learn', () => {
@@ -222,9 +226,9 @@ export const useLearnStore = defineStore('learn', () => {
 
     for (const chapter of chapters) {
       for (const section of chapter.sections) {
-        for (const resource of section.resources) {
+        for (const resource of section.resources ?? []) {
           if (found) {
-            return { sectionId: section.section_id, resourceId: resource.resource_id }
+            return { sectionId: getSectionId(section), resourceId: resource.resource_id }
           }
           if (resource.resource_id === current.resourceId) {
             found = true
@@ -248,11 +252,11 @@ export const useLearnStore = defineStore('learn', () => {
 
     for (const chapter of chapters) {
       for (const section of chapter.sections) {
-        for (const resource of section.resources) {
+        for (const resource of section.resources ?? []) {
           if (resource.resource_id === current.resourceId) {
             return prev
           }
-          prev = { sectionId: section.section_id, resourceId: resource.resource_id }
+          prev = { sectionId: getSectionId(section), resourceId: resource.resource_id }
         }
       }
     }
