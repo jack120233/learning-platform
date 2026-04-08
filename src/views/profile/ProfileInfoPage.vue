@@ -122,9 +122,9 @@ async function handleUploadAvatar(options: { file: File }) {
     return
   }
 
-  // 校验文件大小（最大 2MB）
-  if (file.size > 2 * 1024 * 1024) {
-    ElMessage.warning('图片最大 2MB')
+  // 校验文件大小（最大 20MB）
+  if (file.size > 20 * 1024 * 1024) {
+    ElMessage.warning('图片最大 20MB')
     return
   }
 
@@ -132,10 +132,10 @@ async function handleUploadAvatar(options: { file: File }) {
   try {
     const result = await uploadFile(file)
     // 更新头像
-    await updateProfile({ avatar_url: result.file_url })
+    await updateProfile({ avatar: result.file_url })
     // 更新本地状态
     if (profile.value) {
-      profile.value.avatar_url = result.file_url
+      profile.value.avatar = result.file_url
     }
     // 更新 userStore
     userStore.setUserInfo({ avatarUrl: result.file_url })
@@ -166,6 +166,7 @@ async function handleSave() {
     const data: UpdateProfileRequest = {
       nickname: form.value.nickname,
       phone: form.value.phone || undefined,
+      avatar: profile.value?.avatar,
     }
 
     // 如果邮箱修改了，需要带上验证码
@@ -184,6 +185,7 @@ async function handleSave() {
     userStore.setUserInfo({
       nickname: result.nickname,
       email: result.email,
+      avatarUrl: result.avatar,
     })
 
     // 清空验证码
@@ -212,12 +214,11 @@ onMounted(() => {
     <template v-if="profile">
       <!-- 头像区域 -->
       <div class="avatar-section">
-        <el-avatar :src="profile.avatar_url" :size="80" class="avatar">
+        <el-avatar :src="profile.avatar" :size="80" class="avatar">
           <el-icon :size="40"><User /></el-icon>
         </el-avatar>
         <el-upload
           :show-file-list="false"
-          :before-upload="() => false"
           :http-request="handleUploadAvatar"
           accept=".jpg,.jpeg,.png,.gif"
         >

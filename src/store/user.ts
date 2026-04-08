@@ -82,7 +82,7 @@ function normalizeUserInfo(info?: UserInfoInput | null): UserInfo {
     username,
     email: normalizeString(info?.email),
     nickname: normalizeString(info?.nickname) || username,
-    avatarUrl: normalizeString(info?.avatarUrl ?? info?.avatar_url),
+    avatarUrl: normalizeString(info?.avatarUrl ?? info?.avatar_url ?? (info as any)?.avatar),
     role: normalizeRole(info?.role),
     status: normalizeStatus(info?.status),
   }

@@ -58,7 +58,7 @@ const skeletonCount = 8
       <div class="course-grid">
         <CourseCard
           v-for="course in courses"
-          :key="course.course_id"
+          :key="course.course_id || course.id"
           :data="course"
         />
       </div>

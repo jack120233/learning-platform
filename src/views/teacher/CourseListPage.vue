@@ -267,7 +267,7 @@ onMounted(() => {
 
         <el-table-column label="发布时间" width="120" align="center">
           <template #default="{ row }">
-            {{ formatTime(row.published_at) }}
+            {{ formatTime(row.published_at || (row as any).publish_at) }}
           </template>
         </el-table-column>
 

@@ -4,23 +4,30 @@ import request from './index'
 
 /** 课程详情完整数据 */
 export interface CourseDetail {
-  course_id: number
+  id?: number        // 后端物理主键
+  course_id?: number // 兼容旧字段
   title: string
   cover_url: string
-  thumbnail_url: string
+  thumbnail_url?: string
   summary: string
   description: string
   teacher_id: number
-  teacher_name: string
-  teacher_avatar: string
+  teacher_name: string | null
+  teacher_avatar?: string
   category_id: number
-  category_name: string
-  tags: string[]
+  category_name: string | null
+  tags: Array<string | { id: number; name?: string }> // 后端返回对象数组
   status: 'draft' | 'published' | 'archived'
-  view_count: number
+  view_count?: number
+  student_count?: number
+  rating?: number
+  level?: string
+  is_free?: boolean
+  price?: number
   published_at: string
-  materials: CourseMaterial[]
-  chapters: CourseChapter[]
+  total_sections?: number
+  materials?: CourseMaterial[]
+  chapters?: CourseChapter[]
 }
 
 /** 配套资料 */
@@ -34,18 +41,31 @@ export interface CourseMaterial {
 
 /** 课程章节 */
 export interface CourseChapter {
-  chapter_id: number
+  id?: number          // 后端返回字段
+  chapter_id?: number  // 兼容旧字段
+  course_id?: number
   title: string
+  description?: string | null
   sort_order: number
+  is_free?: boolean
+  total_duration?: number
+  section_count?: number
   sections: CourseSection[]
 }
 
 /** 课程小节 */
 export interface CourseSection {
-  section_id: number
+  id?: number          // 后端返回字梘
+  section_id?: number  // 兼容旧字段
+  chapter_id?: number
+  course_id?: number
   title: string
+  description?: string | null
   sort_order: number
-  resources: SectionResource[]
+  is_free?: boolean
+  duration?: number
+  resource_count?: number
+  resources?: SectionResource[]  // 详情页可能不返回
 }
 
 /** 小节资源 */

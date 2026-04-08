@@ -2,7 +2,8 @@ import request, { type PaginatedData } from './index'
 
 // 课程基础项（公共字段）
 export interface CourseBaseItem {
-  course_id: number
+  id?: number
+  course_id?: number
   title: string
   cover_url: string
   summary: string

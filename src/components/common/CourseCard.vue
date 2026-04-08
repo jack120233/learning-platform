@@ -11,7 +11,12 @@ const router = useRouter()
 
 // 点击卡片跳转课程详情
 const handleClick = () => {
-  router.push(`/courses/${props.data.course_id}`)
+  const courseId = props.data.course_id || props.data.id
+  if (courseId) {
+    router.push(`/courses/${courseId}`)
+  } else {
+    console.warn('Course ID is missing', props.data)
+  }
 }
 </script>
 
@@ -106,6 +111,7 @@ const handleClick = () => {
   margin-bottom: 8px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -118,6 +124,7 @@ const handleClick = () => {
   margin-bottom: 12px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;

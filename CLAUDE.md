@@ -176,5 +176,6 @@ const userInfo = JSON.parse(localStorage.getItem('user_info'))
 ## 参考文档
 
 - `docs/login-auth-issue-review.md` - 登录认证问题复盘与开发规范（重要，必读）
+- `docs/course-id-mismatch-review.md` - 课程 ID 字段不匹配问题复盘
 - `docs/前端接口文档.md` - 前端接口详细文档
 - `5.接口文档.md` - 后端接口文档

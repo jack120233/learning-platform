@@ -5,6 +5,8 @@ import { Upload, VideoPlay, Headset, Document, Picture, Delete } from '@element-
 import {
   uploadResource,
   deleteResource,
+  uploadChapterResource,
+  deleteChapterResource,
   uploadFile,
   initChunkUpload,
   uploadChunk,
@@ -15,7 +17,8 @@ import {
 // Props
 interface Props {
   courseId: number
-  sectionId: number
+  parentId: number
+  parentType: 'chapter' | 'section'
   resources: ResourceItem[]
 }
 
@@ -23,7 +26,7 @@ const props = defineProps<Props>()
 
 // Emits
 const emit = defineEmits<{
-  (e: 'update', sectionId: number, resources: ResourceItem[]): void
+  (e: 'update', parentId: number, parentType: 'chapter' | 'section', resources: ResourceItem[]): void
 }>()
 
 // 本地资源列表
@@ -110,15 +113,22 @@ async function handleUpload(options: { file: File }) {
 
     // 创建资源记录
     const resourceType = getResourceType(file)
-    const newResource = await uploadResource(props.courseId, props.sectionId, {
+    const resourceData = {
       resource_type: resourceType,
+      title: file.name,
       file_name: file.name,
       file_url: fileUrl,
       file_size: file.size,
-    })
+      sort_order: localResources.value.length,
+      is_free: false,
+    }
+
+    const newResource = props.parentType === 'chapter'
+      ? await uploadChapterResource(props.courseId, props.parentId, resourceData)
+      : await uploadResource(props.courseId, props.parentId, resourceData)
 
     localResources.value.push(newResource)
-    emit('update', props.sectionId, [...localResources.value])
+    emit('update', props.parentId, props.parentType, [...localResources.value])
     ElMessage.success('资源上传成功')
 
   } catch (error) {
@@ -182,10 +192,14 @@ async function handleChunkUpload(file: File, fileId: string): Promise<string> {
 // 删除资源
 async function handleDelete(resource: ResourceItem) {
   try {
-    await deleteResource(props.courseId, props.sectionId, resource.resource_id)
+    if (props.parentType === 'chapter') {
+      await deleteChapterResource(props.courseId, props.parentId, resource.resource_id)
+    } else {
+      await deleteResource(props.courseId, props.parentId, resource.resource_id)
+    }
 
     localResources.value = localResources.value.filter(r => r.resource_id !== resource.resource_id)
-    emit('update', props.sectionId, [...localResources.value])
+    emit('update', props.parentId, props.parentType, [...localResources.value])
     ElMessage.success('资源已删除')
   } catch (error) {
     ElMessage.error('删除失败')

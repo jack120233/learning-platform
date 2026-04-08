@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Rank, Delete } from '@element-plus/icons-vue'
 import {
   createChapter,
   updateChapter,
   deleteChapter,
+  updateChapterSort,
   createSection,
   updateSection,
   deleteSection,
+  updateSectionSort,
   type ChapterItem,
   type SectionItem,
 } from '@/api/teacher'
 import ResourceManager from './ResourceManager.vue'
+import draggable from 'vuedraggable'
 
 // Props
 interface Props {
@@ -30,28 +33,42 @@ const emit = defineEmits<{
 // 本地章节数据
 const localChapters = ref<ChapterItem[]>([])
 
-// 正在编辑的章节ID
-const editingChapterId = ref<number | null>(null)
-const editingChapterTitle = ref('')
-
-// 正在编辑的小节ID
-const editingSectionId = ref<number | null>(null)
-const editingSectionTitle = ref('')
+// 正在编辑的项信息
+const dialogVisible = ref(false)
+const dialogType = ref<'chapter' | 'section'>('chapter')
+const dialogMode = ref<'add' | 'edit'>('add')
+const dialogForm = ref({
+  id: null as number | null,
+  parentId: null as number | null, // 章节ID（添加小节时用）
+  title: '',
+  description: '',
+})
 
 // 展开的章节
 const expandedChapters = ref<Set<number>>(new Set())
 
-// 当前管理资源的小节
-const resourceSectionId = ref<number | null>(null)
+// 当前管理资源的小节或章节
+const resourceParent = ref<{ id: number, type: 'chapter' | 'section' } | null>(null)
 
 // 操作中状态
 const operating = ref(false)
 
 // 同步外部数据
 watch(() => props.chapters, (newChapters) => {
-  localChapters.value = JSON.parse(JSON.stringify(newChapters))
+  localChapters.value = (newChapters || []).map(ch => ({
+    ...ch,
+    chapter_id: ch.chapter_id || (ch as any).id,
+    resources: ch.resources || [],
+    sections: (ch.sections || []).map((s: any) => ({
+      ...s,
+      section_id: s.section_id || s.id,
+      resources: s.resources || []
+    }))
+  }))
   // 默认展开所有章节
-  newChapters.forEach(ch => expandedChapters.value.add(ch.chapter_id))
+  localChapters.value.forEach(ch => {
+    if (ch.chapter_id) expandedChapters.value.add(ch.chapter_id)
+  })
 }, { immediate: true, deep: true })
 
 // 切换章节展开
@@ -63,87 +80,164 @@ function toggleChapter(chapterId: number) {
   }
 }
 
-// 添加章节
-async function handleAddChapter() {
-  try {
-    const { value: title } = await ElMessageBox.prompt('请输入章节标题', '添加章节', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      inputPlaceholder: '2-50 个字符',
-      inputValidator: (value) => {
-        if (!value || !value.trim()) return '请输入章节标题'
-        if (value.length < 2) return '标题至少 2 个字符'
-        if (value.length > 50) return '标题最多 50 个字符'
-        return true
-      },
-    })
-
-    if (title) {
-      operating.value = true
-      const newChapter = await createChapter(props.courseId, {
-        title: title.trim(),
-        sort_order: localChapters.value.length,
-      })
-
-      // 兼容后端可能返回 id 的情况并赋初值
-      const normalizedChapter: ChapterItem = {
-        ...newChapter,
-        chapter_id: newChapter.chapter_id || (newChapter as any).id,
-        sections: newChapter.sections || [],
-      }
-
-      localChapters.value.push(normalizedChapter)
-      expandedChapters.value.add(normalizedChapter.chapter_id)
-      emit('update:chapters', [...localChapters.value])
-      ElMessage.success('章节添加成功')
-    }
-  } catch (error) {
-    // 用户取消
-  } finally {
-    operating.value = false
+// 打开添加章节对话框
+function handleAddChapter() {
+  dialogType.value = 'chapter'
+  dialogMode.value = 'add'
+  dialogForm.value = {
+    id: null,
+    parentId: null,
+    title: '',
+    description: '',
   }
+  dialogVisible.value = true
 }
 
 // 开始编辑章节
 function startEditChapter(chapter: ChapterItem) {
-  editingChapterId.value = chapter.chapter_id
-  editingChapterTitle.value = chapter.title
-  nextTick(() => {
-    const input = document.querySelector(`.chapter-input-${chapter.chapter_id}`) as HTMLInputElement
-    input?.focus()
-  })
+  dialogType.value = 'chapter'
+  dialogMode.value = 'edit'
+  dialogForm.value = {
+    id: chapter.chapter_id,
+    parentId: null,
+    title: chapter.title,
+    description: chapter.description || '',
+  }
+  dialogVisible.value = true
 }
 
-// 保存章节编辑
-async function saveChapterEdit(chapter: ChapterItem) {
-  const newTitle = editingChapterTitle.value.trim()
-
-  if (!newTitle) {
-    ElMessage.warning('章节标题不能为空')
-    return
+// 开始添加小节
+function handleAddSection(chapter: ChapterItem) {
+  dialogType.value = 'section'
+  dialogMode.value = 'add'
+  dialogForm.value = {
+    id: null,
+    parentId: chapter.chapter_id,
+    title: '',
+    description: '',
   }
+  dialogVisible.value = true
+}
 
-  if (newTitle === chapter.title) {
-    editingChapterId.value = null
-    return
+// 开始编辑小节
+function startEditSection(chapterId: number, section: SectionItem) {
+  dialogType.value = 'section'
+  dialogMode.value = 'edit'
+  dialogForm.value = {
+    id: section.section_id,
+    parentId: chapterId,
+    title: section.title,
+    description: section.description || '',
   }
+  dialogVisible.value = true
+}
 
-  if (newTitle.length < 2 || newTitle.length > 50) {
-    ElMessage.warning('标题长度需在 2-50 个字符之间')
+// 提交对话框
+async function handleDialogSubmit() {
+  if (!dialogForm.value.title.trim()) {
+    ElMessage.warning('请输入标题')
     return
   }
 
   try {
     operating.value = true
-    await updateChapter(props.courseId, chapter.chapter_id, { title: newTitle })
-
-    const index = localChapters.value.findIndex(ch => ch.chapter_id === chapter.chapter_id)
-    if (index > -1) {
-      localChapters.value[index].title = newTitle
+    if (dialogType.value === 'chapter') {
+      if (dialogMode.value === 'add') {
+        const newChapter = await createChapter(props.courseId, {
+          title: dialogForm.value.title.trim(),
+          description: dialogForm.value.description.trim(),
+          sort_order: localChapters.value.length,
+        })
+        const normalizedChapter: ChapterItem = {
+          ...newChapter,
+          chapter_id: newChapter.chapter_id || (newChapter as any).id,
+          sections: newChapter.sections || [],
+        }
+        localChapters.value.push(normalizedChapter)
+        expandedChapters.value.add(normalizedChapter.chapter_id)
+        ElMessage.success('章节添加成功')
+      } else {
+        await updateChapter(props.courseId, dialogForm.value.id!, {
+          title: dialogForm.value.title.trim(),
+          description: dialogForm.value.description.trim(),
+        })
+        const index = localChapters.value.findIndex(ch => ch.chapter_id === dialogForm.value.id)
+        if (index > -1) {
+          localChapters.value[index].title = dialogForm.value.title.trim()
+          localChapters.value[index].description = dialogForm.value.description.trim()
+        }
+        ElMessage.success('章节更新成功')
+      }
+    } else {
+      // 小节操作
+      if (dialogMode.value === 'add') {
+        const newSection = await createSection(props.courseId, dialogForm.value.parentId!, {
+          title: dialogForm.value.title.trim(),
+          description: dialogForm.value.description.trim(),
+          sort_order: 0,
+        })
+        const normalizedSection: SectionItem = {
+          ...newSection,
+          section_id: newSection.section_id || (newSection as any).id,
+          resources: newSection.resources || [],
+        }
+        const chIndex = localChapters.value.findIndex(ch => ch.chapter_id === dialogForm.value.parentId)
+        if (chIndex > -1) {
+          if (!localChapters.value[chIndex].sections) localChapters.value[chIndex].sections = []
+          localChapters.value[chIndex].sections.push(normalizedSection)
+        }
+        ElMessage.success('小节添加成功')
+      } else {
+        await updateSection(props.courseId, dialogForm.value.parentId!, dialogForm.value.id!, {
+          title: dialogForm.value.title.trim(),
+          description: dialogForm.value.description.trim(),
+        })
+        const chIndex = localChapters.value.findIndex(ch => ch.chapter_id === dialogForm.value.parentId)
+        if (chIndex > -1) {
+          const sIndex = localChapters.value[chIndex].sections.findIndex(s => s.section_id === dialogForm.value.id)
+          if (sIndex > -1) {
+            localChapters.value[chIndex].sections[sIndex].title = dialogForm.value.title.trim()
+            localChapters.value[chIndex].sections[sIndex].description = dialogForm.value.description.trim()
+          }
+        }
+        ElMessage.success('小节更新成功')
+      }
     }
     emit('update:chapters', [...localChapters.value])
-    editingChapterId.value = null
-    ElMessage.success('章节更新成功')
+    dialogVisible.value = false
+  } catch (error) {
+    // 错误已处理
+  } finally {
+    operating.value = false
+  }
+}
+
+// 章节排序
+async function handleChapterSort() {
+  const chapterIds = localChapters.value.map(ch => ch.chapter_id)
+  try {
+    operating.value = true
+    await updateChapterSort(props.courseId, chapterIds)
+    emit('update:chapters', [...localChapters.value])
+    ElMessage.success('章节排序已更新')
+  } catch (error) {
+    // 错误处理已集成
+  } finally {
+    operating.value = false
+  }
+}
+
+// 小节排序
+async function handleSectionSort(chapterId: number) {
+  const chapter = localChapters.value.find(ch => ch.chapter_id === chapterId)
+  if (!chapter || !chapter.sections) return
+
+  const sectionIds = chapter.sections.map(s => s.section_id)
+  try {
+    operating.value = true
+    await updateSectionSort(props.courseId, chapterId, sectionIds)
+    emit('update:chapters', [...localChapters.value])
+    ElMessage.success('小节排序已更新')
   } catch (error) {
     // 错误已处理
   } finally {
@@ -172,104 +266,6 @@ async function handleDeleteChapter(chapter: ChapterItem) {
     ElMessage.success('章节已删除')
   } catch (error) {
     // 用户取消
-  } finally {
-    operating.value = false
-  }
-}
-
-// 添加小节
-async function handleAddSection(chapter: ChapterItem) {
-  try {
-    const { value: title } = await ElMessageBox.prompt('请输入小节标题', '添加小节', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      inputPlaceholder: '2-50 个字符',
-      inputValidator: (value) => {
-        if (!value || !value.trim()) return '请输入小节标题'
-        if (value.length < 2) return '标题至少 2 个字符'
-        if (value.length > 50) return '标题最多 50 个字符'
-        return true
-      },
-    })
-
-    if (title) {
-      operating.value = true
-      const newSection = await createSection(props.courseId, chapter.chapter_id, {
-        title: title.trim(),
-        sort_order: chapter.sections ? chapter.sections.length : 0,
-      })
-
-      // 兼容后端可能返回 id 的情况并赋初值
-      const normalizedSection: SectionItem = {
-        ...newSection,
-        section_id: newSection.section_id || (newSection as any).id,
-        resources: newSection.resources || [],
-      }
-
-      const index = localChapters.value.findIndex(ch => ch.chapter_id === chapter.chapter_id)
-      if (index > -1) {
-        if (!localChapters.value[index].sections) {
-          localChapters.value[index].sections = []
-        }
-        localChapters.value[index].sections.push(normalizedSection)
-      }
-      emit('update:chapters', [...localChapters.value])
-      ElMessage.success('小节添加成功')
-    }
-  } catch (error) {
-    // 用户取消
-  } finally {
-    operating.value = false
-  }
-}
-
-// 开始编辑小节
-function startEditSection(_chapterId: number, section: SectionItem) {
-  editingSectionId.value = section.section_id
-  editingSectionTitle.value = section.title
-  nextTick(() => {
-    const input = document.querySelector(`.section-input-${section.section_id}`) as HTMLInputElement
-    input?.focus()
-  })
-}
-
-// 保存小节编辑
-async function saveSectionEdit(chapterId: number, section: SectionItem) {
-  const newTitle = editingSectionTitle.value.trim()
-
-  if (!newTitle) {
-    ElMessage.warning('小节标题不能为空')
-    return
-  }
-
-  if (newTitle === section.title) {
-    editingSectionId.value = null
-    return
-  }
-
-  if (newTitle.length < 2 || newTitle.length > 50) {
-    ElMessage.warning('标题长度需在 2-50 个字符之间')
-    return
-  }
-
-  try {
-    operating.value = true
-    await updateSection(props.courseId, chapterId, section.section_id, { title: newTitle })
-
-    const chapterIndex = localChapters.value.findIndex(ch => ch.chapter_id === chapterId)
-    if (chapterIndex > -1) {
-      const sectionIndex = localChapters.value[chapterIndex].sections.findIndex(
-        s => s.section_id === section.section_id
-      )
-      if (sectionIndex > -1) {
-        localChapters.value[chapterIndex].sections[sectionIndex].title = newTitle
-      }
-    }
-    emit('update:chapters', [...localChapters.value])
-    editingSectionId.value = null
-    ElMessage.success('小节更新成功')
-  } catch (error) {
-    // 错误已处理
   } finally {
     operating.value = false
   }
@@ -307,33 +303,47 @@ async function handleDeleteSection(chapterId: number, section: SectionItem) {
 }
 
 // 管理资源
-function handleManageResources(sectionId: number) {
-  resourceSectionId.value = sectionId
+function handleManageResources(id: number, type: 'chapter' | 'section') {
+  resourceParent.value = { id, type }
 }
 
 // 关闭资源管理
 function closeResourceManager() {
-  resourceSectionId.value = null
+  resourceParent.value = null
 }
 
 // 资源更新
-function handleResourcesUpdate(sectionId: number, resources: SectionItem['resources']) {
-  for (const chapter of localChapters.value) {
-    const sectionIndex = chapter.sections.findIndex(s => s.section_id === sectionId)
-    if (sectionIndex > -1) {
-      chapter.sections[sectionIndex].resources = resources
-      break
+function handleResourcesUpdate(parentId: number, parentType: 'chapter' | 'section', resources: SectionItem['resources']) {
+  if (parentType === 'chapter') {
+    const chapterIndex = localChapters.value.findIndex(ch => ch.chapter_id === parentId)
+    if (chapterIndex > -1) {
+      localChapters.value[chapterIndex].resources = resources
+    }
+  } else {
+    for (const chapter of localChapters.value) {
+      const sectionIndex = chapter.sections.findIndex(s => s.section_id === parentId)
+      if (sectionIndex > -1) {
+        chapter.sections[sectionIndex].resources = resources
+        break
+      }
     }
   }
   emit('update:chapters', [...localChapters.value])
 }
 
-// 获取当前编辑资源的小节
-const currentResourceSection = computed(() => {
-  if (!resourceSectionId.value) return null
-  for (const chapter of localChapters.value) {
-    const section = chapter.sections.find(s => s.section_id === resourceSectionId.value)
-    if (section) return { chapter, section }
+// 获取当前编辑资源的对象
+const currentResourceParent = computed(() => {
+  if (!resourceParent.value) return null
+  const { id, type } = resourceParent.value
+  
+  if (type === 'chapter') {
+    const chapter = localChapters.value.find(ch => ch.chapter_id === id)
+    return chapter ? { title: chapter.title, resources: chapter.resources, type } : null
+  } else {
+    for (const chapter of localChapters.value) {
+      const section = chapter.sections.find(s => s.section_id === id)
+      if (section) return { title: section.title, resources: section.resources, type }
+    }
   }
   return null
 })
@@ -353,105 +363,133 @@ const currentResourceSection = computed(() => {
 
     <!-- 章节列表 -->
     <div v-else class="chapter-list">
-      <div
-        v-for="chapter in localChapters"
-        :key="chapter.chapter_id"
-        class="chapter-block"
+      <draggable
+        v-model="localChapters"
+        item-key="chapter_id"
+        handle=".expand-icon"
+        animation="200"
+        @end="handleChapterSort"
       >
-        <!-- 章节头部 -->
-        <div class="chapter-header" @click="toggleChapter(chapter.chapter_id)">
-          <el-icon class="expand-icon" :class="{ expanded: expandedChapters.has(chapter.chapter_id) }">
-            <Rank />
-          </el-icon>
+        <template #item="{ element: chapter }">
+          <div class="chapter-block">
+            <!-- 章节头部 -->
+            <div class="chapter-header" @click="toggleChapter(chapter.chapter_id)">
+              <el-icon class="expand-icon" :class="{ expanded: expandedChapters.has(chapter.chapter_id) }">
+                <Rank />
+              </el-icon>
 
-          <!-- 章节标题 -->
-          <template v-if="editingChapterId === chapter.chapter_id">
-            <el-input
-              v-model="editingChapterTitle"
-              size="small"
-              :class="`chapter-input-${chapter.chapter_id}`"
-              style="flex: 1"
-              @click.stop
-              @blur="saveChapterEdit(chapter)"
-              @keyup.enter="saveChapterEdit(chapter)"
-              @keyup.esc="editingChapterId = null"
-            />
-          </template>
-          <template v-else>
-            <span class="chapter-title" @click.stop="startEditChapter(chapter)">
-              {{ chapter.title }}
-            </span>
-          </template>
+              <!-- 章节标题 -->
+              <div class="chapter-content">
+                <span class="chapter-title" @click.stop="startEditChapter(chapter)">
+                  {{ chapter.title }}
+                </span>
+                <div v-if="chapter.description" class="chapter-description">
+                  {{ chapter.description }}
+                </div>
+              </div>
 
-          <span class="section-count">{{ chapter.sections.length }} 小节</span>
+              <span class="section-count">{{ chapter.sections?.length || 0 }} 小节</span>
+              <span class="resource-count" v-if="chapter.resources?.length">{{ chapter.resources.length }} 资源</span>
 
-          <el-button text size="small" :icon="Plus" @click.stop="handleAddSection(chapter)">
-            添加小节
-          </el-button>
-          <el-button text size="small" type="danger" :icon="Delete" @click.stop="handleDeleteChapter(chapter)">
-            删除
-          </el-button>
-        </div>
+              <el-button text size="small" @click.stop="handleManageResources(chapter.chapter_id, 'chapter')">
+                管理资源
+              </el-button>
+              <el-button text size="small" :icon="Plus" @click.stop="handleAddSection(chapter)">
+                添加小节
+              </el-button>
+              <el-button text size="small" type="danger" :icon="Delete" @click.stop="handleDeleteChapter(chapter)">
+                删除
+              </el-button>
+            </div>
 
-        <!-- 小节列表 -->
-        <div v-show="expandedChapters.has(chapter.chapter_id)" class="section-list">
-          <div
-            v-for="section in chapter.sections"
-            :key="section.section_id"
-            class="section-item"
-          >
-            <el-icon class="drag-icon"><Rank /></el-icon>
+            <!-- 小节列表 -->
+            <div v-show="expandedChapters.has(chapter.chapter_id)" class="section-list">
+              <draggable
+                v-model="chapter.sections"
+                item-key="section_id"
+                handle=".drag-icon"
+                animation="200"
+                @end="handleSectionSort(chapter.chapter_id)"
+              >
+                <template #item="{ element: section }">
+                  <div class="section-item">
+                    <el-icon class="drag-icon"><Rank /></el-icon>
 
-            <!-- 小节标题 -->
-            <template v-if="editingSectionId === section.section_id">
-              <el-input
-                v-model="editingSectionTitle"
-                size="small"
-                :class="`section-input-${section.section_id}`"
-                style="flex: 1"
-                @blur="saveSectionEdit(chapter.chapter_id, section)"
-                @keyup.enter="saveSectionEdit(chapter.chapter_id, section)"
-                @keyup.esc="editingSectionId = null"
-              />
-            </template>
-            <template v-else>
-              <span class="section-title" @click="startEditSection(chapter.chapter_id, section)">
-                {{ section.title }}
-              </span>
-            </template>
+                    <!-- 小节内容 -->
+                    <div class="section-content">
+                      <span class="section-title" @click="startEditSection(chapter.chapter_id, section)">
+                        {{ section.title }}
+                      </span>
+                      <div v-if="section.description" class="section-description">
+                        {{ section.description }}
+                      </div>
+                    </div>
 
-            <span class="resource-count">{{ section.resources?.length || 0 }} 资源</span>
+                    <span class="resource-count">{{ section.resources?.length || 0 }} 资源</span>
 
-            <el-button text size="small" @click="handleManageResources(section.section_id)">
-              管理资源
-            </el-button>
-            <el-button text size="small" type="danger" :icon="Delete" @click="handleDeleteSection(chapter.chapter_id, section)">
-              删除
-            </el-button>
+                    <el-button text size="small" @click="handleManageResources(section.section_id, 'section')">
+                      管理资源
+                    </el-button>
+                    <el-button text size="small" type="danger" :icon="Delete" @click="handleDeleteSection(chapter.chapter_id, section)">
+                      删除
+                    </el-button>
+                  </div>
+                </template>
+              </draggable>
+
+              <!-- 空小节 -->
+              <div v-if="!chapter.sections || chapter.sections.length === 0" class="empty-section">
+                暂无小节，点击上方"添加小节"按钮添加
+              </div>
+            </div>
           </div>
-
-          <!-- 空小节 -->
-          <div v-if="chapter.sections.length === 0" class="empty-section">
-            暂无小节，点击上方"添加小节"按钮添加
-          </div>
-        </div>
-      </div>
+        </template>
+      </draggable>
     </div>
 
     <!-- 资源管理弹窗 -->
     <el-dialog
-      v-if="currentResourceSection"
-      :model-value="!!resourceSectionId"
-      :title="`${currentResourceSection.section.title} - 资源管理`"
+      v-if="currentResourceParent"
+      :model-value="!!resourceParent"
+      :title="`${currentResourceParent.title} - 资源管理`"
       width="700px"
       @close="closeResourceManager"
     >
       <ResourceManager
         :course-id="courseId"
-        :section-id="resourceSectionId!"
-        :resources="currentResourceSection.section.resources"
+        :parent-id="resourceParent!.id"
+        :parent-type="resourceParent!.type"
+        :resources="currentResourceParent.resources"
         @update="handleResourcesUpdate"
       />
+    </el-dialog>
+
+    <!-- 章节/小节编辑弹窗 -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="`${dialogMode === 'add' ? '添加' : '编辑'}${dialogType === 'chapter' ? '章节' : '小节'}`"
+      width="500px"
+      append-to-body
+    >
+      <el-form label-position="top">
+        <el-form-item label="标题" required>
+          <el-input v-model="dialogForm.title" placeholder="请输入标题" maxlength="50" show-word-limit />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input
+            v-model="dialogForm.description"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入描述内容"
+            maxlength="200"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="operating" @click="handleDialogSubmit">确定</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>
@@ -502,26 +540,40 @@ const currentResourceSection = computed(() => {
   .expand-icon {
     transition: transform 0.2s ease;
     color: $text-tertiary;
+    cursor: move; // 加强手柄暗示
 
     &.expanded {
       transform: rotate(90deg);
     }
   }
 
-  .chapter-title {
+  .chapter-content {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    cursor: text;
+  }
+
+  .chapter-title {
     font-weight: 500;
     color: $text-primary;
-    cursor: text;
 
     &:hover {
       color: $primary-color;
     }
   }
 
-  .section-count {
+  .chapter-description {
     font-size: $font-size-xs;
     color: $text-tertiary;
+    font-weight: normal;
+  }
+
+  .section-count, .resource-count {
+    font-size: $font-size-xs;
+    color: $text-tertiary;
+    margin-left: 4px;
   }
 }
 
@@ -551,14 +603,25 @@ const currentResourceSection = computed(() => {
     cursor: move;
   }
 
-  .section-title {
+  .section-content {
     flex: 1;
-    color: $text-primary;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     cursor: text;
+  }
+
+  .section-title {
+    color: $text-primary;
 
     &:hover {
       color: $primary-color;
     }
+  }
+
+  .section-description {
+    font-size: $font-size-xs;
+    color: $text-tertiary;
   }
 
   .resource-count {

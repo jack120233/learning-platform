@@ -9,7 +9,7 @@ export interface UserProfile {
   email: string
   phone: string
   nickname: string
-  avatar_url: string
+  avatar: string
   role: 'student' | 'teacher' | 'admin'
   status: 'active' | 'disabled' | 'pending'
   created_at: string
@@ -22,7 +22,7 @@ export interface UpdateProfileRequest {
   email?: string
   phone?: string
   email_code?: string
-  avatar_url?: string
+  avatar?: string
 }
 
 /** 修改密码请求 */

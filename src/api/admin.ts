@@ -26,7 +26,7 @@ export interface AdminUsersParams {
 
 /** 用户详情 */
 export interface AdminUserDetail extends AdminUserItem {
-  avatar_url: string
+  avatar: string
   bio: string
   teacher_intro: string
 }
