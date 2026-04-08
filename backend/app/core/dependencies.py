@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.config import settings
 from app.core.security import decode_token
+from app.core.sql_logging import install_sql_logging
 from app.schemas.common import BusinessCode
 
 # HTTP Bearer 认证方案
@@ -23,6 +24,7 @@ engine = create_async_engine(
     echo=settings.database_echo,
     pool_pre_ping=True,
 )
+install_sql_logging(engine)
 
 # 异步会话工厂
 AsyncSessionLocal = async_sessionmaker(

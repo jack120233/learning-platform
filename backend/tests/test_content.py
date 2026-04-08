@@ -75,6 +75,7 @@ class TestChapterList:
 
         response = await client.get(f"/api/v1/courses/{course.id}/chapters")
         assert response.status_code == 200
+        assert isinstance(response.json()["data"], list)
 
 
 class TestChapterCRUD:
@@ -143,6 +144,7 @@ class TestChapterCRUD:
         )
 
         assert response.status_code == 200
+        assert response.json()["data"]["chapter_id"] > 0
 
     @pytest.mark.asyncio
     async def test_update_chapter(
@@ -437,6 +439,11 @@ class TestSectionCRUD:
         )
 
         assert response.status_code == 200
+        assert response.json()["data"]["section_id"] > 0
+        await db_session.refresh(course)
+        await db_session.refresh(chapter)
+        assert course.total_sections == 1
+        assert chapter.section_count == 1
 
     @pytest.mark.asyncio
     async def test_delete_section_legacy_post_route(
@@ -670,6 +677,7 @@ class TestSectionList:
             f"/api/v1/courses/{course.id}/chapters/{chapter.id}/sections"
         )
         assert response.status_code == 200
+        assert isinstance(response.json()["data"], list)
 
 
 # 导入必要的模型

@@ -88,6 +88,7 @@ class CategoryService:
         category = Category(**data.model_dump())
         db.add(category)
         await db.flush()
+        await db.refresh(category)
         return category
 
     async def update(
@@ -228,6 +229,7 @@ class TagService:
         tag = Tag(**data.model_dump())
         db.add(tag)
         await db.flush()
+        await db.refresh(tag)
         return tag
 
     async def _get_by_name(self, db: AsyncSession, name: str) -> Tag | None:

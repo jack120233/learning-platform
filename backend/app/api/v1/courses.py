@@ -190,6 +190,9 @@ async def get_course(
         select(CourseTag).where(CourseTag.course_id == course_id)
     )
     tags = result.scalars().all()
+    chapters = await course_service.get_chapters_with_sections(db, course_id)
+    total_sections = sum(chapter.section_count for chapter in chapters)
+    total_duration = sum(chapter.total_duration for chapter in chapters)
 
     course_dict = {
         "id": course.id,
@@ -207,12 +210,13 @@ async def get_course(
         "level": course.level,
         "status": course.status,
         "is_free": course.is_free,
-        "total_duration": course.total_duration,
-        "total_sections": course.total_sections,
+        "total_duration": total_duration,
+        "total_sections": total_sections,
         "student_count": course.student_count,
         "rating": course.rating,
         "rating_count": course.rating_count,
         "tags": [{"id": t.tag_id} for t in tags],
+        "chapters": chapters,
         "created_at": course.created_at,
         "published_at": course.published_at,
     }

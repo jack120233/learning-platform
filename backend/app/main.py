@@ -5,11 +5,13 @@
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import router as api_v1_router
 from app.config import settings
@@ -29,6 +31,7 @@ setup_logging(
 )
 
 logger = get_logger(__name__)
+Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
 
 
 @asynccontextmanager
@@ -42,6 +45,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"📝 环境: {settings.environment}")
     logger.info(f"🌐 API 文档: http://{settings.host}:{settings.port}/docs")
     logger.info(f"📁 日志目录: {settings.log_dir}")
+    logger.info(f"🖼️ 上传目录: {settings.upload_dir}")
 
     yield
 
@@ -86,6 +90,11 @@ async def app_exception_handler(request: Request, exc: AppException) -> JSONResp
 
 # 注册 API 路由
 app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
+app.mount(
+    settings.upload_url_prefix,
+    StaticFiles(directory=settings.upload_dir),
+    name="uploads",
+)
 
 
 # 根路径

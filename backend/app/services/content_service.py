@@ -13,6 +13,7 @@ from app.core.exceptions import (
     NotFoundException,
     ValidationException,
 )
+from app.models.course import Course
 from app.models.content import Chapter, Section, Resource
 from app.schemas.content import (
     ChapterCreate,
@@ -249,6 +250,9 @@ class SectionService:
 
         # 更新章节小节数量
         chapter.section_count += 1
+        course = await db.get(Course, course_id)
+        if course:
+            course.total_sections += 1
 
         await db.flush()
         return section
@@ -352,6 +356,10 @@ class SectionService:
         if chapter:
             chapter.section_count -= 1
 
+        course = await db.get(Course, section.course_id)
+        if course:
+            course.total_sections -= 1
+
         await db.delete(section)
 
 
@@ -439,6 +447,10 @@ class ResourceService:
         if chapter and data.type == "video":
             chapter.total_duration += data.duration
 
+        course = await db.get(Course, course_id)
+        if course and data.type == "video":
+            course.total_duration += data.duration
+
         await db.flush()
         return resource
 
@@ -471,6 +483,10 @@ class ResourceService:
         chapter = await db.get(Chapter, resource.chapter_id)
         if chapter and resource.type == "video":
             chapter.total_duration -= resource.duration
+
+        course = await db.get(Course, resource.course_id)
+        if course and resource.type == "video":
+            course.total_duration -= resource.duration
 
         await db.delete(resource)
 

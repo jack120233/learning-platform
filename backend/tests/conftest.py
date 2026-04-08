@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from app.main import app
 from app.core.dependencies import get_db
 from app.models.base import Base
+from app.core.sql_logging import install_sql_logging
 
 # 测试数据库 URL（使用内存 SQLite）
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -53,6 +54,7 @@ async def test_engine():
         echo=False,
         future=True,
     )
+    install_sql_logging(engine)
 
     # 创建所有表
     async with engine.begin() as conn:

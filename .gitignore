@@ -26,6 +26,13 @@ build/
 # 日志和缓存
 *.log
 .cache/
+.coverage
+.pytest_cache/
+backend/.coverage
+backend/.pytest_cache/
+backend/logs/
+backend/uploads/
+logs/
 
 # 系统文件
 .DS_Store

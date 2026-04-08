@@ -12,6 +12,14 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
 from app.core.logging import get_logger
+from app.core.request_context import (
+    get_request_db_stats,
+    reset_request_db_stats,
+    reset_request_id,
+    set_request_id,
+    start_request_db_stats,
+)
+from app.core.sql_logging import get_database_log_label
 
 logger = get_logger(__name__)
 
@@ -43,6 +51,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         """
         # 生成请求ID
         request_id = str(uuid.uuid4())[:8]
+        request.state.request_id = request_id
+        request_id_token = set_request_id(request_id)
+        request_db_stats_token = start_request_db_stats()
 
         # 记录请求开始时间
         start_time = time.perf_counter()
@@ -58,10 +69,15 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             # 不解析 token，只记录是否存在
             user_id = "authenticated"
 
+        full_path = request.url.path
+        if request.url.query:
+            full_path = f"{full_path}?{request.url.query}"
+
         # 记录请求开始
         logger.info(
-            f"[{request_id}] 请求开始 | {request.method} {request.url.path} | "
-            f"客户端: {client_host}:{client_port} | 用户: {user_id}"
+            f"[{request_id}] 请求开始 | {request.method} {full_path} | "
+            f"客户端: {client_host}:{client_port} | 用户: {user_id} | "
+            f"数据库: {get_database_log_label()}"
         )
 
         # 记录请求体（仅用于调试，且限制大小）
@@ -76,6 +92,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
             # 计算请求耗时
             duration_ms = (time.perf_counter() - start_time) * 1000
+            db_stats = get_request_db_stats()
 
             # 记录请求完成
             log_level = logging.INFO if response.status_code < 400 else logging.WARNING
@@ -84,8 +101,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
             logger.log(
                 log_level,
-                f"[{request_id}] 请求完成 | {request.method} {request.url.path} | "
-                f"状态码: {response.status_code} | 耗时: {duration_ms:.2f}ms"
+                f"[{request_id}] 请求完成 | {request.method} {full_path} | "
+                f"状态码: {response.status_code} | 耗时: {duration_ms:.2f}ms | "
+                f"数据库: {db_stats.query_count}条SQL/{db_stats.total_duration_ms:.2f}ms"
             )
 
             # 添加请求ID到响应头
@@ -97,14 +115,19 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         except Exception as exc:
             # 计算请求耗时
             duration_ms = (time.perf_counter() - start_time) * 1000
+            db_stats = get_request_db_stats()
 
             # 记录异常
             logger.error(
-                f"[{request_id}] 请求异常 | {request.method} {request.url.path} | "
-                f"耗时: {duration_ms:.2f}ms | 错误: {exc}",
+                f"[{request_id}] 请求异常 | {request.method} {full_path} | "
+                f"耗时: {duration_ms:.2f}ms | 数据库: {db_stats.query_count}条SQL/"
+                f"{db_stats.total_duration_ms:.2f}ms | 错误: {exc}",
                 exc_info=True,
             )
             raise
+        finally:
+            reset_request_db_stats(request_db_stats_token)
+            reset_request_id(request_id_token)
 
 
 # 需要导入 logging 模块

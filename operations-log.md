@@ -90,3 +90,19 @@
   - 结果：通过
   - 已执行：内存 SQLite 下定向验证课程 `summary` 创建与响应序列化链路
   - 备注：完整 `tests/test_courses.py` 仍受现有 `passlib/bcrypt` 测试环境问题影响，本次未做全量回归。
+
+## 仓库改动 review 与提交流程收尾
+时间：2026-04-08
+
+- 变更原因：对当前未提交改动做集中 review，并在提交前补一处日志安全收口和开发产物忽略规则，减少把敏感 SQL 参数和运行产物带入仓库的风险。
+- 涉及文件：
+  - `backend/app/config.py`
+  - `.gitignore`
+  - `operations-log.md`
+- 核心改动：
+  - 将 `database_log_parameters` 默认值从开启调整为关闭，避免 SQL 绑定参数默认落入日志。
+  - 在 `.gitignore` 中补充覆盖率文件、pytest 缓存、运行日志目录和上传目录的忽略规则。
+  - 记录本次 review、验证与提交整理动作，方便后续追溯。
+- 验证结果：
+  - 已执行：`.\\.venv\\Scripts\\python.exe -m pytest backend/tests/test_courses.py backend/tests/test_content.py backend/tests/test_system.py backend/tests/test_logging.py -q`
+  - 结果：`31 passed`

@@ -3,6 +3,7 @@
 提供课程管理相关的业务逻辑。
 """
 
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -15,11 +16,13 @@ from app.core.exceptions import (
     ValidationException,
 )
 from app.models.course import Course, CourseMaterial, CourseTag
+from app.models.content import Chapter, Section
 from app.schemas.course import (
     CourseCreate,
     CourseUpdate,
     MaterialCreate,
 )
+from app.schemas.content import ChapterWithSections, SectionResponse
 
 
 class CourseService:
@@ -81,6 +84,57 @@ class CourseService:
     ) -> Course | None:
         """通过ID获取课程"""
         return await db.get(Course, course_id)
+
+    async def get_chapters_with_sections(
+        self,
+        db: AsyncSession,
+        course_id: int,
+    ) -> list[ChapterWithSections]:
+        """获取课程详情页需要的章节树。"""
+        chapter_result = await db.execute(
+            select(Chapter)
+            .where(Chapter.course_id == course_id)
+            .order_by(Chapter.sort_order, Chapter.id)
+        )
+        chapters = list(chapter_result.scalars().all())
+        if not chapters:
+            return []
+
+        chapter_ids = [chapter.id for chapter in chapters]
+        section_result = await db.execute(
+            select(Section)
+            .where(Section.chapter_id.in_(chapter_ids))
+            .order_by(Section.chapter_id, Section.sort_order, Section.id)
+        )
+        sections = list(section_result.scalars().all())
+
+        sections_by_chapter: dict[int, list[SectionResponse]] = defaultdict(list)
+        for section in sections:
+            sections_by_chapter[section.chapter_id].append(
+                SectionResponse.model_validate(section)
+            )
+
+        chapter_items: list[ChapterWithSections] = []
+        for chapter in chapters:
+            chapter_sections = sections_by_chapter.get(chapter.id, [])
+            chapter_items.append(
+                ChapterWithSections(
+                    chapter_id=chapter.id,
+                    course_id=chapter.course_id,
+                    title=chapter.title,
+                    description=chapter.description,
+                    sort_order=chapter.sort_order,
+                    is_free=chapter.is_free,
+                    total_duration=sum(
+                        section.duration for section in chapter_sections
+                    ),
+                    section_count=len(chapter_sections),
+                    created_at=chapter.created_at,
+                    sections=chapter_sections,
+                )
+            )
+
+        return chapter_items
 
     async def create(
         self,

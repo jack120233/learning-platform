@@ -4,10 +4,14 @@
 """
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
@@ -43,6 +47,7 @@ class Settings(BaseSettings):
         description="异步数据库连接字符串",
     )
     database_echo: bool = False
+    database_log_parameters: bool = False
 
     # Redis 配置
     redis_url: str = "redis://localhost:6379/0"
@@ -82,6 +87,12 @@ class Settings(BaseSettings):
     log_to_file: bool = True
     log_file_prefix: str = "app"
     log_backup_count: int = 30
+
+    # 文件上传配置
+    upload_dir: str = str(BASE_DIR / "uploads")
+    upload_url_prefix: str = "/uploads"
+    course_cover_subdir: str = "course-covers"
+    course_cover_max_size: int = 10 * 1024 * 1024
 
     @field_validator("debug", mode="before")
     @classmethod

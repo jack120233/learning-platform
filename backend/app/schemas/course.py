@@ -8,6 +8,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.content import ChapterWithSections
+
 
 # ==================== 课程模型 ====================
 
@@ -149,6 +151,10 @@ class CourseResponse(BaseModel):
     rating: float = Field(description="评分")
     rating_count: int = Field(description="评分人数")
     tags: list[dict] | None = Field(default=None, description="标签列表")
+    chapters: list[ChapterWithSections] = Field(
+        default_factory=list,
+        description="章节及小节列表",
+    )
     created_at: datetime = Field(description="创建时间")
     published_at: datetime | None = Field(default=None, description="发布时间")
 

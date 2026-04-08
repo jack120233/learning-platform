@@ -17,6 +17,7 @@ from app.core.security import create_access_token
 from app.models.user import User
 from app.models.course import Course
 from app.models.category import Category
+from app.models.content import Chapter, Section
 
 
 def unique_key(prefix: str = "course") -> str:
@@ -108,11 +109,39 @@ class TestCourseDetail:
         db_session.add(course)
         await db_session.flush()
 
+        chapter = Chapter(
+            course_id=course.id,
+            title="第一章",
+            sort_order=1,
+            is_free=True,
+        )
+        db_session.add(chapter)
+        await db_session.flush()
+
+        section = Section(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            title="第一节",
+            sort_order=1,
+            is_free=True,
+        )
+        db_session.add(section)
+        await db_session.flush()
+
         response = await client.get(f"/api/v1/courses/{course.id}")
         assert response.status_code == 200
         data = response.json()
         assert data["data"]["title"] == "测试课程详情"
         assert data["data"]["summary"] == "测试简介"
+        assert data["data"]["total_sections"] == 1
+        assert len(data["data"]["chapters"]) == 1
+        assert data["data"]["chapters"][0]["course_id"] == course.id
+        assert data["data"]["chapters"][0]["chapter_id"] == chapter.id
+        assert data["data"]["chapters"][0]["title"] == "第一章"
+        assert data["data"]["chapters"][0]["section_count"] == 1
+        assert len(data["data"]["chapters"][0]["sections"]) == 1
+        assert data["data"]["chapters"][0]["sections"][0]["section_id"] == section.id
+        assert data["data"]["chapters"][0]["sections"][0]["title"] == "第一节"
 
     @pytest.mark.asyncio
     async def test_get_course_not_found(self, client: AsyncClient):

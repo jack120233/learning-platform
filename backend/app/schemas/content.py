@@ -72,7 +72,10 @@ class ChapterSortRequest(BaseModel):
 class ChapterResponse(BaseModel):
     """章节响应"""
 
-    id: int = Field(description="章节ID")
+    chapter_id: int = Field(
+        validation_alias="id",
+        description="章节ID",
+    )
     course_id: int = Field(description="课程ID")
     title: str = Field(description="章节标题")
     description: str | None = Field(default=None, description="章节描述")
@@ -148,7 +151,10 @@ class SectionSortRequest(BaseModel):
 class SectionResponse(BaseModel):
     """小节响应"""
 
-    id: int = Field(description="小节ID")
+    section_id: int = Field(
+        validation_alias="id",
+        description="小节ID",
+    )
     course_id: int = Field(description="课程ID")
     chapter_id: int = Field(description="章节ID")
     title: str = Field(description="小节标题")
@@ -233,12 +239,15 @@ class CourseContentResponse(BaseModel):
 class ChapterWithSections(BaseModel):
     """带小节的章节响应"""
 
-    id: int = Field(description="章节ID")
+    chapter_id: int = Field(description="章节ID")
+    course_id: int = Field(description="课程ID")
     title: str = Field(description="章节标题")
     description: str | None = Field(default=None, description="章节描述")
     sort_order: int = Field(description="排序序号")
     is_free: bool = Field(description="是否免费试看")
     total_duration: int = Field(description="章节总时长（秒）")
+    section_count: int = Field(description="小节数量")
+    created_at: datetime = Field(description="创建时间")
     sections: list[SectionResponse] = Field(description="小节列表")
 
     model_config = {"from_attributes": True}
