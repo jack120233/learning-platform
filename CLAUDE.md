@@ -6,7 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 在线教育学习视频播放平台前端项目，支持课程浏览、视频学习、进度追踪等功能。包含学员、讲师、管理员三种角色。
 
+## 根级协作入口
+
+如果 Claude 是从工作区根目录 `E:\video_project\proj_ui` 启动的，必须先遵循根级 `E:\video_project\proj_ui\CLAUDE.md` 的目录路由规则，再下钻到本文件。
+
+本文件只负责 `E:\video_project\proj_ui\UI` 前端目录内的实现规则，不负责后端目录定位。
+
 ## 开发命令
+
+在 `E:\video_project\proj_ui\UI` 目录下执行：
 
 ```bash
 # 安装依赖
@@ -36,7 +44,7 @@ npm run preview
 ## 项目结构
 
 ```
-src/
+E:\video_project\proj_ui\UI\src\
 ├── api/           # API 接口层
 │   ├── index.ts   # Axios 实例配置、拦截器、通用类型
 │   ├── course.ts  # 课程相关接口
@@ -66,11 +74,11 @@ src/
 
 ### API 层设计
 
-- `src/api/index.ts` 导出 Axios 实例和通用类型 (`ApiResponse`, `PaginatedData`)
+- `E:\video_project\proj_ui\UI\src\api\index.ts` 导出 Axios 实例和通用类型 (`ApiResponse`, `PaginatedData`)
 - 请求拦截器自动注入 JWT Token（从 localStorage 读取，这是唯一允许直接读取 localStorage 的地方）
 - 响应拦截器处理 Token 过期刷新（401 自动刷新机制）
 - 各模块 API 独立文件，导出类型化的请求函数
-- 开发环境代理配置在 `vite.config.ts` 中，`/api` 代理到 `http://localhost:8000`
+- 开发环境代理配置在 `E:\video_project\proj_ui\UI\vite.config.ts` 中，`/api` 代理到 `http://localhost:8000`
 
 ### 路由权限控制
 
@@ -80,7 +88,7 @@ src/
 - `requiresTeacher: true` - 需要讲师权限
 - `requiresAdmin: true` - 需要管理员权限
 
-路由守卫在 `src/router/index.ts` 中实现，统一检查 `useUserStore()` 提供的 `isLoggedIn`、`isTeacher`、`isAdmin` 计算属性。
+路由守卫在 `E:\video_project\proj_ui\UI\src\router\index.ts` 中实现，统一检查 `useUserStore()` 提供的 `isLoggedIn`、`isTeacher`、`isAdmin` 计算属性。
 
 ### 状态管理
 
@@ -97,7 +105,7 @@ Vite 配置了 `unplugin-auto-import` 和 `unplugin-vue-components`：
 - Vue Router 和 Pinia API 也配置了自动导入
 - Element Plus 组件按需自动注册
 - Element Plus 图标在 `main.ts` 中全局注册
-- 类型定义生成在 `src/auto-imports.d.ts` 和 `src/components.d.ts`
+- 类型定义生成在 `E:\video_project\proj_ui\UI\src\auto-imports.d.ts` 和 `E:\video_project\proj_ui\UI\src\components.d.ts`
 
 ## 开发约定
 
@@ -137,11 +145,11 @@ const token = localStorage.getItem('access_token')
 const userInfo = JSON.parse(localStorage.getItem('user_info'))
 ```
 
-详细规范见 `docs/login-auth-issue-review.md` 第九章节。
+详细规范见 `E:\video_project\proj_ui\UI\docs\login-auth-issue-review.md` 第九章节。
 
 ### 样式规范
 
-- 全局 SCSS 变量定义在 `@/assets/styles/_variables.scss`
+- 全局 SCSS 变量定义在 `@/assets/styles/_variables.scss`（磁盘绝对路径：`E:\video_project\proj_ui\UI\src\assets\styles\_variables.scss`）
 - SCSS 变量通过 Vite 配置 `additionalData` 自动导入所有组件，无需手动 `@use`
 - 组件样式使用 `<style lang="scss" scoped>`
 - 页面容器类名：`.page-container`（max-width: 1440px）
@@ -175,7 +183,15 @@ const userInfo = JSON.parse(localStorage.getItem('user_info'))
 
 ## 参考文档
 
-- `docs/login-auth-issue-review.md` - 登录认证问题复盘与开发规范（重要，必读）
-- `docs/course-id-mismatch-review.md` - 课程 ID 字段不匹配问题复盘
-- `docs/前端接口文档.md` - 前端接口详细文档
-- `5.接口文档.md` - 后端接口文档
+- `E:\video_project\proj_ui\UI\docs\login-auth-issue-review.md` - 登录认证问题复盘与开发规范（重要，必读）
+- `E:\video_project\proj_ui\UI\docs\course-id-mismatch-review.md` - 课程 ID 字段不匹配问题复盘
+- `E:\video_project\proj_ui\UI\docs\前端接口文档.md` - 前端接口详细文档
+- `E:\video_project\proj_ui\UI\5.接口文档.md` - 后端接口文档
+
+## 文件写入规范
+
+- 在新增文件或修改现有文件前，先确认是否需要同步更新 `E:\video_project\proj_ui\UI\operations-log.md`。
+- 只要本次工作产生了 `UI` 仓库内的实际文件变更，必须在 `E:\video_project\proj_ui\UI\operations-log.md` 追加一条记录。
+- 记录内容至少包含：变更时间、变更原因、涉及文件、核心改动、验证结果（如未验证需明确说明）。
+- 只要前端 API 契约、上传流程、页面联调方式或开发脚本发生变化，必须同步更新 `E:\video_project\proj_ui\UI\docs\前端接口文档.md` 或对应复盘/说明文档。
+- `E:\video_project\proj_ui\UI\operations-log.md` 的记录要与实际落盘文件保持一致；后续若继续追加修改，同一任务也要补充到日志中。

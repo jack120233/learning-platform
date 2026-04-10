@@ -14,7 +14,14 @@
       "mcp__augment-context-engine__codebase-retrieval",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(where.exe claude:*)",
+      "Bash(claude --version)",
+      "Bash(xargs grep:*)",
+      "Bash(claude mcp:*)",
+      "Bash(powershell:*)",
+      "Bash(cmd:*)",
+      "Bash(C:/Program Files/Git/bin/bash.exe:*)"
     ],
     "bypassPermissions": true
   },
