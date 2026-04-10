@@ -8,6 +8,7 @@ from typing import Literal
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.resource_types import normalize_resource_type
 from app.core.exceptions import (
     ForbiddenException,
     NotFoundException,
@@ -387,6 +388,22 @@ class ResourceService:
         )
         return list(result.scalars().all())
 
+    async def get_list_by_chapter(
+        self,
+        db: AsyncSession,
+        chapter_id: int,
+    ) -> list[Resource]:
+        """获取章节级资源列表。"""
+        result = await db.execute(
+            select(Resource)
+            .where(
+                Resource.chapter_id == chapter_id,
+                Resource.section_id.is_(None),
+            )
+            .order_by(Resource.sort_order, Resource.id)
+        )
+        return list(result.scalars().all())
+
     async def get_by_id(
         self,
         db: AsyncSession,
@@ -396,6 +413,17 @@ class ResourceService:
         return await db.get(Resource, resource_id)
 
     async def create(
+        self,
+        db: AsyncSession,
+        course_id: int,
+        chapter_id: int,
+        section_id: int,
+        data: ResourceCreate,
+    ) -> Resource:
+        """兼容旧调用，创建小节资源。"""
+        return await self.create_for_section(db, course_id, chapter_id, section_id, data)
+
+    async def create_for_section(
         self,
         db: AsyncSession,
         course_id: int,
@@ -423,12 +451,18 @@ class ResourceService:
         if not section:
             raise NotFoundException("小节不存在")
 
+        resource_type = normalize_resource_type(
+            data.type,
+            file_url=data.file_url,
+            file_name=data.title or data.file_name,
+        )
+
         resource = Resource(
             course_id=course_id,
             chapter_id=chapter_id,
             section_id=section_id,
             title=data.title,
-            type=data.type,
+            type=resource_type,
             file_url=data.file_url,
             file_size=data.file_size,
             duration=data.duration,
@@ -439,17 +473,58 @@ class ResourceService:
 
         # 更新小节资源数量和时长
         section.resource_count += 1
-        if data.type == "video":
+        if resource_type == "video":
             section.duration += data.duration
 
         # 更新章节时长
         chapter = await db.get(Chapter, chapter_id)
-        if chapter and data.type == "video":
+        if chapter and resource_type == "video":
             chapter.total_duration += data.duration
 
         course = await db.get(Course, course_id)
-        if course and data.type == "video":
+        if course and resource_type == "video":
             course.total_duration += data.duration
+
+        await db.flush()
+        return resource
+
+    async def create_for_chapter(
+        self,
+        db: AsyncSession,
+        course_id: int,
+        chapter_id: int,
+        data: ResourceCreate,
+    ) -> Resource:
+        """创建章节级资源。"""
+        chapter = await db.get(Chapter, chapter_id)
+        if not chapter:
+            raise NotFoundException("章节不存在")
+
+        resource_type = normalize_resource_type(
+            data.type,
+            file_url=data.file_url,
+            file_name=data.title or data.file_name,
+        )
+
+        resource = Resource(
+            course_id=course_id,
+            chapter_id=chapter_id,
+            section_id=None,
+            title=data.title,
+            type=resource_type,
+            file_url=data.file_url,
+            file_size=data.file_size,
+            duration=data.duration,
+            sort_order=data.sort_order,
+            is_free=data.is_free,
+        )
+        db.add(resource)
+
+        if resource_type == "video":
+            chapter.total_duration += data.duration
+            course = await db.get(Course, course_id)
+            if course:
+                course.total_duration += data.duration
 
         await db.flush()
         return resource
@@ -473,7 +548,7 @@ class ResourceService:
             raise NotFoundException("资源不存在")
 
         # 更新小节资源数量和时长
-        section = await db.get(Section, resource.section_id)
+        section = await db.get(Section, resource.section_id) if resource.section_id else None
         if section:
             section.resource_count -= 1
             if resource.type == "video":

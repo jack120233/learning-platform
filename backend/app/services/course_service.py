@@ -15,14 +15,15 @@ from app.core.exceptions import (
     NotFoundException,
     ValidationException,
 )
+from app.core.resource_types import normalize_resource_type
 from app.models.course import Course, CourseMaterial, CourseTag
-from app.models.content import Chapter, Section
+from app.models.content import Chapter, Section, Resource
 from app.schemas.course import (
     CourseCreate,
     CourseUpdate,
     MaterialCreate,
 )
-from app.schemas.content import ChapterWithSections, SectionResponse
+from app.schemas.content import ChapterWithSections, ResourceResponse, SectionResponse
 
 
 class CourseService:
@@ -107,16 +108,57 @@ class CourseService:
             .order_by(Section.chapter_id, Section.sort_order, Section.id)
         )
         sections = list(section_result.scalars().all())
+        section_ids = [section.id for section in sections]
+
+        resource_result = await db.execute(
+            select(Resource)
+            .where(Resource.chapter_id.in_(chapter_ids))
+            .order_by(Resource.chapter_id, Resource.section_id, Resource.sort_order, Resource.id)
+        )
+        resources = list(resource_result.scalars().all())
+
+        chapter_resources_by_chapter: dict[int, list[ResourceResponse]] = defaultdict(list)
+        section_resources_by_section: dict[int, list[ResourceResponse]] = defaultdict(list)
+        for resource in resources:
+            resource_item = ResourceResponse.model_validate(resource)
+            normalized_type = normalize_resource_type(
+                resource.type,
+                file_url=resource.file_url,
+                file_name=resource.title,
+            )
+            resource_item.type = normalized_type
+            resource_item.resource_type = normalized_type
+            if resource.section_id is None:
+                chapter_resources_by_chapter[resource.chapter_id].append(resource_item)
+            elif resource.section_id in section_ids:
+                section_resources_by_section[resource.section_id].append(resource_item)
 
         sections_by_chapter: dict[int, list[SectionResponse]] = defaultdict(list)
         for section in sections:
             sections_by_chapter[section.chapter_id].append(
-                SectionResponse.model_validate(section)
+                SectionResponse(
+                    section_id=section.id,
+                    course_id=section.course_id,
+                    chapter_id=section.chapter_id,
+                    title=section.title,
+                    description=section.description,
+                    sort_order=section.sort_order,
+                    is_free=section.is_free,
+                    duration=section.duration,
+                    resource_count=section.resource_count,
+                    created_at=section.created_at,
+                    resources=section_resources_by_section.get(section.id, []),
+                )
             )
 
         chapter_items: list[ChapterWithSections] = []
         for chapter in chapters:
             chapter_sections = sections_by_chapter.get(chapter.id, [])
+            chapter_resources = chapter_resources_by_chapter.get(chapter.id, [])
+            computed_section_count = len(chapter_sections)
+            computed_duration = sum(section.duration for section in chapter_sections) + sum(
+                resource.duration for resource in chapter_resources if resource.resource_type == "video"
+            )
             chapter_items.append(
                 ChapterWithSections(
                     chapter_id=chapter.id,
@@ -125,12 +167,11 @@ class CourseService:
                     description=chapter.description,
                     sort_order=chapter.sort_order,
                     is_free=chapter.is_free,
-                    total_duration=sum(
-                        section.duration for section in chapter_sections
-                    ),
-                    section_count=len(chapter_sections),
+                    total_duration=max(chapter.total_duration, computed_duration),
+                    section_count=max(chapter.section_count, computed_section_count),
                     created_at=chapter.created_at,
                     sections=chapter_sections,
+                    resources=chapter_resources,
                 )
             )
 

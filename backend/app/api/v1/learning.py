@@ -3,8 +3,9 @@
 提供学习进度管理的 API 接口。
 """
 
+from typing import Any
+
 from fastapi import APIRouter, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import DBSession, CurrentUserId
 from app.schemas.common import ApiResponse
@@ -14,7 +15,6 @@ from app.schemas.learning import (
     PreviewResponse,
     ProgressResponse,
     SaveProgressRequest,
-    StartLearningRequest,
 )
 from app.services.learning_service import learning_service
 
@@ -50,28 +50,40 @@ async def save_progress(
 ) -> ApiResponse[ProgressResponse]:
     """保存进度接口"""
     progress = await learning_service.save_progress(db, user_id, data)
+    total_time = data.total_time if data.total_time is not None else 0
     return ApiResponse.success(
-        data=ProgressResponse.model_validate(progress),
+        data=ProgressResponse(**learning_service._to_progress_payload(progress, total_time)),
         message="保存成功",
     )
 
 
 @router.get(
     "/progress",
-    response_model=ApiResponse[list[ProgressResponse]],
+    response_model=ApiResponse[Any],
     summary="获取进度",
     description="获取课程学习进度",
 )
 async def get_progress(
-    course_id: int = Query(..., description="课程ID"),
+    course_id: int | None = Query(default=None, description="课程ID"),
+    section_id: int | None = Query(default=None, description="小节ID"),
+    resource_id: int | None = Query(default=None, description="资源ID"),
     db: DBSession = None,
     user_id: CurrentUserId = None,
-) -> ApiResponse[list[ProgressResponse]]:
+) -> ApiResponse[Any]:
     """获取进度接口"""
-    progress_list = await learning_service.get_progress(db, user_id, course_id)
-    return ApiResponse.success(
-        data=[ProgressResponse.model_validate(p) for p in progress_list],
+    progress_list = await learning_service.get_progress(
+        db,
+        user_id,
+        course_id=course_id,
+        section_id=section_id,
+        resource_id=resource_id,
     )
+    serialized = [ProgressResponse(**p) for p in progress_list]
+
+    if section_id is not None and resource_id is not None:
+        return ApiResponse.success(data=serialized[0], message="获取成功")
+
+    return ApiResponse.success(data=serialized, message="获取成功")
 
 
 @router.get(
