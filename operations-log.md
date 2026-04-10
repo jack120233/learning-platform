@@ -103,6 +103,98 @@
   - 将 `database_log_parameters` 默认值从开启调整为关闭，避免 SQL 绑定参数默认落入日志。
   - 在 `.gitignore` 中补充覆盖率文件、pytest 缓存、运行日志目录和上传目录的忽略规则。
   - 记录本次 review、验证与提交整理动作，方便后续追溯。
+  - 补充决策说明：即使当前处于开发阶段，仓库默认值仍采用“默认不暴露 SQL 绑定参数”的保守策略；若后续本地联调确实需要，可通过环境配置临时开启。
 - 验证结果：
   - 已执行：`.\\.venv\\Scripts\\python.exe -m pytest backend/tests/test_courses.py backend/tests/test_content.py backend/tests/test_system.py backend/tests/test_logging.py -q`
   - 结果：`31 passed`
+
+## 根级 Claude 协作入口整合
+时间：2026-04-09
+
+- 变更原因：前端 `UI` 与后端 `project_code` 已开始在同一工作区联合开发，需要补齐根级 Claude 协作入口，并让后端子项目规则明确继承根级目录路由，避免根目录联调时误入错误子目录。
+- 涉及文件：
+  - `../CLAUDE.md`
+  - `../.claude/settings.local.json`
+  - `CLAUDE.md`
+  - `operations-log.md`
+- 核心改动：
+  - 新增工作区根级 `CLAUDE.md`，强制约束前端任务到 `UI/` 查找、后端任务到 `project_code/backend/` 查找、联调任务同时检查两边目录。
+  - 新增工作区根级 `.claude/settings.local.json`，作为联合开发默认入口配置，且不沿用前端子项目的高权限配置。
+  - 在后端 `CLAUDE.md` 中补充“先遵循根级 `CLAUDE.md`，再进入后端规则”的继承说明。
+- 验证结果：
+  - 已执行：只读核对根级与后端规则文件内容。
+  - 结果：根级与后端规则已对齐，后端日志记录要求保持不变。
+
+## 工作区联合开发文档沉淀
+时间：2026-04-09
+
+- 变更原因：需要把本次前后端从分开协作转为统一工作区协作的决策、目录路由、验证规则和历史痕迹处理结果沉淀到项目文档中，避免后续再次重复梳理。
+- 涉及文件：
+  - `../CLAUDE.md`
+  - `../.claude/context-summary-workspace-integration.md`
+  - `operations-log.md`
+- 核心改动：
+  - 复核并确认根级 `CLAUDE.md` 已覆盖前端、后端、联调三类任务的目录路由与最小验证规则。
+  - 新增根级 `.claude/context-summary-workspace-integration.md`，集中记录本次整合结论、子项目继承关系、业务任务映射、历史痕迹处理和验证口径。
+  - 保持后端 `operations-log.md` 继续作为后端侧的正式留痕入口。
+- 验证结果：
+  - 已执行：只读核对根级 `CLAUDE.md`、根级 `.claude` 目录和后端日志内容。
+  - 结果：文档落盘完成，当前工作区整合状态与文档描述一致。
+
+## 工作区联合开发收尾速查
+时间：2026-04-09
+
+- 变更原因：在完整上下文摘要之外，再补一份更短的速查文档，方便后续从根目录启动时快速定位前端、后端和联调入口。
+- 涉及文件：
+  - `../.claude/workspace-quick-reference.md`
+  - `operations-log.md`
+- 核心改动：
+  - 新增根级 `.claude/workspace-quick-reference.md`，浓缩记录主入口、目录路由、常见任务落点、统一口径、最小验证和应忽略的历史痕迹。
+  - 保持完整背景摘要与速查版并存，分别服务详细查阅和快速上手。
+- 验证结果：
+  - 已执行：只读核对速查文档内容与当前根级 `CLAUDE.md` 一致。
+  - 结果：速查文档已落盘，可作为后续联合开发快速入口。
+
+## 教师端上传与资源联调接口补齐
+时间：2026-04-10
+
+- 变更原因：教师端课程编辑页需要形成“文件上传 -> 课程资料/章节资源/小节资源绑定 -> 课程详情回显 -> 旧前端兼容删除”的完整闭环，同时补齐大文件分片上传能力。
+- 涉及文件：
+  - `backend/app/api/v1/uploads.py`
+  - `backend/app/api/v1/courses.py`
+  - `backend/app/api/v1/content.py`
+  - `backend/app/config.py`
+  - `backend/app/core/security.py`
+  - `backend/app/models/content.py`
+  - `backend/app/schemas/upload.py`
+  - `backend/app/schemas/course.py`
+  - `backend/app/schemas/content.py`
+  - `backend/app/services/upload_service.py`
+  - `backend/app/services/course_service.py`
+  - `backend/app/services/content_service.py`
+  - `backend/scripts/init_db.py`
+  - `backend/run.bat`
+  - `backend/tests/test_uploads.py`
+  - `backend/tests/test_courses.py`
+  - `backend/tests/test_content.py`
+  - `docs/api-testing-guide.md`
+  - `docs/api-endpoint-inventory.md`
+  - `context-summary-api-endpoint-inventory.md`
+  - `context-summary-api-frontend-quick-reference.md`
+  - `CLAUDE.md`
+  - `operations-log.md`
+- 核心改动：
+  - 将 `/api/v1/upload/file` 扩展为统一文件上传入口，并新增 `/api/v1/upload/init`、`/api/v1/upload/chunk`、`/api/v1/upload/complete` 三段式分片上传接口。
+  - 新增上传 schema，扩展上传服务对课程封面、文档、压缩包、常见音视频的分类落盘与大小限制。
+  - 课程资料接口支持 JSON 绑定与 `multipart/form-data` 直传两种模式，并补充旧前端删除兼容路由。
+  - 课程内容支持章节级资源，`Resource.section_id` 调整为可空，并兼容前端 `resource_type`、`file_name`、`resource_id` 等字段命名。
+  - 课程详情返回补齐 `materials`、`chapters[].resources`、`chapters[].sections[].resources`，供教师端编辑页直接回显。
+  - 在数据库初始化脚本中补充 `resources.section_id` 可空修正；在安全模块中补一层 bcrypt 5.x 兼容处理。
+  - 更新接口测试清单、手测指南、后端协作说明与两份 context-summary，使统计口径与当前 12 模块 / 80 接口保持一致。
+- 验证结果：
+  - 已执行：`python -m pytest backend/tests/test_uploads.py -q`
+  - 结果：`7 passed`
+  - 已执行：`python -m pytest backend/tests/test_courses.py -q`
+  - 结果：`17 passed`
+  - 已执行：`python -m pytest backend/tests/test_content.py -q`
+  - 结果：`16 passed`

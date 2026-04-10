@@ -240,6 +240,36 @@ Body:
 GET /api/v1/courses/{课程ID}
 ```
 
+#### 上传课程资料
+
+方式一：先上传文件，再走 JSON 绑定
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/upload/file" \
+  -H "Authorization: Bearer 讲师token" \
+  -F "file=@E:/temp/outline.pdf"
+```
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/courses/{课程ID}/materials" \
+  -H "Authorization: Bearer 讲师token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "outline.pdf",
+    "file_url": "http://localhost:8000/uploads/files/xxx.pdf",
+    "file_size": 102400,
+    "file_type": "pdf"
+  }'
+```
+
+方式二：直接上传并落库
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/courses/{课程ID}/materials" \
+  -H "Authorization: Bearer 讲师token" \
+  -F "file=@E:/temp/outline.pdf"
+```
+
 ---
 
 ### 4.3 课程内容模块
@@ -268,9 +298,106 @@ Body:
 GET /api/v1/courses/{课程ID}/chapters/{章节ID}/sections
 ```
 
+#### 上传小节资源
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/courses/{课程ID}/sections/{小节ID}/resources" \
+  -H "Authorization: Bearer 讲师token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resource_type": "document",
+    "file_name": "lesson-handout.pdf",
+    "file_url": "http://localhost:8000/uploads/files/lesson-handout.pdf",
+    "file_size": 204800,
+    "sort_order": 1,
+    "is_free": false
+  }'
+```
+
+#### 上传章节级资源
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/courses/{课程ID}/chapters/{章节ID}/resources" \
+  -H "Authorization: Bearer 讲师token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resource_type": "video",
+    "file_name": "chapter-intro.mp4",
+    "file_url": "http://localhost:8000/uploads/files/chapter-intro.mp4",
+    "file_size": 10485760,
+    "duration": 120,
+    "sort_order": 1,
+    "is_free": false
+  }'
+```
+
+#### 兼容旧前端删除路由
+
+当前教师端页面仍可使用以下删除路径：
+
+- `POST /api/v1/courses/{课程ID}/materials/{资料ID}/delete`
+- `POST /api/v1/courses/{课程ID}/chapters/{章节ID}/delete`
+- `POST /api/v1/courses/{课程ID}/chapters/{章节ID}/sections/{小节ID}/delete`
+- `POST /api/v1/courses/{课程ID}/sections/{小节ID}/resources/{资源ID}/delete`
+- `POST /api/v1/courses/{课程ID}/chapters/{章节ID}/resources/{资源ID}/delete`
+
 ---
 
-### 4.4 学习模块
+### 4.4 文件上传模块
+
+#### 通用小文件上传
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/upload/file" \
+  -H "Authorization: Bearer 讲师token" \
+  -F "file=@E:/temp/lesson.pdf"
+```
+
+支持场景：
+
+- 课程封面：`.jpg`、`.jpeg`、`.png`
+- 课件/资料：`.pdf`、`.doc`、`.docx`、`.ppt`、`.pptx`、`.xls`、`.xlsx`、`.csv`、`.md`、`.zip`
+- 小体积音视频：`.mp4`、`.mov`、`.webm`、`.ogg`、`.mp3`、`.wav`
+
+#### 初始化分片上传
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/upload/init" \
+  -H "Authorization: Bearer 讲师token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_name": "lesson-video.mp4",
+    "file_size": 209715200,
+    "chunk_size": 10485760
+  }'
+```
+
+#### 上传单个分片
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/upload/chunk" \
+  -H "Authorization: Bearer 讲师token" \
+  -F "upload_id=上一步返回的upload_id" \
+  -F "chunk_index=0" \
+  -F "chunk=@E:/temp/chunk-0.part"
+```
+
+#### 完成分片上传
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/upload/complete" \
+  -H "Authorization: Bearer 讲师token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "upload_id": "上一步返回的upload_id",
+    "file_name": "lesson-video.mp4",
+    "total_chunks": 20
+  }'
+```
+
+---
+
+### 4.5 学习模块
 
 #### 开始学习
 
@@ -288,7 +415,7 @@ Headers: Authorization: Bearer <token>
 
 ---
 
-### 4.5 反馈模块
+### 4.6 反馈模块
 
 #### 提交反馈
 
@@ -312,7 +439,7 @@ Headers: Authorization: Bearer <token>
 
 ---
 
-### 4.6 消息模块
+### 4.7 消息模块
 
 #### 获取消息列表
 
@@ -337,7 +464,7 @@ Headers: Authorization: Bearer <token>
 
 ---
 
-### 4.7 系统模块
+### 4.8 系统模块
 
 #### 获取分类列表（无需登录）
 
