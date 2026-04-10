@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Rank, Delete } from '@element-plus/icons-vue'
+import { Plus, Rank, Delete, VideoPlay, Document } from '@element-plus/icons-vue'
 import {
   createChapter,
   updateChapter,
@@ -48,7 +48,7 @@ const dialogForm = ref({
 const expandedChapters = ref<Set<number>>(new Set())
 
 // 当前管理资源的小节或章节
-const resourceParent = ref<{ id: number, type: 'chapter' | 'section' } | null>(null)
+const resourceParent = ref<{ id: number, type: 'chapter' | 'section', defaultTab?: 'video' | 'document' } | null>(null)
 
 // 操作中状态
 const operating = ref(false)
@@ -303,8 +303,8 @@ async function handleDeleteSection(chapterId: number, section: SectionItem) {
 }
 
 // 管理资源
-function handleManageResources(id: number, type: 'chapter' | 'section') {
-  resourceParent.value = { id, type }
+function handleManageResources(id: number, type: 'chapter' | 'section', defaultTab?: 'video' | 'document') {
+  resourceParent.value = { id, type, defaultTab }
 }
 
 // 关闭资源管理
@@ -391,8 +391,8 @@ const currentResourceParent = computed(() => {
               <span class="section-count">{{ chapter.sections?.length || 0 }} 小节</span>
               <span class="resource-count" v-if="chapter.resources?.length">{{ chapter.resources.length }} 资源</span>
 
-              <el-button text size="small" @click.stop="handleManageResources(chapter.chapter_id, 'chapter')">
-                管理资源
+              <el-button text size="small" type="primary" @click.stop="handleManageResources(chapter.chapter_id, 'chapter')">
+                整体资源管理
               </el-button>
               <el-button text size="small" :icon="Plus" @click.stop="handleAddSection(chapter)">
                 添加小节
@@ -427,8 +427,11 @@ const currentResourceParent = computed(() => {
 
                     <span class="resource-count">{{ section.resources?.length || 0 }} 资源</span>
 
-                    <el-button text size="small" @click="handleManageResources(section.section_id, 'section')">
-                      管理资源
+                    <el-button text size="small" type="primary" :icon="VideoPlay" @click="handleManageResources(section.section_id, 'section', 'video')">
+                      上传视频
+                    </el-button>
+                    <el-button text size="small" :icon="Document" @click="handleManageResources(section.section_id, 'section', 'document')">
+                      课件资源
                     </el-button>
                     <el-button text size="small" type="danger" :icon="Delete" @click="handleDeleteSection(chapter.chapter_id, section)">
                       删除
@@ -452,7 +455,7 @@ const currentResourceParent = computed(() => {
       v-if="currentResourceParent"
       :model-value="!!resourceParent"
       :title="`${currentResourceParent.title} - 资源管理`"
-      width="700px"
+      :width="resourceParent?.defaultTab ? '500px' : '900px'"
       @close="closeResourceManager"
     >
       <ResourceManager
@@ -460,6 +463,7 @@ const currentResourceParent = computed(() => {
         :parent-id="resourceParent!.id"
         :parent-type="resourceParent!.type"
         :resources="currentResourceParent.resources"
+        :default-tab="resourceParent!.defaultTab"
         @update="handleResourcesUpdate"
       />
     </el-dialog>

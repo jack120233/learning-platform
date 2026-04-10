@@ -326,11 +326,18 @@ async function handleMaterialUpload(options: { file: File }) {
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/csv',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/markdown',
+    'text/plain',
     'application/zip',
     'application/x-zip-compressed',
   ]
-  if (!validTypes.includes(file.type)) {
-    ElMessage.warning('仅支持 PDF、Word、ZIP 格式')
+  if (!validTypes.includes(file.type) && !file.name.endsWith('.md') && !file.name.endsWith('.csv')) {
+    ElMessage.warning('仅支持 PDF、Word、PPT、Excel、Markdown、ZIP 等格式')
     return
   }
 
@@ -515,7 +522,7 @@ onMounted(async () => {
           placeholder="请输入课程标题"
           maxlength="30"
           show-word-limit
-          style="width: 320px"
+          style="width: 240px"
         />
       </el-form-item>
 
@@ -548,7 +555,7 @@ onMounted(async () => {
 
       <!-- 课程分类 -->
       <el-form-item label="课程分类" prop="category_id">
-        <el-select v-model="form.category_id" placeholder="请选择分类" style="width: 320px">
+        <el-select v-model="form.category_id" placeholder="请选择分类" style="width: 240px">
           <el-option
             v-for="category in categories"
             :key="category.category_id"
@@ -630,17 +637,19 @@ onMounted(async () => {
         />
       </el-form-item>
 
-      <!-- 配套资料 -->
+            <!-- 课程全局资料区 -->
+      <el-divider content-position="left">课程全局资料区</el-divider>
+
       <el-form-item label="配套资料" v-if="isEdit && courseId">
         <el-upload
           class="material-upload"
           :show-file-list="false"
           :http-request="handleMaterialUpload"
-          accept=".pdf,.doc,.docx,.zip"
+          accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.md,.txt,.zip"
         >
-          <el-button type="primary" text :icon="Upload">上传资料</el-button>
+          <el-button type="primary" plain :icon="Upload">上传资料</el-button>
         </el-upload>
-        <div class="material-tip">支持 PDF、Word、ZIP 格式，单个文件最大 50MB，最多 10 个</div>
+        <div class="material-tip">上传课程大纲或全局参考资料（支持 PDF、PPT、Word、Excel、Markdown、ZIP 等），单个文件最大 50MB，最多 10 个</div>
 
         <div v-if="materials.length > 0" class="material-list">
           <div v-for="material in materials" :key="material.material_id" class="material-item">
@@ -734,8 +743,8 @@ onMounted(async () => {
 
 .cover-uploader {
   .cover-upload {
-    width: 320px;
-    height: 180px;
+    width: 240px;
+    height: 135px;
     border: 1px dashed $border-color;
     border-radius: $radius-md;
     overflow: hidden;

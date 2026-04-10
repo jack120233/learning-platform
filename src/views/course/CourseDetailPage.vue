@@ -38,7 +38,7 @@ const isError = ref(false)
 const errorType = ref<'not_found' | 'archived' | 'network' | 'server' | null>(null)
 
 // 标签页
-const activeTab = ref<'outline' | 'intro' | 'description' | 'materials' | 'feedback'>('outline')
+const activeTab = ref<'outline' | 'intro' | 'materials' | 'feedback'>('outline')
 
 // 章节折叠状态
 const chapterExpandMap = ref<Record<number, boolean>>({})
@@ -61,6 +61,7 @@ const feedbackForm = ref({
 const courseId = computed(() => Number(route.params.courseId))
 const hasLearningRecord = computed(() => learnStore.hasLearningRecord)
 const continueInfo = computed(() => learnStore.continueInfo)
+const displayTeacherName = computed(() => course.value?.teacher_name?.trim() || '讲师信息待完善')
 
 // 计算课程总小节数
 const totalSections = computed(() => {
@@ -404,9 +405,9 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
           <!-- 讲师信息 -->
           <div class="teacher-info">
             <el-avatar :size="32" :src="course.teacher_avatar">
-              {{ course.teacher_name?.charAt(0) }}
+              {{ displayTeacherName.charAt(0) }}
             </el-avatar>
-            <span class="teacher-name">{{ course.teacher_name }}</span>
+            <span class="teacher-name">{{ displayTeacherName }}</span>
           </div>
 
           <!-- 元数据行 -->
@@ -547,12 +548,6 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
           <!-- 课程简介 -->
           <el-tab-pane label="课程简介" name="intro">
             <div class="summary-content">{{ course.summary || '暂无课程简介' }}</div>
-          </el-tab-pane>
-
-          <!-- 课程描述 -->
-          <el-tab-pane label="课程描述" name="description">
-            <div v-if="course.description" class="description-content" v-html="course.description"></div>
-            <el-empty v-else description="暂无课程描述" />
           </el-tab-pane>
 
           <!-- 配套资料 -->

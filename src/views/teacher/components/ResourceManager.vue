@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Upload, VideoPlay, Headset, Document, Picture, Delete } from '@element-plus/icons-vue'
 import {
@@ -20,6 +20,7 @@ interface Props {
   parentId: number
   parentType: 'chapter' | 'section'
   resources: ResourceItem[]
+  defaultTab?: 'video' | 'document'
 }
 
 const props = defineProps<Props>()
@@ -31,6 +32,19 @@ const emit = defineEmits<{
 
 // 本地资源列表
 const localResources = ref<ResourceItem[]>([...props.resources])
+
+watch(
+  () => props.resources,
+  (resources) => {
+    localResources.value = [...resources]
+  },
+  { deep: true },
+)
+
+// 分类资源列表
+const videoResources = computed(() => localResources.value.filter(r => r.resource_type === 'video'))
+const otherResources = computed(() => localResources.value.filter(r => r.resource_type !== 'video'))
+
 
 // 上传中状态
 const uploading = ref(false)
@@ -63,11 +77,76 @@ function formatDuration(seconds: number) {
 
 // 获取资源类型
 function getResourceType(file: File): 'video' | 'audio' | 'document' | 'image' {
-  const type = file.type
-  if (type.startsWith('video/')) return 'video'
-  if (type.startsWith('audio/')) return 'audio'
-  if (type.startsWith('image/')) return 'image'
+  const type = (file.type || '').toLowerCase()
+  const lowerName = file.name.toLowerCase()
+
+  if (type.startsWith('video/') || ['.mp4', '.mov', '.webm', '.ogg'].some(ext => lowerName.endsWith(ext))) {
+    return 'video'
+  }
+  if (type.startsWith('audio/') || ['.mp3', '.wav', '.ogg'].some(ext => lowerName.endsWith(ext))) {
+    return 'audio'
+  }
+  if (type.startsWith('image/') || ['.jpg', '.jpeg', '.png', '.gif'].some(ext => lowerName.endsWith(ext))) {
+    return 'image'
+  }
   return 'document'
+}
+
+function isSupportedUpload(file: File) {
+  const lowerName = file.name.toLowerCase()
+  const normalizedType = (file.type || '').toLowerCase()
+  const validTypes = new Set([
+    'video/mp4',
+    'video/quicktime',
+    'video/webm',
+    'video/ogg',
+    'audio/mpeg',
+    'audio/mp3',
+    'audio/wav',
+    'audio/x-wav',
+    'audio/ogg',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/csv',
+    'text/markdown',
+    'text/plain',
+    'application/zip',
+    'application/x-zip-compressed',
+    'application/octet-stream',
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+  ])
+  const validExtensions = [
+    '.mp4',
+    '.mov',
+    '.webm',
+    '.ogg',
+    '.mp3',
+    '.wav',
+    '.pdf',
+    '.doc',
+    '.docx',
+    '.ppt',
+    '.pptx',
+    '.xls',
+    '.xlsx',
+    '.csv',
+    '.md',
+    '.txt',
+    '.zip',
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.gif',
+  ]
+
+  return validTypes.has(normalizedType) || validExtensions.some(ext => lowerName.endsWith(ext))
 }
 
 // 处理文件上传
@@ -76,15 +155,7 @@ async function handleUpload(options: { file: File }) {
   const fileId = Date.now() + '-' + Math.random().toString(36).slice(2)
 
   // 校验文件类型
-  const validTypes = [
-    'video/mp4', 'video/webm', 'video/ogg',
-    'audio/mpeg', 'audio/wav', 'audio/ogg',
-    'application/pdf',
-    'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'image/jpeg', 'image/png', 'image/gif',
-  ]
-  if (!validTypes.includes(file.type)) {
+  if (!isSupportedUpload(file)) {
     ElMessage.warning('不支持的文件格式')
     return
   }
@@ -209,70 +280,128 @@ async function handleDelete(resource: ResourceItem) {
 
 <template>
   <div class="resource-manager">
-    <!-- 上传区域 -->
-    <el-upload
-      class="upload-area"
-      drag
-      multiple
-      :auto-upload="true"
-      :http-request="handleUpload"
-      :show-file-list="false"
-      accept=".mp4,.webm,.mp3,.wav,.pdf,.doc,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.gif"
-    >
-      <el-icon class="upload-icon"><Upload /></el-icon>
-      <div class="upload-text">
-        拖拽或<em>点击上传</em>学习资源
-      </div>
-      <template #tip>
-        <div class="upload-tip">
-          支持视频、音频、文档、图片格式，单个文件最大 500MB
-        </div>
-      </template>
-    </el-upload>
+    <el-row :gutter="20">
+      <!-- 视频上传区 -->
+      <el-col :span="defaultTab ? 24 : 12" class="resource-col" v-if="!defaultTab || defaultTab === 'video'">
+        <h4 class="col-title"><el-icon><VideoPlay /></el-icon> 教学视频</h4>
+        <el-upload
+          class="upload-area"
+          drag
+          multiple
+          :auto-upload="true"
+          :http-request="handleUpload"
+          :show-file-list="false"
+          accept=".mp4,.mov"
+        >
+          <el-icon class="upload-icon"><Upload /></el-icon>
+          <div class="upload-text">
+            拖拽或<em>点击上传</em>视频
+          </div>
+          <template #tip>
+            <div class="upload-tip">
+              建议支持 MP4 / MOV，大文件走分片上传
+            </div>
+          </template>
+        </el-upload>
 
-    <!-- 资源列表 -->
-    <div v-if="localResources.length > 0" class="resource-list">
-      <div
-        v-for="resource in localResources"
-        :key="resource.resource_id"
-        class="resource-item"
-      >
-        <!-- 类型图标 -->
-        <el-icon class="type-icon" :style="{ color: resourceTypeMap[resource.resource_type]?.color }">
-          <component :is="resourceTypeMap[resource.resource_type]?.icon || Document" />
-        </el-icon>
-
-        <!-- 文件信息 -->
-        <div class="file-info">
-          <span class="file-name">{{ resource.file_name }}</span>
-          <div class="file-meta">
-            <span>{{ resourceTypeMap[resource.resource_type]?.text || '文件' }}</span>
-            <span>{{ formatFileSize(resource.file_size) }}</span>
-            <span v-if="resource.duration">{{ formatDuration(resource.duration) }}</span>
+        <div v-if="videoResources.length > 0" class="resource-list">
+          <div
+            v-for="resource in videoResources"
+            :key="resource.resource_id"
+            class="resource-item"
+          >
+            <el-icon class="type-icon" :style="{ color: resourceTypeMap[resource.resource_type]?.color }">
+              <component :is="resourceTypeMap[resource.resource_type]?.icon || Document" />
+            </el-icon>
+            <div class="file-info">
+              <span class="file-name" :title="resource.file_name">{{ resource.file_name }}</span>
+              <div class="file-meta">
+                <span>{{ formatFileSize(resource.file_size) }}</span>
+                <span v-if="resource.duration">{{ formatDuration(resource.duration) }}</span>
+              </div>
+            </div>
+            <el-button text size="small" type="danger" :icon="Delete" @click="handleDelete(resource)">
+              删除
+            </el-button>
           </div>
         </div>
+        <el-empty v-else description="暂无视频资源" :image-size="40" />
+      </el-col>
 
-        <!-- 操作按钮 -->
-        <el-button text size="small" type="danger" :icon="Delete" @click="handleDelete(resource)">
-          删除
-        </el-button>
-      </div>
-    </div>
+      <!-- 配套课件区 -->
+      <el-col :span="defaultTab ? 24 : 12" class="resource-col" v-if="!defaultTab || defaultTab === 'document'">
+        <h4 class="col-title"><el-icon><Document /></el-icon> 配套课件</h4>
+        <el-upload
+          class="upload-area"
+          drag
+          multiple
+          :auto-upload="true"
+          :http-request="handleUpload"
+          :show-file-list="false"
+          accept=".ppt,.pptx,.pdf,.doc,.docx,.xls,.xlsx,.csv,.md,.zip,.jpg,.jpeg,.png,.gif"
+        >
+          <el-icon class="upload-icon"><Upload /></el-icon>
+          <div class="upload-text">
+            拖拽或<em>点击上传</em>课件
+          </div>
+          <template #tip>
+            <div class="upload-tip">
+              支持 PDF, PPT, Word, Excel, ZIP 等，最大 500MB
+            </div>
+          </template>
+        </el-upload>
 
-    <!-- 空状态 -->
-    <el-empty v-else description="暂无学习资源" :image-size="60" />
+        <div v-if="otherResources.length > 0" class="resource-list">
+          <div
+            v-for="resource in otherResources"
+            :key="resource.resource_id"
+            class="resource-item"
+          >
+            <el-icon class="type-icon" :style="{ color: resourceTypeMap[resource.resource_type]?.color }">
+              <component :is="resourceTypeMap[resource.resource_type]?.icon || Document" />
+            </el-icon>
+            <div class="file-info">
+              <span class="file-name" :title="resource.file_name">{{ resource.file_name }}</span>
+              <div class="file-meta">
+                <span>{{ resourceTypeMap[resource.resource_type]?.text || '文件' }}</span>
+                <span>{{ formatFileSize(resource.file_size) }}</span>
+              </div>
+            </div>
+            <el-button text size="small" type="danger" :icon="Delete" @click="handleDelete(resource)">
+              删除
+            </el-button>
+          </div>
+        </div>
+        <el-empty v-else description="暂无课件资源" :image-size="40" />
+      </el-col>
+    </el-row>
   </div>
 </template>
+
 
 <style lang="scss" scoped>
 
 .resource-manager {
+
+.resource-col {
+  display: flex;
+  flex-direction: column;
+}
+.col-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: $text-primary;
+}
   .upload-area {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
 
     :deep(.el-upload-dragger) {
-      padding: 30px;
-      border: 2px dashed $border-color;
+      padding: 20px;
+      border: 1px dashed $border-color;
       border-radius: $radius-md;
 
       &:hover {
@@ -281,12 +410,13 @@ async function handleDelete(resource: ResourceItem) {
     }
 
     .upload-icon {
-      font-size: 48px;
+      font-size: 32px;
       color: $text-tertiary;
     }
 
     .upload-text {
-      margin-top: 8px;
+      margin-top: 4px;
+      font-size: 14px;
       color: $text-secondary;
 
       em {
