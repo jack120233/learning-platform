@@ -22,6 +22,8 @@ build/
 .env
 .env.local
 .env.*.local
+.mcp.json
+settings.local - 副本.json
 
 # 日志和缓存
 *.log
@@ -33,6 +35,10 @@ backend/.pytest_cache/
 backend/logs/
 backend/uploads/
 logs/
+backend/data/*.db
+backend/data/*.sqlite
+backend/data/*.sqlite3
+CLAUDE.bak.md
 
 # 系统文件
 .DS_Store
