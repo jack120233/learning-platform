@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 这是一个在线学习平台的后端 API 服务，提供用户管理、课程管理、学习进度跟踪、反馈消息等功能模块。项目已完成核心 API 实现，包含完整的测试套件。
 
+## 根级协作入口
+
+如果 Claude 是从工作区根目录 `E:\video_project\proj_ui` 启动的，必须先遵循根级 `E:\video_project\proj_ui\CLAUDE.md` 的目录路由规则，再下钻到本文件。
+
+本文件只负责 `E:\video_project\proj_ui\project_code` 后端目录内的实现规则，不负责前端目录定位。
+
 ## 技术栈
 
 - **后端框架**: Python + FastAPI 0.110+
@@ -33,9 +39,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 项目结构
 ```
-backend/
+E:\video_project\proj_ui\project_code\backend\
 ├── app/                    # 应用主目录
-│   ├── api/v1/             # API路由（11个模块，68个端点）
+│   ├── api/v1/             # API路由（12个模块，80个端点）
 │   ├── schemas/            # Pydantic模型
 │   ├── services/           # 业务逻辑
 │   ├── models/             # 数据库模型
@@ -43,12 +49,14 @@ backend/
 ├── tests/                  # 测试目录
 │   ├── conftest.py         # 测试配置和fixtures
 │   ├── test_auth.py        # 认证模块测试
-│   ├── test_users.py       # 用户管理测试
 │   ├── test_courses.py     # 课程管理测试
 │   ├── test_content.py     # 课程内容测试
-│   ├── test_learning.py    # 学习模块测试
 │   ├── test_feedbacks.py   # 反馈消息测试
-│   └── test_system.py      # 系统管理测试
+│   ├── test_health.py      # 健康检查测试
+│   ├── test_learning.py    # 学习模块测试
+│   ├── test_system.py      # 系统管理测试
+│   ├── test_uploads.py     # 上传模块测试
+│   └── test_users.py       # 用户管理测试
 └── requirements.txt        # 依赖清单
 ```
 
@@ -57,10 +65,11 @@ backend/
 ### 核心文档
 | 文档 | 说明 |
 |------|------|
-| [docs/architecture.md](docs/architecture.md) | 项目架构文档 |
-| [docs/test-plan.md](docs/test-plan.md) | pytest+httpx 测试计划 |
-| [docs/api-testing-guide.md](docs/api-testing-guide.md) | API 手动测试指南 |
-| [docs/worktree-guide.md](docs/worktree-guide.md) | Git Worktree 使用指南 |
+| [architecture.md](docs/architecture.md) | 项目架构文档（位于 `E:\video_project\proj_ui\project_code\docs\architecture.md`） |
+| [api-endpoint-inventory.md](docs/api-endpoint-inventory.md) | 实际已挂载 API 接口清单（80个端点，位于 `E:\video_project\proj_ui\project_code\docs\api-endpoint-inventory.md`） |
+| [test-plan.md](docs/test-plan.md) | pytest+httpx 测试计划（位于 `E:\video_project\proj_ui\project_code\docs\test-plan.md`） |
+| [api-testing-guide.md](docs/api-testing-guide.md) | API 手动测试指南（位于 `E:\video_project\proj_ui\project_code\docs\api-testing-guide.md`） |
+| [worktree-guide.md](docs/worktree-guide.md) | Git Worktree 使用指南（位于 `E:\video_project\proj_ui\project_code\docs\worktree-guide.md`） |
 
 ### 需求文档
 | 文档 | 模块 | API数量 |
@@ -75,25 +84,24 @@ backend/
 
 ## 测试
 
-### 运行测试
-```bash
-# 进入后端目录
-cd backend
+在 `E:\video_project\proj_ui\project_code\backend` 目录下执行：
 
+```bash
 # 运行所有测试
 pytest tests/ -v
 
 # 运行指定模块
 pytest tests/test_auth.py -v
 
+# 运行单个测试用例
+pytest tests/test_auth.py::test_register -v
+
 # 生成覆盖率报告
 pytest tests/ --cov=app --cov-report=html
+# 报告位置: E:\video_project\proj_ui\project_code\backend\htmlcov\index.html
 ```
 
-### 测试状态
-- **测试用例**: 63 个
-- **覆盖率**: 69%
-- **HTML报告**: `backend/htmlcov/index.html`
+测试使用内存 SQLite 数据库，无需额外配置。详见 `E:\video_project\proj_ui\project_code\backend\tests\conftest.py`。
 
 ## 关键安全配置
 
@@ -106,25 +114,56 @@ pytest tests/ --cov=app --cov-report=html
 
 ## Spec Workflow
 
-项目使用 `.spec-workflow/` 目录管理工作流文档：
-- `specs/` - 规格文档
-- `approvals/` - 审批记录
-- `archive/` - 归档文档
-- `templates/` - 文档模板（需求、设计、技术、任务等）
+项目使用 `E:\video_project\proj_ui\project_code\.spec-workflow\` 目录管理工作流文档：
+- `E:\video_project\proj_ui\project_code\.spec-workflow\specs\` - 规格文档
+- `E:\video_project\proj_ui\project_code\.spec-workflow\approvals\` - 审批记录
+- `E:\video_project\proj_ui\project_code\.spec-workflow\archive\` - 归档文档
+- `E:\video_project\proj_ui\project_code\.spec-workflow\templates\` - 文档模板（需求、设计、技术、任务等）
 
 ## 开发命令
 
+在 `E:\video_project\proj_ui\project_code\backend` 目录下执行：
+
 ```bash
+# 激活虚拟环境（项目根目录）
+..\\.venv\\Scripts\\activate
+
 # 启动开发服务
 uvicorn app.main:app --reload --port 8000
 
 # 查看 API 文档
 # http://localhost:8000/docs
 
-# 运行测试
+# 运行所有测试
 pytest tests/ -v
+
+# 运行指定模块测试
+pytest tests/test_auth.py -v
+
+# 运行单个测试用例
+pytest tests/test_auth.py::test_register -v
+
+# 生成覆盖率报告
+pytest tests/ --cov=app --cov-report=html
+
+# 初始化数据库表结构
+python scripts/init_db.py
+
+# 导入种子数据（测试账号）
+python scripts/seed_data.py
 ```
+
+### 测试账号
+
+种子数据导入后可用：
+- 管理员: `admin1` / `Admin123456`
+- 教师: `teacher1` / `Test123456`
+- 学生: `student1` / `Test123456`
 
 ## 文件写入规范
 
 - 每次只写入 100～200 行，然后使用 edits 自动接收模式完成编写。
+- 在新增文件或修改现有文件前，先确认是否需要同步更新 `E:\video_project\proj_ui\project_code\operations-log.md`。
+- 只要本次工作产生了文件新增或文件变更，必须在 `E:\video_project\proj_ui\project_code\operations-log.md` 追加一条记录。
+- 记录内容至少包含：变更时间、变更原因、涉及文件、核心改动、验证结果（如未验证需明确说明）。
+- `E:\video_project\proj_ui\project_code\operations-log.md` 的记录要与实际落盘文件保持一致，后续若继续追加修改，同一任务也要补充到日志中。
