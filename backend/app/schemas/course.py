@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """课程管理相关 Pydantic 模型
 
 定义课程管理模块的请求和响应模型。
@@ -155,6 +157,10 @@ class CourseResponse(BaseModel):
         default_factory=list,
         description="章节及小节列表",
     )
+    materials: list[MaterialResponse] = Field(
+        default_factory=list,
+        description="课程资料列表",
+    )
     created_at: datetime = Field(description="创建时间")
     published_at: datetime | None = Field(default=None, description="发布时间")
 
@@ -212,8 +218,10 @@ class MaterialResponse(BaseModel):
     """配套资料响应"""
 
     id: int = Field(description="资料ID")
+    material_id: int = Field(validation_alias="id", description="资料ID")
     course_id: int = Field(description="课程ID")
     name: str = Field(description="资料名称")
+    file_name: str = Field(validation_alias="name", description="资料名称")
     file_url: str = Field(description="文件URL")
     file_size: int = Field(description="文件大小（字节）")
     file_type: str | None = Field(default=None, description="文件类型")
@@ -250,3 +258,6 @@ class CourseSearchParams(BaseModel):
     sort_order: str | None = Field(default="desc", description="排序方向")
     page: int = Field(default=1, ge=1, description="页码")
     page_size: int = Field(default=10, ge=1, le=50, description="每页数量")
+
+
+CourseResponse.model_rebuild()

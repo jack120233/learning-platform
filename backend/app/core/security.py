@@ -17,6 +17,21 @@ from app.config import settings
 if not hasattr(bcrypt, "__about__") and hasattr(bcrypt, "__version__"):
     bcrypt.__about__ = SimpleNamespace(__version__=bcrypt.__version__)
 
+# 兼容 bcrypt 5.x 对 72 字节以上密码直接抛错的变更。
+# 旧版 bcrypt 会在 72 字节处截断，passlib 的后端探测逻辑依赖这个旧行为。
+_original_bcrypt_hashpw = bcrypt.hashpw
+
+
+def _compat_bcrypt_hashpw(password: bytes, salt: bytes) -> bytes:
+    """在 bcrypt 5.x 下恢复 72 字节截断行为。"""
+    if isinstance(password, (bytes, bytearray)) and len(password) > 72:
+        password = password[:72]
+    return _original_bcrypt_hashpw(password, salt)
+
+
+if getattr(bcrypt.hashpw, "__name__", "") != "_compat_bcrypt_hashpw":
+    bcrypt.hashpw = _compat_bcrypt_hashpw
+
 # 密码加密上下文
 pwd_context = CryptContext(
     schemes=["bcrypt"],

@@ -168,8 +168,8 @@ class Resource(BaseModel):
         index=True,
         comment="章节ID",
     )
-    section_id: Mapped[int] = mapped_column(
-        nullable=False,
+    section_id: Mapped[int | None] = mapped_column(
+        nullable=True,
         index=True,
         comment="小节ID",
     )

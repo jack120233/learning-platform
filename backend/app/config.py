@@ -92,7 +92,11 @@ class Settings(BaseSettings):
     upload_dir: str = str(BASE_DIR / "uploads")
     upload_url_prefix: str = "/uploads"
     course_cover_subdir: str = "course-covers"
+    general_upload_subdir: str = "files"
+    chunk_upload_tmp_subdir: str = ".chunk-sessions"
     course_cover_max_size: int = 10 * 1024 * 1024
+    general_file_max_size: int = 100 * 1024 * 1024
+    chunk_file_max_size: int = 500 * 1024 * 1024
 
     @field_validator("debug", mode="before")
     @classmethod

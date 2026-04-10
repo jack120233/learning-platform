@@ -264,6 +264,32 @@ async def delete_section_legacy(
 # ==================== 资源管理 ====================
 
 @router.post(
+    "/courses/{course_id}/chapters/{chapter_id}/resources",
+    response_model=ApiResponse[ResourceResponse],
+    summary="上传章节资源",
+    description="为指定章节创建章节级学习资源",
+)
+async def create_chapter_resource(
+    course_id: int,
+    chapter_id: int,
+    data: ResourceCreate,
+    db: DBSession,
+    user_id: CurrentUserId,
+) -> ApiResponse[ResourceResponse]:
+    """上传章节资源接口。"""
+    resource = await resource_service.create_for_chapter(
+        db=db,
+        course_id=course_id,
+        chapter_id=chapter_id,
+        data=data,
+    )
+    return ApiResponse.success(
+        data=ResourceResponse.model_validate(resource),
+        message="上传成功",
+    )
+
+
+@router.post(
     "/courses/{course_id}/sections/{section_id}/resources",
     response_model=ApiResponse[ResourceResponse],
     summary="上传资源",
@@ -306,5 +332,43 @@ async def delete_resource(
     user_id: CurrentUserId,
 ) -> ApiResponse[None]:
     """删除资源接口"""
+    await resource_service.delete(db, resource_id)
+    return ApiResponse.success(message="删除成功")
+
+
+@router.post(
+    "/courses/{course_id}/chapters/{chapter_id}/resources/{resource_id}/delete",
+    response_model=ApiResponse[None],
+    summary="删除章节资源（兼容旧前端）",
+    description="兼容旧版前端的章节资源删除路径",
+    include_in_schema=False,
+)
+async def delete_chapter_resource_legacy(
+    course_id: int,
+    chapter_id: int,
+    resource_id: int,
+    db: DBSession,
+    user_id: CurrentUserId,
+) -> ApiResponse[None]:
+    """兼容旧前端的章节资源删除接口。"""
+    await resource_service.delete(db, resource_id)
+    return ApiResponse.success(message="删除成功")
+
+
+@router.post(
+    "/courses/{course_id}/sections/{section_id}/resources/{resource_id}/delete",
+    response_model=ApiResponse[None],
+    summary="删除资源（兼容旧前端）",
+    description="兼容旧版前端仍使用的 POST 删除路径，建议优先使用 DELETE 接口",
+    include_in_schema=False,
+)
+async def delete_resource_legacy(
+    course_id: int,
+    section_id: int,
+    resource_id: int,
+    db: DBSession,
+    user_id: CurrentUserId,
+) -> ApiResponse[None]:
+    """兼容旧前端的小节资源删除接口。"""
     await resource_service.delete(db, resource_id)
     return ApiResponse.success(message="删除成功")

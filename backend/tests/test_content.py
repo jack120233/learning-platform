@@ -15,7 +15,7 @@ from app.core.security import create_access_token
 from app.models.user import User
 from app.models.course import Course
 from app.models.category import Category
-from app.models.content import Chapter, Section
+from app.models.content import Chapter, Section, Resource
 
 
 def unique_key(prefix: str = "content") -> str:
@@ -682,3 +682,314 @@ class TestSectionList:
 
 # 导入必要的模型
 from app.models.captcha import CaptchaRecord
+
+
+class TestSectionResourceAPI:
+    """小节资源接口测试。"""
+
+    @pytest.mark.asyncio
+    async def test_create_section_resource_accepts_resource_type_payload(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试小节资源接口兼容前端 resource_type/file_name 字段。"""
+        teacher, headers = await create_content_test_user(db_session, "teacher")
+
+        category = Category(
+            name="资源分类",
+            slug=f"resource-cat-{uuid.uuid4().hex[:8]}",
+            is_active=True,
+        )
+        db_session.add(category)
+        await db_session.flush()
+
+        course = Course(
+            title="资源课程",
+            teacher_id=teacher.id,
+            category_id=category.id,
+            status="draft",
+            price=0,
+            level="beginner",
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter = Chapter(course_id=course.id, title="章节", sort_order=1)
+        db_session.add(chapter)
+        await db_session.flush()
+
+        section = Section(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            title="小节",
+            sort_order=1,
+        )
+        db_session.add(section)
+        await db_session.flush()
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/sections/{section.id}/resources",
+            headers=headers,
+            json={
+                "resource_type": "document",
+                "file_name": "讲义.pdf",
+                "file_url": "http://test/uploads/files/handout.pdf",
+                "file_size": 2048,
+                "sort_order": 0,
+                "is_free": False,
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["resource_id"] > 0
+        assert data["resource_type"] == "document"
+        assert data["file_name"] == "讲义.pdf"
+        assert data["title"] == "讲义.pdf"
+
+    @pytest.mark.asyncio
+    async def test_delete_section_resource_legacy_post_route(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试兼容旧前端的 POST 删除资源接口。"""
+        teacher, headers = await create_content_test_user(db_session, "teacher")
+
+        category = Category(
+            name="资源删除分类",
+            slug=f"resource-delete-{uuid.uuid4().hex[:8]}",
+            is_active=True,
+        )
+        db_session.add(category)
+        await db_session.flush()
+
+        course = Course(
+            title="资源删除课程",
+            teacher_id=teacher.id,
+            category_id=category.id,
+            status="draft",
+            price=0,
+            level="beginner",
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter = Chapter(course_id=course.id, title="章节", sort_order=1)
+        db_session.add(chapter)
+        await db_session.flush()
+
+        section = Section(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            title="小节",
+            sort_order=1,
+        )
+        db_session.add(section)
+        await db_session.flush()
+
+        resource = Resource(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            section_id=section.id,
+            title="待删除资源",
+            type="document",
+            file_url="http://test/uploads/files/delete.pdf",
+            file_size=1024,
+            sort_order=1,
+        )
+        db_session.add(resource)
+        await db_session.flush()
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/sections/{section.id}/resources/{resource.id}/delete",
+            headers=headers,
+        )
+
+        assert response.status_code == 200
+        await db_session.flush()
+        result = await db_session.execute(
+            select(Resource.id).where(Resource.id == resource.id)
+        )
+        assert result.scalar_one_or_none() is None
+
+
+class TestChapterResourceAPI:
+    """章节资源接口测试。"""
+
+    @pytest.mark.asyncio
+    async def test_create_chapter_resource(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试创建章节级资源。"""
+        teacher, headers = await create_content_test_user(db_session, "teacher")
+
+        category = Category(
+            name="章节资源分类",
+            slug=f"chapter-resource-{uuid.uuid4().hex[:8]}",
+            is_active=True,
+        )
+        db_session.add(category)
+        await db_session.flush()
+
+        course = Course(
+            title="章节资源课程",
+            teacher_id=teacher.id,
+            category_id=category.id,
+            status="draft",
+            price=0,
+            level="beginner",
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter = Chapter(course_id=course.id, title="章节", sort_order=1)
+        db_session.add(chapter)
+        await db_session.flush()
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/chapters/{chapter.id}/resources",
+            headers=headers,
+            json={
+                "resource_type": "document",
+                "file_name": "章节讲义.pdf",
+                "file_url": "http://test/uploads/files/chapter-handout.pdf",
+                "file_size": 4096,
+                "sort_order": 1,
+                "is_free": False,
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["resource_id"] > 0
+        assert data["chapter_id"] == chapter.id
+        assert data["section_id"] is None
+        assert data["file_name"] == "章节讲义.pdf"
+
+    @pytest.mark.asyncio
+    async def test_delete_chapter_resource_legacy_post_route(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试兼容旧前端的章节资源删除接口。"""
+        teacher, headers = await create_content_test_user(db_session, "teacher")
+
+        category = Category(
+            name="章节资源删除分类",
+            slug=f"chapter-resource-delete-{uuid.uuid4().hex[:8]}",
+            is_active=True,
+        )
+        db_session.add(category)
+        await db_session.flush()
+
+        course = Course(
+            title="章节资源删除课程",
+            teacher_id=teacher.id,
+            category_id=category.id,
+            status="draft",
+            price=0,
+            level="beginner",
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter = Chapter(course_id=course.id, title="章节", sort_order=1)
+        db_session.add(chapter)
+        await db_session.flush()
+
+        resource = Resource(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            section_id=None,
+            title="待删除章节资源",
+            type="document",
+            file_url="http://test/uploads/files/chapter-delete.pdf",
+            file_size=1024,
+            sort_order=1,
+        )
+        db_session.add(resource)
+        await db_session.flush()
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/chapters/{chapter.id}/resources/{resource.id}/delete",
+            headers=headers,
+        )
+
+        assert response.status_code == 200
+        await db_session.flush()
+        result = await db_session.execute(
+            select(Resource.id).where(Resource.id == resource.id)
+        )
+        assert result.scalar_one_or_none() is None
+
+    @pytest.mark.asyncio
+    async def test_chapter_resource_does_not_change_section_counts(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试章节资源不会污染小节统计字段。"""
+        teacher, headers = await create_content_test_user(db_session, "teacher")
+
+        category = Category(
+            name="章节统计分类",
+            slug=f"chapter-resource-stats-{uuid.uuid4().hex[:8]}",
+            is_active=True,
+        )
+        db_session.add(category)
+        await db_session.flush()
+
+        course = Course(
+            title="章节统计课程",
+            teacher_id=teacher.id,
+            category_id=category.id,
+            status="draft",
+            price=0,
+            level="beginner",
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter = Chapter(course_id=course.id, title="章节", sort_order=1)
+        db_session.add(chapter)
+        await db_session.flush()
+
+        section = Section(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            title="小节",
+            sort_order=1,
+            resource_count=0,
+            duration=0,
+        )
+        db_session.add(section)
+        await db_session.flush()
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/chapters/{chapter.id}/resources",
+            headers=headers,
+            json={
+                "resource_type": "video",
+                "file_name": "chapter-video.mp4",
+                "file_url": "http://test/uploads/files/chapter-video.mp4",
+                "file_size": 10240,
+                "duration": 120,
+                "sort_order": 1,
+                "is_free": False,
+            },
+        )
+
+        assert response.status_code == 200
+        await db_session.refresh(section)
+        await db_session.refresh(chapter)
+        await db_session.refresh(course)
+
+        assert section.resource_count == 0
+        assert section.duration == 0
+        assert chapter.total_duration == 120
+        assert course.total_duration == 120

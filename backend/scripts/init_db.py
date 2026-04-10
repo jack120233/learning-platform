@@ -46,6 +46,22 @@ async def init_database() -> None:
                 )
                 print("✅ 已为 courses 表补充 summary 字段")
 
+            def is_resource_section_nullable(sync_conn) -> bool:
+                columns = inspect(sync_conn).get_columns("resources")
+                for column in columns:
+                    if column["name"] == "section_id":
+                        return bool(column.get("nullable"))
+                return False
+
+            if not await conn.run_sync(is_resource_section_nullable):
+                if conn.dialect.name == "mysql":
+                    await conn.execute(
+                        text("ALTER TABLE resources MODIFY COLUMN section_id INTEGER NULL COMMENT '小节ID'")
+                    )
+                    print("✅ 已将 resources.section_id 调整为可空，支持章节级资源")
+                else:
+                    print("⚠️ resources.section_id 仍为非空，请手动检查当前数据库方言的迁移策略")
+
         # 显示创建的表
         async with engine.connect() as conn:
             def get_table_names(sync_conn) -> list[str]:

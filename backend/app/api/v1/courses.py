@@ -3,11 +3,14 @@
 提供课程管理相关的 API 接口。
 """
 
-from fastapi import APIRouter, Query
+from pathlib import Path
+
+from fastapi import APIRouter, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.dependencies import DBSession, CurrentUserId
+from app.core.exceptions import ValidationException
 from app.schemas.common import ApiResponse, PageData
 from app.schemas.course import (
     CourseCreate,
@@ -19,6 +22,7 @@ from app.schemas.course import (
     MaterialResponse,
 )
 from app.services.course_service import course_service, material_service
+from app.services.upload_service import upload_service
 from app.models.course import CourseTag
 
 router = APIRouter(prefix="/courses", tags=["课程管理"])
@@ -191,6 +195,7 @@ async def get_course(
     )
     tags = result.scalars().all()
     chapters = await course_service.get_chapters_with_sections(db, course_id)
+    materials = await material_service.get_by_course(db, course_id)
     total_sections = sum(chapter.section_count for chapter in chapters)
     total_duration = sum(chapter.total_duration for chapter in chapters)
 
@@ -217,6 +222,7 @@ async def get_course(
         "rating_count": course.rating_count,
         "tags": [{"id": t.tag_id} for t in tags],
         "chapters": chapters,
+        "materials": [MaterialResponse.model_validate(material) for material in materials],
         "created_at": course.created_at,
         "published_at": course.published_at,
     }
@@ -327,11 +333,34 @@ async def delete_course(
 )
 async def create_material(
     course_id: int,
-    data: MaterialCreate,
+    request: Request,
     db: DBSession,
     user_id: CurrentUserId,
 ) -> ApiResponse[MaterialResponse]:
     """上传配套资料接口"""
+    content_type = request.headers.get("content-type", "").lower()
+
+    if content_type.startswith("multipart/form-data"):
+        form = await request.form()
+        upload_file = form.get("file")
+        if upload_file is None or not hasattr(upload_file, "filename"):
+            raise ValidationException("请上传资料文件")
+
+        upload_result = await upload_service.save_file(
+            file=upload_file,
+            base_url=str(request.base_url),
+        )
+        file_name = str(upload_result["file_name"])
+        data = MaterialCreate(
+            name=file_name,
+            file_url=str(upload_result["file_url"]),
+            file_size=int(upload_result["file_size"]),
+            file_type=Path(file_name).suffix.lower().lstrip(".") or None,
+        )
+    else:
+        payload = await request.json()
+        data = MaterialCreate.model_validate(payload)
+
     material = await material_service.create(db, course_id, user_id, data)
     return ApiResponse.success(
         data=MaterialResponse.model_validate(material),
@@ -352,5 +381,23 @@ async def delete_material(
     user_id: CurrentUserId,
 ) -> ApiResponse[None]:
     """删除配套资料接口"""
+    await material_service.delete(db, material_id, user_id)
+    return ApiResponse.success(message="删除成功")
+
+
+@router.post(
+    "/{course_id}/materials/{material_id}/delete",
+    response_model=ApiResponse[None],
+    summary="删除配套资料（兼容旧前端）",
+    description="兼容旧版前端仍使用的 POST 删除路径，建议优先使用 DELETE 接口",
+    include_in_schema=False,
+)
+async def delete_material_legacy(
+    course_id: int,
+    material_id: int,
+    db: DBSession,
+    user_id: CurrentUserId,
+) -> ApiResponse[None]:
+    """兼容旧前端的资料删除接口。"""
     await material_service.delete(db, material_id, user_id)
     return ApiResponse.success(message="删除成功")
