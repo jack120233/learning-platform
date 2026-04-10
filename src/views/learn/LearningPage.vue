@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { ElMessage, ElNotification } from 'element-plus'
+import '@vue-office/docx/lib/index.css'
 import {
   ArrowLeft,
   FullScreen,
@@ -33,6 +34,8 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const learnStore = useLearnStore()
+const VueOfficeDocx = defineAsyncComponent(() => import('@vue-office/docx'))
+const VueOfficePdf = defineAsyncComponent(() => import('@vue-office/pdf'))
 
 // 进度同步
 const progressSync = useProgressSync({
@@ -56,6 +59,8 @@ let autoNextTimer: ReturnType<typeof setInterval> | null = null
 // 视频播放器引用
 const videoRef = ref<HTMLVideoElement | null>(null)
 const audioRef = ref<HTMLAudioElement | null>(null)
+const documentTextContent = ref('')
+const documentRenderMode = ref<'text' | 'docx' | 'pdf' | 'download'>('download')
 
 // 计算属性
 const courseId = computed(() => Number(route.params.courseId))
@@ -65,6 +70,8 @@ const targetResourceId = computed(() => route.query.resourceId ? Number(route.qu
 const activeResource = computed(() => learnStore.activeResource)
 const hasActiveResource = computed(() => learnStore.hasActiveResource)
 const courseChapters = computed(() => learnStore.currentCourseChapters)
+const activeDocumentExtension = computed(() => getDocumentExtension(activeResource.value.fileUrl))
+const activeDocumentFileName = computed(() => getActiveResourceFileName())
 
 // 资源类型图标映射
 const resourceIconMap: Record<string, typeof VideoPlay> = {
@@ -101,6 +108,54 @@ function getSectionResources(section: CourseSection): SectionResource[] {
   return section.resources ?? []
 }
 
+function getDocumentExtension(fileUrl: string): string {
+  if (!fileUrl) return ''
+
+  try {
+    const pathname = new URL(fileUrl, window.location.origin).pathname
+    const fileName = pathname.split('/').pop() || ''
+    const ext = fileName.includes('.') ? fileName.split('.').pop() : ''
+    return (ext || '').toLowerCase()
+  } catch {
+    const sanitized = fileUrl.split('?')[0]
+    const ext = sanitized.includes('.') ? sanitized.split('.').pop() : ''
+    return (ext || '').toLowerCase()
+  }
+}
+
+function getActiveResourceFileName(): string {
+  const resourceId = activeResource.value.resourceId
+  if (!resourceId) return ''
+
+  for (const chapter of courseChapters.value) {
+    for (const section of chapter.sections) {
+      const resource = getSectionResources(section).find(item => item.resource_id === resourceId)
+      if (resource) {
+        return resource.file_name
+      }
+    }
+  }
+
+  try {
+    const pathname = new URL(activeResource.value.fileUrl, window.location.origin).pathname
+    return decodeURIComponent(pathname.split('/').pop() || '')
+  } catch {
+    return activeResource.value.fileUrl.split('/').pop() || ''
+  }
+}
+
+function handleDocumentDownload() {
+  if (!activeResource.value.fileUrl) return
+
+  const link = document.createElement('a')
+  link.href = activeResource.value.fileUrl
+  link.download = activeDocumentFileName.value || `resource.${activeDocumentExtension.value || 'file'}`
+  link.target = '_blank'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
 const chapterTree = computed<ChapterTreeNode[]>(() => {
   return courseChapters.value.map(chapter => ({
     chapter_id: getChapterId(chapter),
@@ -124,12 +179,18 @@ const currentSectionResources = computed(() => {
     if (section) {
       return getSectionResources(section).map(r => {
         const cache = learnStore.progressCache.get(r.resource_id)
-        const progressPercent = cache && cache.totalTime > 0
-          ? Math.round((cache.currentTime / cache.totalTime) * 100)
+        const isActive = r.resource_id === activeResource.value.resourceId
+        const liveProgressPercent = activeResource.value.totalTime > 0
+          ? Math.round((activeResource.value.currentTime / activeResource.value.totalTime) * 100)
           : 0
+        const progressPercent = isActive
+          ? liveProgressPercent
+          : cache && cache.totalTime > 0
+            ? Math.round((cache.currentTime / cache.totalTime) * 100)
+            : 0
         return {
           ...r,
-          isActive: r.resource_id === activeResource.value.resourceId,
+          isActive,
           isCompleted: cache?.isCompleted ?? false,
           progressPercent,
         }
@@ -223,6 +284,8 @@ async function switchResource(sectionId: number, resourceId: number): Promise<vo
 
   // 重置状态
   learnStore.setResourceLoadState('loading')
+  documentTextContent.value = ''
+  documentRenderMode.value = 'download'
 
   // 找到章节 ID
   let chapterId = 0
@@ -265,6 +328,27 @@ async function switchResource(sectionId: number, resourceId: number): Promise<vo
     // 恢复进度
     if (progressRes.status === 'fulfilled' && progressRes.value) {
       learnStore.restoreProgress(progressRes.value.current_time, progressRes.value.is_completed)
+    }
+
+    if (learnStore.activeResource.resourceType === 'document') {
+      const extension = getDocumentExtension(learnStore.activeResource.fileUrl)
+
+      if (['md', 'markdown', 'txt', 'json'].includes(extension)) {
+        try {
+          const response = await fetch(learnStore.activeResource.fileUrl)
+          documentTextContent.value = await response.text()
+          documentRenderMode.value = 'text'
+        } catch {
+          learnStore.setResourceLoadState('error', '文档加载失败，请稍后重试')
+          return
+        }
+      } else if (extension === 'pdf') {
+        documentRenderMode.value = 'pdf'
+      } else if (extension === 'docx') {
+        documentRenderMode.value = 'docx'
+      } else {
+        documentRenderMode.value = 'download'
+      }
     }
 
     // 自动播放视频/音频
@@ -542,7 +626,7 @@ onUnmounted(() => {
                 </div>
                 <div class="task-status">
                   <el-icon v-if="resource.isCompleted" class="completed"><CircleCheckFilled /></el-icon>
-                  <span v-else class="progress">{{ Math.round((activeResource.currentTime / activeResource.totalTime) * 100) }}%</span>
+                  <span v-else class="progress">{{ resource.progressPercent }}%</span>
                 </div>
               </div>
             </div>
@@ -654,7 +738,30 @@ onUnmounted(() => {
 
         <!-- 文档查看器 -->
         <div v-else-if="activeResource.resourceType === 'document'" class="document-container">
-          <iframe :src="activeResource.fileUrl" class="document-viewer" />
+          <div v-if="documentRenderMode === 'text'" class="document-text-viewer">
+            <pre>{{ documentTextContent || '文档内容为空' }}</pre>
+          </div>
+          <vue-office-pdf
+            v-else-if="documentRenderMode === 'pdf'"
+            :src="activeResource.fileUrl"
+            class="document-office-viewer"
+          />
+          <vue-office-docx
+            v-else-if="documentRenderMode === 'docx'"
+            :src="activeResource.fileUrl"
+            class="document-office-viewer document-docx-viewer"
+          />
+          <div v-else class="document-download-viewer">
+            <el-result
+              icon="info"
+              :title="`当前文件暂不支持在线预览`"
+              :sub-title="`${activeDocumentFileName || '该文档'} 请下载后查看`"
+            >
+              <template #extra>
+                <el-button type="primary" @click="handleDocumentDownload">下载文档</el-button>
+              </template>
+            </el-result>
+          </div>
         </div>
 
         <!-- 图片查看器 -->
@@ -1018,12 +1125,43 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
-.document-viewer {
+.document-office-viewer {
   flex: 1;
   width: 100%;
-  border: none;
+  min-height: 0;
+}
+
+.document-text-viewer {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+  background: #111827;
+  color: #f3f4f6;
+
+  pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+}
+
+.document-download-viewer {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+:deep(.document-docx-viewer .vue-office-docx) {
+  height: 100%;
+  overflow: auto;
 }
 
 // 图片查看器
