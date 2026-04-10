@@ -39,6 +39,7 @@ backend/data/*.db
 backend/data/*.sqlite
 backend/data/*.sqlite3
 CLAUDE.bak.md
+办事助手.html
 
 # 系统文件
 .DS_Store
