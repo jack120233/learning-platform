@@ -1,0 +1,214 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6] [cursor=pointer]:
+          - img [ref=e8]
+          - generic [ref=e12]: 职业培训课堂
+        - navigation [ref=e13]:
+          - menubar [ref=e14]:
+            - menuitem "首页" [ref=e15] [cursor=pointer]
+            - menuitem "职业培训课堂" [ref=e16] [cursor=pointer]
+        - generic [ref=e17]:
+          - generic [ref=e20]:
+            - textbox "搜索课程、讲师" [ref=e21]
+            - img [ref=e24] [cursor=pointer]
+          - button "管理员" [ref=e28] [cursor=pointer]:
+            - img [ref=e30]
+            - generic [ref=e31]: 管理员
+    - main [ref=e32]:
+      - generic [ref=e34]:
+        - complementary [ref=e35]:
+          - generic [ref=e36]:
+            - img [ref=e38]
+            - generic [ref=e40]: 讲师工作台
+          - menubar [ref=e41]:
+            - menuitem "课程管理" [ref=e42] [cursor=pointer]:
+              - img [ref=e44]
+              - generic [ref=e47]: 课程管理
+          - button "返回前台" [ref=e49] [cursor=pointer]:
+            - generic [ref=e50]:
+              - img [ref=e52]
+              - text: 返回前台
+        - main [ref=e55]:
+          - generic [ref=e56]:
+            - heading "课程管理" [level=2] [ref=e58]
+            - generic [ref=e59]:
+              - generic [ref=e60]:
+                - radiogroup "segmented" [ref=e61]:
+                  - generic [ref=e62]:
+                    - generic [ref=e63] [cursor=pointer]:
+                      - radio "全站已发布"
+                      - generic [ref=e64]: 全站已发布
+                    - generic [ref=e65] [cursor=pointer]:
+                      - radio "我的课程" [checked]
+                      - generic [ref=e66]: 我的课程
+                - generic [ref=e67]:
+                  - tablist [ref=e71]:
+                    - tab "全部" [selected] [ref=e347]
+                    - tab "草稿" [ref=e348]
+                    - tab "已发布" [ref=e73]
+                    - tab "已下架" [ref=e349]
+                  - generic:
+                    - tabpanel "全部"
+              - generic [ref=e74]:
+                - generic [ref=e76]:
+                  - img [ref=e79]
+                  - textbox "搜索课程名称" [ref=e81]
+                - button "搜索" [ref=e82] [cursor=pointer]:
+                  - generic [ref=e83]: 搜索
+                - button "重置" [ref=e84] [cursor=pointer]:
+                  - generic [ref=e85]: 重置
+            - generic [ref=e485]:
+              - generic [ref=e486]: 已选择 1 门课程
+              - button "批量上架" [disabled] [ref=e487]:
+                - img [ref=e489]
+                - generic [ref=e491]: 批量上架
+              - button "批量下架" [ref=e492] [cursor=pointer]:
+                - img [ref=e494]
+                - generic [ref=e496]: 批量下架
+              - button "批量删除" [disabled] [ref=e497]:
+                - img [ref=e499]
+                - generic [ref=e501]: 批量删除
+            - generic [ref=e351]:
+              - table [ref=e353]:
+                - rowgroup [ref=e363]:
+                  - row "选择所有行 封面 课程名称 状态 浏览量 创建时间 发布时间 操作" [ref=e364]:
+                    - columnheader "选择所有行" [ref=e365]:
+                      - generic "选择所有行" [ref=e367] [cursor=pointer]:
+                        - generic [ref=e368]:
+                          - checkbox "选择所有行" [checked=mixed]
+                    - columnheader "封面" [ref=e370]:
+                      - generic [ref=e371]: 封面
+                    - columnheader "课程名称" [ref=e372]:
+                      - generic [ref=e373]: 课程名称
+                    - columnheader "状态" [ref=e374]:
+                      - generic [ref=e375]: 状态
+                    - columnheader "浏览量" [ref=e376]:
+                      - generic [ref=e377]: 浏览量
+                    - columnheader "创建时间" [ref=e378]:
+                      - generic [ref=e379]: 创建时间
+                    - columnheader "发布时间" [ref=e380]:
+                      - generic [ref=e381]: 发布时间
+                    - columnheader "操作" [ref=e382]:
+                      - generic [ref=e383]: 操作
+              - table [ref=e388]:
+                - rowgroup [ref=e398]:
+                  - row "选择当前行 测试标题2 已发布 0 2026/04/03 2026/04/03 编辑 下架 删除" [ref=e399]:
+                    - cell "选择当前行" [ref=e400]:
+                      - generic "选择当前行" [ref=e402] [cursor=pointer]:
+                        - generic [ref=e403]:
+                          - checkbox "选择当前行" [checked]
+                    - cell [ref=e405]:
+                      - img [ref=e408]
+                    - cell "测试标题2" [ref=e409]:
+                      - generic [ref=e412]: 测试标题2
+                    - cell "已发布" [ref=e413]:
+                      - generic [ref=e416]: 已发布
+                    - cell "0" [ref=e417]:
+                      - generic [ref=e418]: "0"
+                    - cell "2026/04/03" [ref=e419]:
+                      - generic [ref=e420]: 2026/04/03
+                    - cell "2026/04/03" [ref=e421]:
+                      - generic [ref=e422]: 2026/04/03
+                    - cell "编辑 下架 删除" [ref=e423]:
+                      - generic [ref=e424]:
+                        - button "编辑" [ref=e425] [cursor=pointer]:
+                          - img [ref=e427]
+                          - generic [ref=e430]: 编辑
+                        - button "下架" [ref=e431] [cursor=pointer]:
+                          - img [ref=e433]
+                          - generic [ref=e435]: 下架
+                        - button "删除" [disabled] [ref=e437]:
+                          - img [ref=e439]
+                          - generic [ref=e441]: 删除
+                  - row "选择当前行 测试的1 草稿 0 2026/04/02 - 编辑 上架 删除" [ref=e442]:
+                    - cell "选择当前行" [ref=e443]:
+                      - generic "选择当前行" [ref=e445] [cursor=pointer]:
+                        - generic [ref=e446]:
+                          - checkbox "选择当前行"
+                    - cell [ref=e448]:
+                      - img [ref=e451]
+                    - cell "测试的1" [ref=e452]:
+                      - generic [ref=e455]: 测试的1
+                    - cell "草稿" [ref=e456]:
+                      - generic [ref=e459]: 草稿
+                    - cell "0" [ref=e460]:
+                      - generic [ref=e461]: "0"
+                    - cell "2026/04/02" [ref=e462]:
+                      - generic [ref=e463]: 2026/04/02
+                    - cell "-" [ref=e464]:
+                      - generic [ref=e465]: "-"
+                    - cell "编辑 上架 删除" [ref=e466]:
+                      - generic [ref=e467]:
+                        - button "编辑" [ref=e468] [cursor=pointer]:
+                          - img [ref=e470]
+                          - generic [ref=e473]: 编辑
+                        - button "上架" [ref=e474] [cursor=pointer]:
+                          - img [ref=e476]
+                          - generic [ref=e478]: 上架
+                        - button "删除" [ref=e479] [cursor=pointer]:
+                          - img [ref=e481]
+                          - generic [ref=e483]: 删除
+    - contentinfo [ref=e309]:
+      - generic [ref=e310]:
+        - navigation "底部导航" [ref=e311]:
+          - generic [ref=e312]:
+            - heading "关于我们" [level=4] [ref=e313]
+            - list [ref=e314]:
+              - listitem [ref=e315]:
+                - link "平台介绍" [ref=e316] [cursor=pointer]:
+                  - /url: /about
+              - listitem [ref=e317]:
+                - link "联系我们" [ref=e318] [cursor=pointer]:
+                  - /url: /contact
+              - listitem [ref=e319]:
+                - link "加入我们" [ref=e320] [cursor=pointer]:
+                  - /url: /join
+          - generic [ref=e321]:
+            - heading "帮助中心" [level=4] [ref=e322]
+            - list [ref=e323]:
+              - listitem [ref=e324]:
+                - link "使用指南" [ref=e325] [cursor=pointer]:
+                  - /url: /help/guide
+              - listitem [ref=e326]:
+                - link "常见问题" [ref=e327] [cursor=pointer]:
+                  - /url: /help/faq
+              - listitem [ref=e328]:
+                - link "意见反馈" [ref=e329] [cursor=pointer]:
+                  - /url: /feedback
+          - generic [ref=e330]:
+            - heading "合作伙伴" [level=4] [ref=e331]
+            - list [ref=e332]:
+              - listitem [ref=e333]:
+                - link "企业合作" [ref=e334] [cursor=pointer]:
+                  - /url: /cooperation
+              - listitem [ref=e335]:
+                - link "院校合作" [ref=e336] [cursor=pointer]:
+                  - /url: /school
+              - listitem [ref=e337]:
+                - link "讲师入驻" [ref=e338] [cursor=pointer]:
+                  - /url: /teacher-join
+        - separator [ref=e339]
+        - generic [ref=e340]:
+          - generic [ref=e341]:
+            - paragraph [ref=e342]: © 2026 职业培训课堂 版权所有
+            - paragraph [ref=e343]: 京ICP备XXXXXXXX号-1
+          - generic [ref=e344]:
+            - generic [ref=e345]: 客服电话：400-XXX-XXXX
+            - generic [ref=e346]: 工作时间：周一至周五 9:00-18:00
+  - dialog "下架原因" [ref=e503]:
+    - generic [ref=e504]:
+      - generic [ref=e505]:
+        - generic [ref=e506]: 下架原因
+        - button "关闭此对话框" [ref=e507] [cursor=pointer]:
+          - img [ref=e509]
+      - generic [ref=e511]:
+        - generic [ref=e513]: 确定要下架已选择的 1 门课程吗？下架后学员将无法访问该课程。
+        - textbox "确定要下架已选择的 1 门课程吗？下架后学员将无法访问该课程。" [active] [ref=e516]:
+          - /placeholder: 请输入下架原因（10-200 字符）
+      - generic [ref=e517]:
+        - button "取消" [ref=e518] [cursor=pointer]:
+          - generic [ref=e519]: 取消
+        - button "确定下架" [ref=e520] [cursor=pointer]:
+          - generic [ref=e521]: 确定下架

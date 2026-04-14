@@ -1,0 +1,63 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - button [ref=e6] [cursor=pointer]:
+        - img [ref=e8]
+      - generic [ref=e10] [cursor=pointer]:
+        - img [ref=e12]
+        - generic [ref=e16]: 职业培训课堂
+      - generic [ref=e17]:
+        - generic [ref=e20]:
+          - textbox "搜索课程、讲师" [ref=e21]
+          - img [ref=e24] [cursor=pointer]
+        - button "管理员" [ref=e28] [cursor=pointer]:
+          - img [ref=e30]
+          - generic [ref=e31]: 管理员
+  - main [ref=e32]
+  - contentinfo [ref=e33]:
+    - generic [ref=e34]:
+      - navigation "底部导航" [ref=e35]:
+        - generic [ref=e36]:
+          - heading "关于我们" [level=4] [ref=e37]
+          - list [ref=e38]:
+            - listitem [ref=e39]:
+              - link "平台介绍" [ref=e40] [cursor=pointer]:
+                - /url: /about
+            - listitem [ref=e41]:
+              - link "联系我们" [ref=e42] [cursor=pointer]:
+                - /url: /contact
+            - listitem [ref=e43]:
+              - link "加入我们" [ref=e44] [cursor=pointer]:
+                - /url: /join
+        - generic [ref=e45]:
+          - heading "帮助中心" [level=4] [ref=e46]
+          - list [ref=e47]:
+            - listitem [ref=e48]:
+              - link "使用指南" [ref=e49] [cursor=pointer]:
+                - /url: /help/guide
+            - listitem [ref=e50]:
+              - link "常见问题" [ref=e51] [cursor=pointer]:
+                - /url: /help/faq
+            - listitem [ref=e52]:
+              - link "意见反馈" [ref=e53] [cursor=pointer]:
+                - /url: /feedback
+        - generic [ref=e54]:
+          - heading "合作伙伴" [level=4] [ref=e55]
+          - list [ref=e56]:
+            - listitem [ref=e57]:
+              - link "企业合作" [ref=e58] [cursor=pointer]:
+                - /url: /cooperation
+            - listitem [ref=e59]:
+              - link "院校合作" [ref=e60] [cursor=pointer]:
+                - /url: /school
+            - listitem [ref=e61]:
+              - link "讲师入驻" [ref=e62] [cursor=pointer]:
+                - /url: /teacher-join
+      - separator [ref=e63]
+      - generic [ref=e64]:
+        - generic [ref=e65]:
+          - paragraph [ref=e66]: © 2026 职业培训课堂 版权所有
+          - paragraph [ref=e67]: 京ICP备XXXXXXXX号-1
+        - generic [ref=e68]:
+          - generic [ref=e69]: 客服电话：400-XXX-XXXX
+          - generic [ref=e70]: 工作时间：周一至周五 9:00-18:00

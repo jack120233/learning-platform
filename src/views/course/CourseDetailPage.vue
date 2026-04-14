@@ -12,6 +12,7 @@ import {
   Upload,
   Plus,
   Delete,
+  User,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
 import { useLearnStore } from '@/store/learn'
@@ -61,7 +62,6 @@ const feedbackForm = ref({
 const courseId = computed(() => Number(route.params.courseId))
 const hasLearningRecord = computed(() => learnStore.hasLearningRecord)
 const continueInfo = computed(() => learnStore.continueInfo)
-const displayTeacherName = computed(() => course.value?.teacher_name?.trim() || '讲师信息待完善')
 
 // 计算课程总小节数
 const totalSections = computed(() => {
@@ -402,37 +402,29 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
         <div class="info-area">
           <h1 class="course-title">{{ course.title }}</h1>
 
-          <!-- 讲师信息 -->
-          <div class="teacher-info">
-            <el-avatar :size="32" :src="course.teacher_avatar">
-              {{ displayTeacherName.charAt(0) }}
-            </el-avatar>
-            <span class="teacher-name">{{ displayTeacherName }}</span>
-          </div>
+          <!-- 统一元数据行：讲师 | 分类 | 发布时间 -->
+          <div class="meta-info-bar">
+            <template v-if="course.author">
+              <span class="meta-item">
+                <el-icon class="meta-icon"><User /></el-icon>
+                讲师：{{ course.author }}
+              </span>
+              <span class="meta-divider"></span>
+            </template>
 
-          <!-- 元数据行 -->
-          <div class="meta-row">
-            <el-tag type="info" size="small">{{ course.category_name }}</el-tag>
-            <el-tag
-              v-for="(tag, tagIdx) in course.tags?.slice(0, 5)"
-              :key="tagIdx"
-              size="small"
-              class="tag-item"
-            >
-              {{ typeof tag === 'string' ? tag : tag.name || tag.id }}
-            </el-tag>
-            <span class="view-count">
-              <el-icon><VideoPlay /></el-icon>
-              {{ course.view_count }} 次学习
+            <span class="meta-item" v-if="course.category_name">
+              {{ course.category_name }}
+            </span>
+            <span class="meta-divider" v-if="course.category_name"></span>
+
+            <span class="meta-item">
+              发布于 {{ formatDate(course.published_at) }}
             </span>
           </div>
 
           <!-- 课程简介 -->
-          <p class="course-summary">{{ course.summary }}</p>
-
-          <!-- 发布时间 -->
-          <div class="publish-time">
-            发布于 {{ formatDate(course.published_at) }}
+          <div class="course-summary-container">
+            <p class="course-summary">{{ course.summary }}</p>
           </div>
 
           <!-- 操作按钮区 -->
@@ -701,6 +693,56 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
   overflow: hidden;
 }
 
+.course-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: $text-primary;
+  margin-bottom: 20px;
+  line-height: 1.25;
+  letter-spacing: -0.5px;
+}
+
+.meta-info-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 24px;
+  font-size: $font-size-sm;
+  color: $text-secondary;
+
+  .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .meta-icon {
+    font-size: 14px;
+    color: $text-tertiary;
+  }
+
+  .meta-divider {
+    display: inline-block;
+    width: 1px;
+    height: 12px;
+    background-color: $border-color;
+    margin: 0 12px;
+  }
+}
+
+.course-summary-container {
+  margin-bottom: 32px;
+  
+  .course-summary {
+    font-size: $font-size-base;
+    color: $text-secondary;
+    line-height: 1.8;
+    margin: 0;
+    max-width: 680px;
+    text-align: justify;
+  }
+}
+
 .cover-placeholder {
   width: 100%;
   height: 100%;
@@ -726,34 +768,40 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
   line-height: 1.3;
 }
 
-.teacher-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.teacher-name {
-  font-size: $font-size-base;
-  color: $text-secondary;
-}
-
 .meta-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-}
+  gap: 12px;
+  margin-bottom: 24px;
 
-.tag-item {
-  margin-left: 0;
-}
+  .teacher-info {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: $text-secondary;
+    
+    .lecturer-icon {
+      font-size: 14px;
+      color: $text-tertiary;
+    }
+    
+    .teacher-name {
+      font-size: $font-size-sm;
+      color: $text-secondary;
+    }
+  }
 
-.view-count {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: $font-size-sm;
-  color: $text-tertiary;
+  .el-divider--vertical {
+    margin: 0 4px;
+    border-color: $border-color-light;
+  }
+
+  .tag-item {
+    background-color: transparent;
+    border-color: $border-color;
+    color: $text-secondary;
+  }
 }
 
 .course-summary {

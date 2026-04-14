@@ -21,7 +21,10 @@
       "Bash(claude mcp:*)",
       "Bash(powershell:*)",
       "Bash(cmd:*)",
-      "Bash(C:/Program Files/Git/bin/bash.exe:*)"
+      "Bash(C:/Program Files/Git/bin/bash.exe:*)",
+      "Bash(cmd.exe:*)",
+      "Bash(reg query:*)",
+      "WebSearch"
     ],
     "bypassPermissions": true
   },

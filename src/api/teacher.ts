@@ -2,13 +2,30 @@ import request, { type PaginatedData } from './index'
 
 // ==================== 讲师课程管理 ====================
 
+export type CourseStatus = 'draft' | 'published' | 'archived'
+export type CourseManageScope = 'mine' | 'published_all'
+export type BatchCourseAction = 'publish' | 'archive' | 'delete'
+
 export interface TeacherCourseItem {
-  id?: number
+  id: number
   course_id: number
   title: string
-  summary?: string
-  cover_url: string
-  status: 'draft' | 'published' | 'archived'
+  subtitle?: string | null
+  summary?: string | null
+  cover_url: string | null
+  teacher_id: number
+  teacher_name?: string | null
+  author?: string | null
+  status: CourseStatus
+  price?: number
+  original_price?: number | null
+  level?: string
+  is_free?: boolean
+  total_duration?: number
+  total_sections?: number
+  student_count?: number
+  rating?: number
+  rating_count?: number
   view_count: number
   created_at: string
   published_at: string | null
@@ -16,10 +33,14 @@ export interface TeacherCourseItem {
 
 /** 课程列表请求参数 */
 export interface TeacherCoursesParams {
-  status?: 'all' | 'draft' | 'published' | 'archived'
+  status?: 'all' | CourseStatus
   keyword?: string
   page?: number
   page_size?: number
+}
+
+export interface ManageCoursesParams extends TeacherCoursesParams {
+  scope?: CourseManageScope
 }
 
 /** 课程表单数据 */
@@ -39,8 +60,9 @@ export interface CreateCourseRequest {
   summary: string
   description?: string
   category_id: number
-  tag_ids?: number[] // 后端要求 ID
-  is_published?: boolean // 后端扩展：标识是否直接发布
+  author?: string | null
+  tag_ids?: number[]
+  is_published?: boolean
 }
 
 /** 更新课程请求 */
@@ -55,11 +77,12 @@ export interface TeacherCourseDetail {
   summary: string
   description?: string
   category_id: number
-  status: 'draft' | 'published' | 'archived'
+  author?: string | null
+  status: CourseStatus
   view_count: number
   created_at: string
   published_at: string | null
-  tags: TagItem[] // 详情返回对象数组
+  tags: TagItem[]
   chapters: ChapterItem[]
   materials: MaterialItem[]
 }
@@ -114,6 +137,26 @@ export interface MaterialItem {
 /** 下架请求 */
 export interface ArchiveCourseRequest {
   archive_reason: string
+}
+
+export interface BatchCourseActionRequest {
+  action: BatchCourseAction
+  course_ids: number[]
+  archive_reason?: string
+}
+
+export interface BatchCourseActionFailure {
+  course_id: number
+  reason: string
+}
+
+export interface BatchCourseActionResponse {
+  action: BatchCourseAction
+  success_ids: number[]
+  failed_items: BatchCourseActionFailure[]
+  success_count: number
+  failed_count: number
+  message?: string | null
 }
 
 /** 章节表单数据 */
@@ -201,6 +244,20 @@ export function fetchMyCourses(params: TeacherCoursesParams = {}) {
   })
 }
 
+/** 获取课程管理列表 */
+export function fetchManageCourses(params: ManageCoursesParams = {}) {
+  const normalizedStatus = params.status === 'all' ? undefined : params.status
+  return request.get<unknown, PaginatedData<TeacherCourseItem>>('/courses/manage', {
+    params: {
+      scope: params.scope || 'mine',
+      status: normalizedStatus,
+      keyword: params.keyword,
+      page: params.page ?? 1,
+      page_size: params.page_size ?? 10,
+    },
+  })
+}
+
 /** 获取课程详情 */
 export function fetchCourseDetail(courseId: number) {
   return request.get<unknown, TeacherCourseDetail>(`/courses/${courseId}`)
@@ -229,6 +286,11 @@ export function archiveCourse(courseId: number, data: ArchiveCourseRequest) {
 /** 删除课程 */
 export function deleteCourse(courseId: number) {
   return request.delete<unknown, void>(`/courses/${courseId}`)
+}
+
+/** 批量课程操作 */
+export function batchCourseAction(data: BatchCourseActionRequest) {
+  return request.post<unknown, BatchCourseActionResponse>('/courses/batch-action', data)
 }
 
 /** 获取课程章节列表 */

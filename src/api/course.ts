@@ -8,6 +8,7 @@ export interface CourseBaseItem {
   cover_url: string
   summary: string
   teacher_name: string
+  author?: string | null
 }
 
 // 首页课程项

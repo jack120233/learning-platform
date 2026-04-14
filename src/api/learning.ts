@@ -14,6 +14,7 @@ export interface CourseDetail {
   teacher_id: number
   teacher_name: string | null
   teacher_avatar?: string
+  author?: string
   category_id: number
   category_name: string | null
   tags: Array<string | { id: number; name?: string }> // 后端返回对象数组

@@ -54,6 +54,7 @@ const form = ref({
   summary: '',
   description: '',
   category_id: null as number | null,
+  author: '',
   tags: [] as number[], // 改为存储 tag_id
 })
 
@@ -133,15 +134,14 @@ async function loadCourseDetail() {
     // 填充表单
     form.value.title = detail.title
     form.value.cover_url = detail.cover_url
+    form.value.summary = detail.summary || ''
     form.value.description = detail.description || ''
     form.value.category_id = detail.category_id
+    form.value.author = detail.author || ''
     
     // 加载标签回显
     const loadedTags = detail.tags || []
     form.value.tags = loadedTags.map((t: any) => typeof t === 'number' ? t : (t.id || t.tag_id))
-
-    // 简介字段对齐
-    form.value.summary = detail.summary || ''
 
     if (detail.chapters && detail.chapters.length > 0) {
       chapters.value = detail.chapters
@@ -260,7 +260,6 @@ async function handleAddTag() {
     return
   }
 
-  // 检查是否已经在标签库中
   let tag = tags.value.find(t => t.name === tagName)
   
   if (!tag) {
@@ -269,7 +268,6 @@ async function handleAddTag() {
       tag = result
       tags.value.push(result)
     } catch (error) {
-      // 可能已存在，重试获取
       await loadTags()
       tag = tags.value.find(t => t.name === tagName)
     }
@@ -286,19 +284,15 @@ async function handleAddTag() {
   newTagInput.value = ''
 }
 
-// 移除标签
 function handleRemoveTag(index: number) {
   form.value.tags.splice(index, 1)
 }
 
-// 切换已存在标签的状态
 function toggleAvailableTag(tag: TagItem) {
   const index = form.value.tags.indexOf(tag.id)
   if (index > -1) {
-    // 如果已选中，则移除
     form.value.tags.splice(index, 1)
   } else {
-    // 如果未选中，则添加，同时检查数量限制
     if (form.value.tags.length >= 5) {
       ElMessage.warning('最多添加 5 个标签')
       return
@@ -307,46 +301,30 @@ function toggleAvailableTag(tag: TagItem) {
   }
 }
 
-// 通过 ID 获取标签名称
 function getTagName(tagId: number) {
   return tags.value.find(t => t.id === tagId)?.name || `Tag-${tagId}`
 }
 
-// 上传配套资料
 async function handleMaterialUpload(options: { file: File }) {
   if (!courseId.value) {
     ElMessage.warning('请先保存课程后再上传资料')
     return
   }
-
   const file = options.file
-
-  // 校验文件类型
   const validTypes = [
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'text/csv',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'text/markdown',
-    'text/plain',
-    'application/zip',
-    'application/x-zip-compressed',
+    'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv',
+    'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/markdown', 'text/plain', 'application/zip', 'application/x-zip-compressed',
   ]
   if (!validTypes.includes(file.type) && !file.name.endsWith('.md') && !file.name.endsWith('.csv')) {
     ElMessage.warning('仅支持 PDF、Word、PPT、Excel、Markdown、ZIP 等格式')
     return
   }
-
-  // 校验文件大小
   if (file.size > 50 * 1024 * 1024) {
     ElMessage.warning('文件最大 50MB')
     return
   }
-
   try {
     const result = await uploadMaterial(courseId.value, file)
     materials.value.push(result)
@@ -356,10 +334,8 @@ async function handleMaterialUpload(options: { file: File }) {
   }
 }
 
-// 删除配套资料
 async function handleDeleteMaterial(material: MaterialItem) {
   if (!courseId.value) return
-
   try {
     await deleteMaterial(courseId.value, material.material_id)
     materials.value = materials.value.filter(m => m.material_id !== material.material_id)
@@ -369,7 +345,6 @@ async function handleDeleteMaterial(material: MaterialItem) {
   }
 }
 
-// 格式化文件大小
 function formatFileSize(bytes: number) {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
@@ -386,57 +361,48 @@ async function validateCourseForm() {
   }
 }
 
-// 检查是否可以发布
 function checkPublishReady() {
   const missing: string[] = []
-
   if (!form.value.title) missing.push('课程标题')
   if (!form.value.cover_url) missing.push('课程封面')
   if (!form.value.summary) missing.push('课程简介')
   if (!form.value.category_id) missing.push('课程分类')
   if (chapters.value.length === 0) missing.push('至少 1 个章节')
-
-  // 允许章节直接挂资源，不再强制要求必须存在小节
   const hasResources = chapters.value.some(ch =>
     (ch.resources && ch.resources.length > 0) ||
     (ch.sections && ch.sections.some(s => s.resources && s.resources.length > 0))
   )
   if (!hasResources) missing.push('至少 1 个学习资源')
-
   return {
     canPublish: missing.length === 0,
     missingItems: missing,
   }
 }
 
-// 保存草稿
 async function handleSaveDraft() {
   const isValid = await validateCourseForm()
   if (!isValid) return false
-
   isSaving.value = true
   try {
     const data = {
       title: form.value.title,
       cover_url: form.value.cover_url,
-      summary: form.value.summary, // 使用后端新增的 summary 字段
+      summary: form.value.summary,
       description: form.value.description || undefined,
       category_id: form.value.category_id!,
+      author: form.value.author || undefined,
       tag_ids: form.value.tags.length > 0 ? form.value.tags : undefined,
     }
-
     let result: TeacherCourseDetail
     if (isEdit.value && courseId.value) {
       result = await updateCourse(courseId.value, data)
     } else {
       result = await createCourse(data)
-      // 创建成功后跳转到编辑页
       const resolvedCourseId = result.course_id || (result as any).id
       if (resolvedCourseId) {
         router.replace(`/teacher/courses/${resolvedCourseId}/edit`)
       }
     }
-
     courseDetail.value = {
       ...result,
       course_id: result.course_id || (result as any).id
@@ -451,29 +417,21 @@ async function handleSaveDraft() {
   }
 }
 
-// 保存并发布
 async function handleSaveAndPublish() {
   const isValid = await validateCourseForm()
   if (!isValid) return
-
   const check = checkPublishReady()
   if (!check.canPublish) {
     ElMessage.warning(`以下内容缺失，无法发布：${check.missingItems.join('、')}`)
     return
   }
-
-  // 先保存草稿，再调用发布接口
   const saveSuccess = await handleSaveDraft()
   if (!saveSuccess) return
-
-  // 确定最终使用的课程 ID
   const finalId = courseDetail.value?.course_id || (courseDetail.value as any)?.id || courseId.value
-
   if (!finalId) {
     ElMessage.error('请先保存课程')
     return
   }
-
   try {
     await publishCourse(finalId)
     ElMessage.success('课程已发布')
@@ -483,16 +441,13 @@ async function handleSaveAndPublish() {
   }
 }
 
-// 返回列表
 function handleBack() {
   router.push('/teacher/courses')
 }
 
-// 初始化
 onMounted(async () => {
   await loadCategories()
   await loadTags()
-
   if (isEdit.value) {
     await loadCourseDetail()
   }
@@ -501,13 +456,11 @@ onMounted(async () => {
 
 <template>
   <div class="course-form-page" v-loading="isLoading">
-    <!-- 页面标题 -->
     <div class="page-header">
       <el-button text :icon="Back" @click="handleBack">返回列表</el-button>
       <h2 class="page-title">{{ pageTitle }}</h2>
     </div>
 
-    <!-- 表单 -->
     <el-form
       ref="formRef"
       :model="form"
@@ -515,7 +468,6 @@ onMounted(async () => {
       label-position="top"
       class="course-form"
     >
-      <!-- 课程标题 -->
       <el-form-item label="课程标题" prop="title">
         <el-input
           v-model="form.title"
@@ -526,7 +478,6 @@ onMounted(async () => {
         />
       </el-form-item>
 
-      <!-- 课程封面 -->
       <el-form-item label="课程封面" prop="cover_url">
         <div class="cover-uploader">
           <el-upload
@@ -553,7 +504,6 @@ onMounted(async () => {
         </div>
       </el-form-item>
 
-      <!-- 课程分类 -->
       <el-form-item label="课程分类" prop="category_id">
         <el-select v-model="form.category_id" placeholder="请选择分类" style="width: 240px">
           <el-option
@@ -565,7 +515,17 @@ onMounted(async () => {
         </el-select>
       </el-form-item>
 
-      <!-- 课程标签 -->
+      <!-- 讲师信息 -->
+      <el-form-item label="讲师" prop="author">
+        <el-input
+          v-model="form.author"
+          placeholder="请输入讲师名称（可选）"
+          maxlength="20"
+          show-word-limit
+          style="width: 240px"
+        />
+      </el-form-item>
+
       <el-form-item label="课程标签" prop="tags">
         <div class="tag-input-area">
           <div class="tag-list" v-if="form.tags.length > 0">
@@ -594,7 +554,6 @@ onMounted(async () => {
             温馨提示：已达到 5 个标签上限，可以点击标签上的 'x' 删除后再添加。
           </div>
           
-          <!-- 推荐标签/已有标签库 -->
           <div class="available-tags-box" v-if="tags.length > 0">
             <div class="available-title">可选标签池（点击即可快速添加或移除）</div>
             <div class="available-tags-list">
@@ -615,7 +574,6 @@ onMounted(async () => {
         </div>
       </el-form-item>
 
-      <!-- 课程简介 -->
       <el-form-item label="课程简介" prop="summary">
         <el-input
           v-model="form.summary"
@@ -627,7 +585,6 @@ onMounted(async () => {
         />
       </el-form-item>
 
-      <!-- 课程描述 -->
       <el-form-item label="课程描述">
         <el-input
           v-model="form.description"
@@ -637,7 +594,6 @@ onMounted(async () => {
         />
       </el-form-item>
 
-            <!-- 课程全局资料区 -->
       <el-divider content-position="left">课程全局资料区</el-divider>
 
       <el-form-item label="配套资料" v-if="isEdit && courseId">
@@ -662,7 +618,6 @@ onMounted(async () => {
         </div>
       </el-form-item>
 
-      <!-- 章节目录管理 -->
       <el-divider content-position="left">课程内容管理</el-divider>
 
       <el-form-item v-if="isEdit && courseId">
@@ -683,7 +638,6 @@ onMounted(async () => {
         </el-alert>
       </el-form-item>
 
-      <!-- 操作按钮 -->
       <el-form-item class="form-actions">
         <el-button @click="handleBack">返回列表</el-button>
         <el-button type="primary" plain :loading="isSaving" @click="handleSaveDraft()">
@@ -718,7 +672,6 @@ onMounted(async () => {
 </template>
 
 <style lang="scss" scoped>
-
 .course-form-page {
   .page-header {
     display: flex;
@@ -869,7 +822,6 @@ onMounted(async () => {
       overflow-y: auto;
       padding-right: 4px;
 
-      /* 自定义滚动条，使其轻量美观 */
       &::-webkit-scrollbar {
         width: 6px;
       }
@@ -894,7 +846,6 @@ onMounted(async () => {
         &:hover {
           transform: translateY(-2px);
           box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
-          // 为未选中的标签添加 hover 颜色变化
           &:not(.is-selected) {
             color: var(--el-color-primary);
             border-color: var(--el-color-primary-light-5);
