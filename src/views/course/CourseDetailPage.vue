@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue'
+const VueOfficeDocx = defineAsyncComponent(() => import('@vue-office/docx'))
+const VueOfficePdf = defineAsyncComponent(() => import('@vue-office/pdf'))
+const VueOfficePptx = defineAsyncComponent(() => import('@vue-office/pptx'))
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -57,6 +60,11 @@ const feedbackForm = ref({
   uploading: false,
   submitting: false,
 })
+
+// 预览状态
+const previewVisible = ref(false)
+const previewUrl = ref('')
+const previewType = ref<'pdf' | 'docx' | 'pptx' | 'image' | null>(null)
 
 // 计算属性
 const courseId = computed(() => Number(route.params.courseId))
@@ -250,6 +258,29 @@ async function handleDownload(material: CourseMaterial) {
   } finally {
     downloadingMap.value[material.material_id] = false
   }
+}
+
+// 获取资料类型
+function getMaterialType(filename: string): 'pdf' | 'docx' | 'pptx' | 'image' | 'other' {
+  const ext = filename.split('.').pop()?.toLowerCase() || ''
+  if (ext === 'pdf') return 'pdf'
+  if (['doc', 'docx'].includes(ext)) return 'docx'
+  if (['ppt', 'pptx'].includes(ext)) return 'pptx'
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'image'
+  return 'other'
+}
+
+// 处理预览
+function handlePreview(material: CourseMaterial) {
+  const type = getMaterialType(material.file_name)
+  if (type === 'other') {
+    handleDownload(material)
+    return
+  }
+  
+  previewUrl.value = material.file_url
+  previewType.value = type
+  previewVisible.value = true
 }
 
 // 处理图片上传
@@ -579,6 +610,14 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
                 >
                   下载
                 </el-button>
+                <el-button
+                  v-if="getMaterialType(material.file_name) !== 'other'"
+                  type="primary"
+                  plain
+                  @click="handlePreview(material)"
+                >
+                  预览
+                </el-button>
               </div>
             </div>
             <el-empty v-else description="暂无配套资料" />
@@ -645,11 +684,77 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
         </el-tabs>
       </div>
     </template>
+
+    <!-- 资料预览弹窗 -->
+    <el-dialog
+      v-model="previewVisible"
+      :title="course?.materials?.find(m => m.file_url === previewUrl)?.file_name || '资料预览'"
+      width="90%"
+      class="preview-dialog"
+      destroy-on-close
+      append-to-body
+    >
+      <div class="preview-container" v-loading="!previewUrl">
+        <vue-office-pdf
+          v-if="previewType === 'pdf'"
+          :src="previewUrl"
+          class="office-viewer"
+        />
+        <vue-office-docx
+          v-else-if="previewType === 'docx'"
+          :src="previewUrl"
+          class="office-viewer"
+        />
+        <vue-office-pptx
+          v-else-if="previewType === 'pptx'"
+          :src="previewUrl"
+          class="office-viewer"
+        />
+        <div v-else-if="previewType === 'image'" class="image-viewer-box">
+          <el-image :src="previewUrl" fit="contain" :preview-src-list="[previewUrl]" />
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <style lang="scss" scoped>
 @use 'sass:color';
+
+/* 预览弹窗样式 */
+:deep(.preview-dialog) {
+  .el-dialog__body {
+    padding: 0;
+    background: #f5f7fa;
+  }
+}
+
+.preview-container {
+  height: calc(100vh - 200px);
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  
+  .office-viewer {
+    width: 100%;
+    height: 100%;
+  }
+  
+  .image-viewer-box {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    
+    .el-image {
+      max-width: 100%;
+      max-height: 100%;
+    }
+  }
+}
 
 .course-detail-page {
   padding: 24px 0 40px;

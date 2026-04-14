@@ -14,6 +14,7 @@
     "@types/cropperjs": "^1.1.5",
     "@vue-office/docx": "^1.6.3",
     "@vue-office/pdf": "^2.0.10",
+    "@vue-office/pptx": "^1.0.1",
     "axios": "^1.13.6",
     "cropperjs": "^1.6.2",
     "element-plus": "^2.13.6",

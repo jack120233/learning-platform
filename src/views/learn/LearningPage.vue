@@ -36,6 +36,7 @@ const userStore = useUserStore()
 const learnStore = useLearnStore()
 const VueOfficeDocx = defineAsyncComponent(() => import('@vue-office/docx'))
 const VueOfficePdf = defineAsyncComponent(() => import('@vue-office/pdf'))
+const VueOfficePptx = defineAsyncComponent(() => import('@vue-office/pptx'))
 
 // 进度同步
 const progressSync = useProgressSync({
@@ -60,7 +61,7 @@ let autoNextTimer: ReturnType<typeof setInterval> | null = null
 const videoRef = ref<HTMLVideoElement | null>(null)
 const audioRef = ref<HTMLAudioElement | null>(null)
 const documentTextContent = ref('')
-const documentRenderMode = ref<'text' | 'docx' | 'pdf' | 'download'>('download')
+const documentRenderMode = ref<'text' | 'docx' | 'pdf' | 'pptx' | 'download'>('download')
 
 // 计算属性
 const courseId = computed(() => Number(route.params.courseId))
@@ -346,13 +347,15 @@ async function switchResource(sectionId: number, resourceId: number): Promise<vo
         documentRenderMode.value = 'pdf'
       } else if (extension === 'docx') {
         documentRenderMode.value = 'docx'
+      } else if (extension === 'pptx') {
+        documentRenderMode.value = 'pptx'
       } else {
         documentRenderMode.value = 'download'
       }
     }
 
     // 自动标记非音视频资源为已完成
-    if (['document', 'image'].includes(learnStore.activeResource.resourceType)) {
+    if (learnStore.activeResource.resourceType && ['document', 'image'].includes(learnStore.activeResource.resourceType)) {
       learnStore.markResourceCompleted()
       progressSync.immediateSync()
     }
@@ -763,6 +766,11 @@ onUnmounted(() => {
             v-else-if="documentRenderMode === 'docx'"
             :src="activeResource.fileUrl"
             class="document-office-viewer document-docx-viewer"
+          />
+          <vue-office-pptx
+            v-else-if="documentRenderMode === 'pptx'"
+            :src="activeResource.fileUrl"
+            class="document-office-viewer"
           />
           <div v-else class="document-download-viewer">
             <el-result
