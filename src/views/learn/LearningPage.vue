@@ -351,6 +351,12 @@ async function switchResource(sectionId: number, resourceId: number): Promise<vo
       }
     }
 
+    // 自动标记非音视频资源为已完成
+    if (['document', 'image'].includes(learnStore.activeResource.resourceType)) {
+      learnStore.markResourceCompleted()
+      progressSync.immediateSync()
+    }
+
     // 自动播放视频/音频
     if (learnStore.activeResource.resourceType === 'video' || learnStore.activeResource.resourceType === 'audio') {
       await nextTick()
@@ -442,6 +448,12 @@ function toggleChapter(chapterId: number) {
 
 function handleResourceClick(sectionId: number, resourceId: number) {
   switchResource(sectionId, resourceId)
+}
+
+function handleSectionClick(section: any) {
+  if (section.resources && section.resources.length > 0) {
+    switchResource(section.section_id, section.resources[0].resource_id)
+  }
 }
 
 // 全屏切换
@@ -652,6 +664,7 @@ onUnmounted(() => {
                     :key="section.section_id"
                     class="section-node"
                     :class="{ active: section.isActive }"
+                    @click="handleSectionClick(section)"
                   >
                     <div class="section-title">{{ section.title }}</div>
                     <div class="resource-mini-list">
@@ -660,7 +673,7 @@ onUnmounted(() => {
                         :key="resource.resource_id"
                         class="resource-mini-item"
                         :class="{ active: activeResource.resourceId === resource.resource_id }"
-                        @click="handleResourceClick(section.section_id, resource.resource_id)"
+                        @click.stop="handleResourceClick(section.section_id, resource.resource_id)"
                       >
                         <el-icon class="mini-icon" :class="resource.resource_type">
                           <component :is="resourceIconMap[resource.resource_type]" />
@@ -875,7 +888,9 @@ onUnmounted(() => {
 
   :deep(.el-tabs__header) {
     margin: 0;
+    padding: 4px 0;
     background: #333;
+    border-bottom: 1px solid #3a3a3a;
   }
 
   :deep(.el-tabs__nav) {
@@ -885,6 +900,9 @@ onUnmounted(() => {
   :deep(.el-tabs__item) {
     color: #888;
     width: 50%;
+    height: 48px;
+    line-height: 48px;
+    font-size: 14px;
 
     &.is-active {
       color: #fff;

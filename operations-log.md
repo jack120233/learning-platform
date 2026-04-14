@@ -41,3 +41,24 @@
   - 已执行：`npm run build`
   - 结果：通过
   - 备注：构建仍提示大体积 chunk 警告，但不影响本次功能正确性。
+## 课程讲师集成、详情页灵动布局与学习页深度交互优化
+时间：2026-04-14
+
+- 变更原因：需要集成真实的讲师字段，同时提升课程详情页和学习页的视觉“高级感”与交互效率，解决部分布局遮挡和重复操作提示的问题。
+- 涉及文件：
+  - `src/views/course/CourseDetailPage.vue`
+  - `src/views/learn/LearningPage.vue`
+  - `src/views/teacher/CourseFormPage.vue`
+  - `src/views/teacher/CourseListPage.vue`
+  - `src/components/layout/AppHeader.vue`
+  - `src/api/` (teacher.ts, course.ts, learning.ts)
+  - `operations-log.md`
+- 核心改动：
+  * **详情页精细化**：移除冗余 ID 和空标签，讲师信息动态显隐；引入“灵动布局”逻辑，简介行宽随字数动态调整（300/450/600px），垂直间距大幅收缩，提升内容紧凑度。
+  * **学习页交互增强**：实现文档/图片资源“点击即完成（100%）”逻辑，保留音视频进度追踪；修复侧边栏 Tab 标题遮挡 Bug；目录页支持点击“小节标题”自动跳转首个资源并联动“当前任务”列表。
+  * **管理端体验优化**：下架原因改为可选（支持空输入）；重构“保存并发布”逻辑，支持静默保存和状态预检，消除多重弹窗干扰。
+  * **导航精简**：移除 AppHeader 中与 Logo 功能重复的“首页”项。
+- 验证结果：
+  - 已执行：手动验证各资源类型进度同步正常。
+  - 已执行：验证已发布课程编辑保存不再产生多重弹窗。
+  - 结果：通过。
