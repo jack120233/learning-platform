@@ -379,7 +379,7 @@ function checkPublishReady() {
   }
 }
 
-async function handleSaveDraft() {
+async function handleSaveDraft(isSilent = false) {
   const isValid = await validateCourseForm()
   if (!isValid) return false
   isSaving.value = true
@@ -407,7 +407,9 @@ async function handleSaveDraft() {
       ...result,
       course_id: result.course_id || (result as any).id
     }
-    ElMessage.success('保存成功')
+    if (!isSilent) {
+      ElMessage.success('保存成功')
+    }
     return true
   } catch (error) {
     ElMessage.error('保存失败')
@@ -420,24 +422,39 @@ async function handleSaveDraft() {
 async function handleSaveAndPublish() {
   const isValid = await validateCourseForm()
   if (!isValid) return
+  
   const check = checkPublishReady()
   if (!check.canPublish) {
     ElMessage.warning(`以下内容缺失，无法发布：${check.missingItems.join('、')}`)
     return
   }
-  const saveSuccess = await handleSaveDraft()
+
+  // 如果课程已发布，提示保存成功但发布失败
+  if (courseDetail.value?.status === 'published') {
+    const saveSuccess = await handleSaveDraft(true)
+    if (saveSuccess) {
+      ElMessage.warning('保存成功，但发布失败，请先下架后再发布')
+    }
+    return
+  }
+
+  // 执行静默保存
+  const saveSuccess = await handleSaveDraft(true)
   if (!saveSuccess) return
+
   const finalId = courseDetail.value?.course_id || (courseDetail.value as any)?.id || courseId.value
   if (!finalId) {
     ElMessage.error('请先保存课程')
     return
   }
+
   try {
     await publishCourse(finalId)
-    ElMessage.success('课程已发布')
+    ElMessage.success('保存并发布成功')
     router.push('/teacher/courses')
   } catch (error) {
-    ElMessage.error('发布失败')
+    // 拦截器已处理具体错误消息，此处仅提供兜底
+    console.error('发布失败:', error)
   }
 }
 

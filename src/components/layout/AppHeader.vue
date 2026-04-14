@@ -15,7 +15,6 @@ useBreakpoint()
 const showMobileNav = ref(false)
 
 const navItems = [
-  { label: '首页', path: '/' },
   { label: '职业培训课堂', path: '/' },
 ]
 

@@ -162,11 +162,9 @@ async function requestArchiveReason(title: string) {
       confirmButtonText: '确定下架',
       cancelButtonText: '取消',
       inputType: 'textarea',
-      inputPlaceholder: '请输入下架原因（10-200 字符）',
+      inputPlaceholder: '请输入下架原因',
       inputValidator: (reason) => {
-        if (!reason) return '请输入下架原因'
-        if (reason.length < 10) return '下架原因至少 10 个字符'
-        if (reason.length > 200) return '下架原因最多 200 个字符'
+        if (reason && reason.length > 200) return '下架原因最多 200 个字符'
         return true
       },
     }
@@ -177,7 +175,6 @@ async function requestArchiveReason(title: string) {
 async function handleArchive(course: TeacherCourseItem) {
   try {
     const reason = await requestArchiveReason(`课程「${course.title}」`)
-    if (!reason) return
 
     await archiveCourse(course.id, { archive_reason: reason })
     ElMessage.success('课程已下架')
@@ -270,7 +267,6 @@ async function handleBatchAction(action: BatchCourseAction) {
     let archiveReason: string | undefined
     if (action === 'archive') {
       archiveReason = await requestArchiveReason(`已选择的 ${selectedRows.value.length} 门课程`)
-      if (!archiveReason) return
     }
 
     if (action === 'delete') {

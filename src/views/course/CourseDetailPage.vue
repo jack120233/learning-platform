@@ -63,6 +63,15 @@ const courseId = computed(() => Number(route.params.courseId))
 const hasLearningRecord = computed(() => learnStore.hasLearningRecord)
 const continueInfo = computed(() => learnStore.continueInfo)
 
+// 动态计算简介行宽：字少则窄，字多则宽，封顶 600px
+const summaryMaxWidth = computed(() => {
+  const length = course.value?.summary?.length || 0
+  if (length === 0) return '100%'
+  if (length < 30) return '300px'
+  if (length < 80) return '450px'
+  return '600px'
+})
+
 // 计算课程总小节数
 const totalSections = computed(() => {
   if (!course.value?.chapters) return 0
@@ -424,7 +433,12 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
 
           <!-- 课程简介 -->
           <div class="course-summary-container">
-            <p class="course-summary">{{ course.summary }}</p>
+            <p
+              class="course-summary"
+              :style="{ maxWidth: summaryMaxWidth }"
+            >
+              {{ course.summary }}
+            </p>
           </div>
 
           <!-- 操作按钮区 -->
@@ -706,7 +720,7 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
   display: flex;
   align-items: center;
   gap: 0;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   font-size: $font-size-sm;
   color: $text-secondary;
 
@@ -731,14 +745,13 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
 }
 
 .course-summary-container {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   
   .course-summary {
     font-size: $font-size-base;
     color: $text-secondary;
     line-height: 1.8;
     margin: 0;
-    max-width: 680px;
     text-align: justify;
   }
 }
