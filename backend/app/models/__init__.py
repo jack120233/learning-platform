@@ -19,6 +19,7 @@ from app.models.content import Chapter, Section, Resource
 from app.models.learning import ResourceProgress
 from app.models.feedback import Feedback
 from app.models.message import Message
+from app.models.permission import Permission, RolePermission
 
 __all__ = [
     "Base", "BaseModel", "IDMixin", "TimestampMixin", "SoftDeleteMixin",
@@ -29,4 +30,5 @@ __all__ = [
     "Chapter", "Section", "Resource",
     "ResourceProgress",
     "Feedback", "Message",
+    "Permission", "RolePermission",
 ]

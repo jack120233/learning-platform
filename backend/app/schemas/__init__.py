@@ -38,6 +38,9 @@ from app.schemas.feedback import (
 from app.schemas.message import (
     MessageResponse, MessageSend, UnreadCountResponse,
 )
+from app.schemas.permission import (
+    PermissionTreeItem, RoleName, RolePermissionUpdateRequest,
+)
 
 __all__ = [
     "ApiResponse", "BusinessCode", "ErrorResponse", "PageData",
@@ -60,4 +63,5 @@ __all__ = [
     "ContinueLearningResponse", "PlayUrlResponse", "PreviewResponse",
     "FeedbackCreate", "FeedbackResponse", "FeedbackProcess",
     "MessageResponse", "MessageSend", "UnreadCountResponse",
+    "PermissionTreeItem", "RoleName", "RolePermissionUpdateRequest",
 ]

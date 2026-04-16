@@ -22,6 +22,7 @@ from app.services.content_service import (
 from app.services.learning_service import LearningService, learning_service
 from app.services.feedback_service import FeedbackService, feedback_service
 from app.services.message_service import MessageService, message_service
+from app.services.permission_service import PermissionService, permission_service
 from app.services.upload_service import UploadService, upload_service
 
 __all__ = [
@@ -36,5 +37,6 @@ __all__ = [
     "LearningService", "learning_service",
     "FeedbackService", "feedback_service",
     "MessageService", "message_service",
+    "PermissionService", "permission_service",
     "UploadService", "upload_service",
 ]
