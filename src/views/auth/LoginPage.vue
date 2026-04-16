@@ -86,6 +86,8 @@ const handleLogin = async () => {
       throw new Error('登录状态初始化失败，请重试')
     }
 
+    await userStore.loadMyPermissions(true).catch(() => [])
+
     // 处理"记住我"
     if (formData.value.rememberMe) {
       localStorage.setItem('edu_remember_login_id', formData.value.loginId)
@@ -98,8 +100,8 @@ const handleLogin = async () => {
     // 角色跳转
     if (redirectUrl.value) {
       router.replace(redirectUrl.value)
-    } else if (response.user.role === 'admin') {
-      router.replace('/admin/users')
+    } else if (userStore.canAccessAdminCenter) {
+      router.replace('/admin')
     } else {
       router.replace('/')
     }

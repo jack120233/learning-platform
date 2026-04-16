@@ -182,6 +182,8 @@ const handleSubmit = async () => {
       refresh_token: response.refresh_token,
     })
 
+    await userStore.loadMyPermissions(true).catch(() => [])
+
     // 根据角色处理
     if (response.role === 'teacher' && response.status === 'pending') {
       showTeacherPendingDialog.value = true

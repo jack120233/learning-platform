@@ -1,6 +1,13 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useUserStore } from '@/store/user'
 
+const ADMIN_ROUTE_PERMISSIONS = [
+  { path: '/admin/users', permissionCode: 'admin.user' },
+  { path: '/admin/roles', permissionCode: 'admin.role_permission' },
+  { path: '/admin/announcements', permissionCode: 'admin.announcement' },
+  { path: '/admin/feedbacks', permissionCode: 'admin.feedback' },
+]
+
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
@@ -101,7 +108,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/teacher/TeacherLayout.vue'),
     meta: {
       requiresAuth: true,
-      requiresTeacher: true,
+      permissionCode: 'teacher.course',
     },
     children: [
       {
@@ -135,36 +142,32 @@ const routes: RouteRecordRaw[] = [
     meta: {
       title: '后台管理',
       requiresAuth: true,
-      requiresAdmin: true,
+      permissionCode: 'admin',
     },
     children: [
-      {
-        path: '',
-        redirect: '/admin/users',
-      },
       {
         path: 'users',
         name: 'AdminUsers',
         component: () => import('@/views/admin/UserManagePage.vue'),
-        meta: { title: '用户管理' },
+        meta: { title: '用户管理', permissionCode: 'admin.user' },
       },
       {
         path: 'roles',
         name: 'AdminRoles',
         component: () => import('@/views/admin/RolePermissionPage.vue'),
-        meta: { title: '角色权限' },
+        meta: { title: '角色权限', permissionCode: 'admin.role_permission' },
       },
       {
         path: 'announcements',
         name: 'AdminAnnouncements',
         component: () => import('@/views/admin/AnnouncementPage.vue'),
-        meta: { title: '公告管理' },
+        meta: { title: '公告管理', permissionCode: 'admin.announcement' },
       },
       {
         path: 'feedbacks',
         name: 'AdminFeedbacks',
         component: () => import('@/views/admin/FeedbackManagePage.vue'),
-        meta: { title: '反馈管理' },
+        meta: { title: '反馈管理', permissionCode: 'admin.feedback' },
       },
     ],
   },
@@ -184,8 +187,12 @@ const router = createRouter({
   },
 })
 
+function resolveAdminLandingPath(userStore: ReturnType<typeof useUserStore>) {
+  return ADMIN_ROUTE_PERMISSIONS.find(item => userStore.hasPermission(item.permissionCode))?.path || null
+}
+
 // 路由守卫
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to) => {
   const userStore = useUserStore()
 
   // 设置页面标题
@@ -193,34 +200,44 @@ router.beforeEach((to, _from, next) => {
 
   // 已登录用户访问登录/注册/找回密码页 → 重定向到首页
   if (userStore.isLoggedIn && ['Login', 'Register', 'ForgotPassword'].includes(to.name as string)) {
-    next({ name: 'Home' })
-    return
+    return { name: 'Home' }
   }
 
   // 公开页面直接放行
   if (to.meta.public) {
-    next()
-    return
+    return true
   }
 
   // 需要登录但未登录 → 跳转登录页
   if (to.meta.requiresAuth && !userStore.isLoggedIn) {
-    next({ name: 'Login', query: { redirect: to.fullPath } })
-    return
+    return { name: 'Login', query: { redirect: to.fullPath } }
   }
 
-  // 检查角色权限
-  if (to.meta.requiresTeacher && !userStore.isTeacher && !userStore.isAdmin) {
-    next({ name: 'Home' })
-    return
+  const requiredPermissionCode = typeof to.meta.permissionCode === 'string' ? to.meta.permissionCode : ''
+  if (requiredPermissionCode && !userStore.permissionsLoaded) {
+    try {
+      await userStore.loadMyPermissions()
+    } catch {
+      if (!userStore.permissionsLoaded) {
+        return { name: 'Home' }
+      }
+    }
   }
 
-  if (to.meta.requiresAdmin && !userStore.isAdmin) {
-    next({ name: 'Home' })
-    return
+  if (to.path === '/admin') {
+    if (!userStore.canAccessAdminCenter) {
+      return { name: 'Home' }
+    }
+
+    const landingPath = resolveAdminLandingPath(userStore)
+    return landingPath || { name: 'Home' }
   }
 
-  next()
+  if (requiredPermissionCode && !userStore.hasPermission(requiredPermissionCode)) {
+    return { name: 'Home' }
+  }
+
+  return true
 })
 
 export default router

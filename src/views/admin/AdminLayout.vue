@@ -3,9 +3,11 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { User, Key, Bell, ChatDotRound, Back, Menu, Close } from '@element-plus/icons-vue'
 import { useBreakpoint } from '@/composables/useBreakpoint'
+import { useUserStore } from '@/store/user'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 const { isMobile, isTablet } = useBreakpoint()
 
 // 移动端抽屉状态
@@ -15,12 +17,12 @@ const showMobileMenu = ref(false)
 const activeMenu = computed(() => route.path)
 
 // 菜单项配置
-const menuItems = [
-  { index: '/admin/users', title: '用户管理', icon: User },
-  { index: '/admin/roles', title: '角色权限', icon: Key },
-  { index: '/admin/announcements', title: '公告管理', icon: Bell },
-  { index: '/admin/feedbacks', title: '反馈管理', icon: ChatDotRound },
-]
+const menuItems = computed(() => ([
+  { index: '/admin/users', title: '用户管理', icon: User, permissionCode: 'admin.user' },
+  { index: '/admin/roles', title: '角色权限', icon: Key, permissionCode: 'admin.role_permission' },
+  { index: '/admin/announcements', title: '公告管理', icon: Bell, permissionCode: 'admin.announcement' },
+  { index: '/admin/feedbacks', title: '反馈管理', icon: ChatDotRound, permissionCode: 'admin.feedback' },
+]).filter(item => userStore.hasPermission(item.permissionCode)))
 
 // 导航点击后关闭抽屉
 const handleMenuClick = (path?: string) => {

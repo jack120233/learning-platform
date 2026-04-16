@@ -112,6 +112,13 @@ export function fetchProfile(): Promise<UserProfile> {
 }
 
 /**
+ * 获取当前用户权限编码列表
+ */
+export function fetchMyPermissions(): Promise<string[]> {
+  return request.get<unknown, string[]>('/users/me/permissions')
+}
+
+/**
  * 更新个人信息
  */
 export function updateProfile(data: UpdateProfileRequest): Promise<UserProfile> {

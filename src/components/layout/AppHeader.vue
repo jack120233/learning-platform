@@ -38,11 +38,11 @@ const userDropdownItems = computed(() => {
     { label: '消息中心', path: '/profile/messages', icon: 'Bell' },
   ]
 
-  if (userStore.isTeacher || userStore.isAdmin) {
+  if (userStore.canAccessTeacherCenter) {
     items.push({ label: '课程管理', path: '/teacher/courses', icon: 'Notebook' })
   }
 
-  if (userStore.isAdmin) {
+  if (userStore.canAccessAdminCenter) {
     items.push({ label: '后台管理', path: '/admin', icon: 'Setting' })
   }
 
@@ -244,11 +244,11 @@ const handleMobileNavClick = (path: string) => {
                 <span>消息中心</span>
                 <el-badge v-if="userStore.unreadMessageCount > 0" :value="userStore.unreadMessageCount" :max="99" />
               </div>
-              <div v-if="userStore.isTeacher || userStore.isAdmin" class="menu-item" @click="handleMobileNavClick('/teacher/courses')">
+              <div v-if="userStore.canAccessTeacherCenter" class="menu-item" @click="handleMobileNavClick('/teacher/courses')">
                 <el-icon><Notebook /></el-icon>
                 <span>课程管理</span>
               </div>
-              <div v-if="userStore.isAdmin" class="menu-item" @click="handleMobileNavClick('/admin')">
+              <div v-if="userStore.canAccessAdminCenter" class="menu-item" @click="handleMobileNavClick('/admin')">
                 <el-icon><Setting /></el-icon>
                 <span>后台管理</span>
               </div>

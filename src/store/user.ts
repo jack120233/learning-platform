@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { fetchMyPermissions } from '@/api/profile'
 
 export type UserRole = 'student' | 'teacher' | 'admin' | null
 export type UserStatus = 'active' | 'disabled' | 'pending' | null
@@ -35,6 +36,7 @@ const STORAGE_KEYS = {
   accessToken: 'access_token',
   refreshToken: 'refresh_token',
   userInfo: 'user_info',
+  permissionCodes: 'permission_codes',
   rememberedLoginId: 'edu_remember_login_id',
 } as const
 
@@ -46,6 +48,33 @@ const EMPTY_USER_INFO: UserInfo = {
   avatarUrl: '',
   role: null,
   status: null,
+}
+
+const ADMIN_ENTRY_PERMISSION_CODES = [
+  'admin',
+  'admin.user',
+  'admin.teacher_audit',
+  'admin.admin_application',
+  'admin.role_permission',
+  'admin.announcement',
+  'admin.feedback',
+  'admin.message',
+  'admin.category',
+  'admin.tag',
+]
+
+function normalizePermissionCodes(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        .map(item => item.trim())
+    )
+  ).sort()
 }
 
 function normalizeUserId(value: unknown): number | null {
@@ -92,20 +121,87 @@ export const useUserStore = defineStore('user', () => {
   const userInfo = ref<UserInfo>({ ...EMPTY_USER_INFO })
   const accessToken = ref<string>(localStorage.getItem(STORAGE_KEYS.accessToken) || '')
   const refreshToken = ref<string>(localStorage.getItem(STORAGE_KEYS.refreshToken) || '')
+  const permissionCodes = ref<string[]>([])
+  const permissionsLoaded = ref(false)
+  const permissionsLoading = ref(false)
   const unreadMessageCount = ref<number>(0)
+  let permissionLoadPromise: Promise<string[]> | null = null
 
   const isLoggedIn = computed(() => !!accessToken.value && !!userInfo.value.userId)
   const isTeacher = computed(() => userInfo.value.role === 'teacher')
   const isAdmin = computed(() => userInfo.value.role === 'admin')
   const isPendingTeacher = computed(() => userInfo.value.status === 'pending' && userInfo.value.role === 'teacher')
+  const canAccessTeacherCenter = computed(() => hasPermission('teacher.course'))
+  const canAccessAdminCenter = computed(() => hasAnyPermission(ADMIN_ENTRY_PERMISSION_CODES))
 
   function persistUserInfo() {
     localStorage.setItem(STORAGE_KEYS.userInfo, JSON.stringify(userInfo.value))
   }
 
+  function persistPermissionCodes() {
+    localStorage.setItem(STORAGE_KEYS.permissionCodes, JSON.stringify(permissionCodes.value))
+  }
+
   function setUserInfo(info: Partial<UserInfo>) {
     userInfo.value = normalizeUserInfo({ ...userInfo.value, ...info })
     persistUserInfo()
+  }
+
+  function setPermissionCodes(codes: string[]) {
+    permissionCodes.value = normalizePermissionCodes(codes)
+    permissionsLoaded.value = true
+    persistPermissionCodes()
+  }
+
+  function clearPermissionCodes(removeStorage = true) {
+    permissionCodes.value = []
+    permissionsLoaded.value = false
+    permissionsLoading.value = false
+    permissionLoadPromise = null
+
+    if (removeStorage) {
+      localStorage.removeItem(STORAGE_KEYS.permissionCodes)
+    }
+  }
+
+  function hasPermission(code: string) {
+    return permissionCodes.value.includes(code)
+  }
+
+  function hasAnyPermission(codes: string[]) {
+    return codes.some(code => hasPermission(code))
+  }
+
+  async function loadMyPermissions(force = false) {
+    if (!isLoggedIn.value) {
+      clearPermissionCodes()
+      return []
+    }
+
+    if (!force && permissionsLoaded.value) {
+      return permissionCodes.value
+    }
+
+    if (permissionLoadPromise) {
+      return permissionLoadPromise
+    }
+
+    permissionsLoading.value = true
+    permissionLoadPromise = fetchMyPermissions()
+      .then((codes) => {
+        setPermissionCodes(codes)
+        return permissionCodes.value
+      })
+      .catch((error) => {
+        permissionsLoaded.value = permissionCodes.value.length > 0
+        throw error
+      })
+      .finally(() => {
+        permissionsLoading.value = false
+        permissionLoadPromise = null
+      })
+
+    return permissionLoadPromise
   }
 
   function setTokens(access: string, refresh: string) {
@@ -145,6 +241,25 @@ export const useUserStore = defineStore('user', () => {
 
     accessToken.value = localStorage.getItem(STORAGE_KEYS.accessToken) || ''
     refreshToken.value = localStorage.getItem(STORAGE_KEYS.refreshToken) || ''
+
+    const storedPermissionCodes = localStorage.getItem(STORAGE_KEYS.permissionCodes)
+    if (storedPermissionCodes) {
+      try {
+        permissionCodes.value = normalizePermissionCodes(JSON.parse(storedPermissionCodes) as unknown)
+        permissionsLoaded.value = permissionCodes.value.length > 0
+      } catch {
+        clearPermissionCodes()
+      }
+    } else {
+      clearPermissionCodes(false)
+    }
+
+    if (!accessToken.value || !userInfo.value.userId) {
+      clearPermissionCodes()
+      return
+    }
+
+    void loadMyPermissions()
   }
 
   function logout() {
@@ -152,9 +267,11 @@ export const useUserStore = defineStore('user', () => {
     accessToken.value = ''
     refreshToken.value = ''
     unreadMessageCount.value = 0
+    clearPermissionCodes()
     localStorage.removeItem(STORAGE_KEYS.accessToken)
     localStorage.removeItem(STORAGE_KEYS.refreshToken)
     localStorage.removeItem(STORAGE_KEYS.userInfo)
+    localStorage.removeItem(STORAGE_KEYS.permissionCodes)
     localStorage.removeItem(STORAGE_KEYS.rememberedLoginId)
   }
 
@@ -169,6 +286,7 @@ export const useUserStore = defineStore('user', () => {
       status: data.status || 'active',
     })
     persistUserInfo()
+    clearPermissionCodes()
     setTokens(data.access_token, data.refresh_token)
   }
 
@@ -178,16 +296,26 @@ export const useUserStore = defineStore('user', () => {
     userInfo,
     accessToken,
     refreshToken,
+    permissionCodes,
+    permissionsLoaded,
+    permissionsLoading,
     unreadMessageCount,
     isLoggedIn,
     isTeacher,
     isAdmin,
     isPendingTeacher,
+    canAccessTeacherCenter,
+    canAccessAdminCenter,
     setUserInfo,
+    setPermissionCodes,
     setTokens,
     setUnreadCount,
     setLoginInfo,
     logout,
     restoreFromStorage,
+    clearPermissionCodes,
+    hasPermission,
+    hasAnyPermission,
+    loadMyPermissions,
   }
 })
