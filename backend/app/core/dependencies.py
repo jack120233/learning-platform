@@ -5,6 +5,8 @@
 
 from typing import Annotated, AsyncGenerator
 
+from sqlalchemy import select
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -12,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.config import settings
 from app.core.security import decode_token
 from app.core.sql_logging import install_sql_logging
+from app.models.user import User
 from app.schemas.common import BusinessCode
 
 # HTTP Bearer 认证方案
@@ -126,6 +129,27 @@ async def get_current_user_id(
 
 # 当前用户 ID 依赖类型
 CurrentUserId = Annotated[int, Depends(get_current_user_id)]
+
+
+async def get_current_user(
+    db: DBSession,
+    user_id: CurrentUserId,
+) -> User:
+    """获取当前用户对象。"""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": BusinessCode.UNAUTHORIZED,
+                "message": "用户不存在或已失效",
+            },
+        )
+    return user
+
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 async def get_optional_user_id(

@@ -6,26 +6,54 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Query, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.core.dependencies import DBSession, CurrentUserId
-from app.core.exceptions import ValidationException
+from app.core.dependencies import CurrentUser, CurrentUserId, DBSession
+from app.core.exceptions import NotFoundException, ValidationException
+from app.models.course import CourseTag
+from app.models.user import User
 from app.schemas.common import ApiResponse, PageData
 from app.schemas.course import (
+    BatchCourseActionRequest,
+    BatchCourseActionResponse,
     CourseCreate,
-    CourseResponse,
     CourseListResponse,
-    CourseUpdate,
+    CourseManageScope,
+    CourseResponse,
     CourseSearchParams,
+    CourseUpdate,
     MaterialCreate,
     MaterialResponse,
 )
 from app.services.course_service import course_service, material_service
 from app.services.upload_service import upload_service
-from app.models.course import CourseTag
 
 router = APIRouter(prefix="/courses", tags=["课程管理"])
+
+
+def build_course_list_item(course) -> CourseListResponse:
+    return CourseListResponse(
+        id=course.id,
+        title=course.title,
+        subtitle=course.subtitle,
+        cover_url=course.cover_url,
+        teacher_id=course.teacher_id,
+        teacher_name=None,
+        price=course.price,
+        original_price=course.original_price,
+        level=course.level,
+        status=course.status,
+        is_free=course.is_free,
+        total_duration=course.total_duration,
+        total_sections=course.total_sections,
+        student_count=course.student_count,
+        rating=course.rating,
+        rating_count=course.rating_count,
+        author=course.author,
+        view_count=0,
+        created_at=course.created_at,
+        published_at=course.published_at,
+    )
 
 
 @router.get(
@@ -50,33 +78,9 @@ async def get_courses(
         page=page,
         page_size=page_size,
     )
-
-    # 添加讲师名称
-    items = []
-    for course in courses:
-        course_dict = {
-            "id": course.id,
-            "title": course.title,
-            "subtitle": course.subtitle,
-            "cover_url": course.cover_url,
-            "price": course.price,
-            "original_price": course.original_price,
-            "level": course.level,
-            "is_free": course.is_free,
-            "total_duration": course.total_duration,
-            "student_count": course.student_count,
-            "rating": course.rating,
-            "teacher_name": None,  # 实际项目需要关联查询
-        }
-        items.append(CourseListResponse(**course_dict))
-
+    items = [build_course_list_item(course) for course in courses]
     return ApiResponse.success(
-        data=PageData.create(
-            items=items,
-            total=total,
-            page=page,
-            page_size=page_size,
-        ),
+        data=PageData.create(items=items, total=total, page=page, page_size=page_size),
     )
 
 
@@ -113,15 +117,9 @@ async def search_courses(
         page=page,
         page_size=page_size,
     )
-
-    items = [CourseListResponse.model_validate(c) for c in courses]
+    items = [build_course_list_item(course) for course in courses]
     return ApiResponse.success(
-        data=PageData.create(
-            items=items,
-            total=total,
-            page=page,
-            page_size=page_size,
-        ),
+        data=PageData.create(items=items, total=total, page=page, page_size=page_size),
     )
 
 
@@ -137,7 +135,7 @@ async def get_homepage_courses(
 ) -> ApiResponse[list[CourseListResponse]]:
     """获取首页课程接口"""
     courses = await course_service.get_homepage_courses(db, limit)
-    items = [CourseListResponse.model_validate(c) for c in courses]
+    items = [build_course_list_item(course) for course in courses]
     return ApiResponse.success(data=items)
 
 
@@ -162,14 +160,40 @@ async def get_my_courses(
         page=page,
         page_size=page_size,
     )
-    items = [CourseListResponse.model_validate(c) for c in courses]
+    items = [build_course_list_item(course) for course in courses]
     return ApiResponse.success(
-        data=PageData.create(
-            items=items,
-            total=total,
-            page=page,
-            page_size=page_size,
-        ),
+        data=PageData.create(items=items, total=total, page=page, page_size=page_size),
+    )
+
+
+@router.get(
+    "/manage",
+    response_model=ApiResponse[PageData[CourseListResponse]],
+    summary="课程管理列表",
+    description="按角色获取课程管理列表",
+)
+async def get_manage_courses(
+    db: DBSession,
+    current_user: CurrentUser,
+    scope: str = Query(default=CourseManageScope.MINE, description="范围"),
+    status: str | None = Query(default=None, description="状态筛选"),
+    keyword: str | None = Query(default=None, description="关键词"),
+    page: int = Query(default=1, ge=1, description="页码"),
+    page_size: int = Query(default=10, ge=1, le=50, description="每页数量"),
+) -> ApiResponse[PageData[CourseListResponse]]:
+    """获取课程管理列表。"""
+    courses, total = await course_service.get_manage_courses(
+        db,
+        current_user=current_user,
+        scope=scope,
+        status=status,
+        keyword=keyword,
+        page=page,
+        page_size=page_size,
+    )
+    items = [build_course_list_item(course) for course in courses]
+    return ApiResponse.success(
+        data=PageData.create(items=items, total=total, page=page, page_size=page_size),
     )
 
 
@@ -179,25 +203,21 @@ async def get_my_courses(
     summary="课程详情",
     description="获取指定课程的详细信息",
 )
-async def get_course(
-    course_id: int,
-    db: DBSession,
-) -> ApiResponse[CourseResponse]:
+async def get_course(course_id: int, db: DBSession) -> ApiResponse[CourseResponse]:
     """获取课程详情接口"""
     course = await course_service.get_by_id(db, course_id)
     if not course:
-        from app.core.exceptions import NotFoundException
         raise NotFoundException("课程不存在")
 
-    # 获取标签
-    result = await db.execute(
-        select(CourseTag).where(CourseTag.course_id == course_id)
-    )
+    result = await db.execute(select(CourseTag).where(CourseTag.course_id == course_id))
     tags = result.scalars().all()
     chapters = await course_service.get_chapters_with_sections(db, course_id)
     materials = await material_service.get_by_course(db, course_id)
     total_sections = sum(chapter.section_count for chapter in chapters)
     total_duration = sum(chapter.total_duration for chapter in chapters)
+
+    teacher_name_result = await db.execute(select(User.nickname).where(User.id == course.teacher_id))
+    teacher_nickname = teacher_name_result.scalar()
 
     course_dict = {
         "id": course.id,
@@ -207,7 +227,7 @@ async def get_course(
         "description": course.description,
         "cover_url": course.cover_url,
         "teacher_id": course.teacher_id,
-        "teacher_name": None,
+        "teacher_name": teacher_nickname,
         "category_id": course.category_id,
         "category_name": None,
         "price": course.price,
@@ -220,13 +240,13 @@ async def get_course(
         "student_count": course.student_count,
         "rating": course.rating,
         "rating_count": course.rating_count,
+        "author": course.author,
         "tags": [{"id": t.tag_id} for t in tags],
         "chapters": chapters,
         "materials": [MaterialResponse.model_validate(material) for material in materials],
         "created_at": course.created_at,
         "published_at": course.published_at,
     }
-
     return ApiResponse.success(data=CourseResponse(**course_dict))
 
 
@@ -236,17 +256,31 @@ async def get_course(
     summary="创建课程",
     description="创建新课程",
 )
-async def create_course(
-    data: CourseCreate,
-    db: DBSession,
-    user_id: CurrentUserId,
-) -> ApiResponse[CourseResponse]:
+async def create_course(data: CourseCreate, db: DBSession, user_id: CurrentUserId) -> ApiResponse[CourseResponse]:
     """创建课程接口"""
     course = await course_service.create(db, user_id, data)
-    return ApiResponse.success(
-        data=CourseResponse.model_validate(course),
-        message="创建成功",
+    return ApiResponse.success(data=CourseResponse.model_validate(course), message="创建成功")
+
+
+@router.post(
+    "/batch-action",
+    response_model=ApiResponse[BatchCourseActionResponse],
+    summary="批量课程操作",
+    description="批量上架、下架、删除课程",
+)
+async def batch_course_action(
+    data: BatchCourseActionRequest,
+    db: DBSession,
+    current_user: CurrentUser,
+) -> ApiResponse[BatchCourseActionResponse]:
+    """批量课程操作接口。"""
+    result = await course_service.batch_action(
+        db,
+        current_user=current_user,
+        action=data.action,
+        course_ids=data.course_ids,
     )
+    return ApiResponse.success(data=result, message=result.message or "批量操作完成")
 
 
 @router.post(
@@ -259,14 +293,11 @@ async def update_course(
     course_id: int,
     data: CourseUpdate,
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
 ) -> ApiResponse[CourseResponse]:
     """更新课程接口"""
-    course = await course_service.update(db, course_id, user_id, data)
-    return ApiResponse.success(
-        data=CourseResponse.model_validate(course),
-        message="更新成功",
-    )
+    course = await course_service.update(db, course_id, current_user, data)
+    return ApiResponse.success(data=CourseResponse.model_validate(course), message="更新成功")
 
 
 @router.post(
@@ -278,14 +309,11 @@ async def update_course(
 async def publish_course(
     course_id: int,
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
 ) -> ApiResponse[CourseResponse]:
     """发布课程接口"""
-    course = await course_service.publish(db, course_id, user_id)
-    return ApiResponse.success(
-        data=CourseResponse.model_validate(course),
-        message="发布成功",
-    )
+    course = await course_service.publish(db, course_id, current_user)
+    return ApiResponse.success(data=CourseResponse.model_validate(course), message="发布成功")
 
 
 @router.post(
@@ -297,14 +325,11 @@ async def publish_course(
 async def archive_course(
     course_id: int,
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
 ) -> ApiResponse[CourseResponse]:
     """下架课程接口"""
-    course = await course_service.archive(db, course_id, user_id)
-    return ApiResponse.success(
-        data=CourseResponse.model_validate(course),
-        message="下架成功",
-    )
+    course = await course_service.archive(db, course_id, current_user)
+    return ApiResponse.success(data=CourseResponse.model_validate(course), message="下架成功")
 
 
 @router.delete(
@@ -316,14 +341,12 @@ async def archive_course(
 async def delete_course(
     course_id: int,
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
 ) -> ApiResponse[None]:
     """删除课程接口"""
-    await course_service.delete(db, course_id, user_id)
+    await course_service.delete(db, course_id, current_user)
     return ApiResponse.success(message="删除成功")
 
-
-# ==================== 配套资料 ====================
 
 @router.post(
     "/{course_id}/materials",
@@ -346,10 +369,7 @@ async def create_material(
         if upload_file is None or not hasattr(upload_file, "filename"):
             raise ValidationException("请上传资料文件")
 
-        upload_result = await upload_service.save_file(
-            file=upload_file,
-            base_url=str(request.base_url),
-        )
+        upload_result = await upload_service.save_file(file=upload_file, base_url=str(request.base_url))
         file_name = str(upload_result["file_name"])
         data = MaterialCreate(
             name=file_name,
@@ -362,10 +382,7 @@ async def create_material(
         data = MaterialCreate.model_validate(payload)
 
     material = await material_service.create(db, course_id, user_id, data)
-    return ApiResponse.success(
-        data=MaterialResponse.model_validate(material),
-        message="上传成功",
-    )
+    return ApiResponse.success(data=MaterialResponse.model_validate(material), message="上传成功")
 
 
 @router.delete(

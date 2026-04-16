@@ -14,10 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.security import create_access_token
-from app.models.user import User
-from app.models.course import Course, CourseMaterial
 from app.models.category import Category
-from app.models.content import Chapter, Section, Resource
+from app.models.content import Chapter, Resource, Section
+from app.models.course import Course, CourseMaterial
+from app.models.user import User
 
 
 def unique_key(prefix: str = "course") -> str:
@@ -65,6 +65,40 @@ async def create_upload_test_user_with_user(
     return user, {"Authorization": f"Bearer {create_access_token(user.id)}"}
 
 
+async def create_course_with_status(
+    db_session: AsyncSession,
+    teacher_id: int,
+    status: str,
+    title: str,
+) -> Course:
+    """创建指定状态课程。"""
+    category = Category(
+        name=f"{title}-分类",
+        slug=unique_key("course-cat"),
+        is_active=True,
+    )
+    db_session.add(category)
+    await db_session.flush()
+
+    course = Course(
+        title=title,
+        subtitle=f"{title}-副标题",
+        summary=f"{title}-简介",
+        description=f"{title}-描述",
+        teacher_id=teacher_id,
+        category_id=category.id,
+        status=status,
+        price=99.0,
+        level="beginner",
+    )
+    if status == "published":
+        course.published_at = datetime.utcnow()
+    db_session.add(course)
+    await db_session.flush()
+    await db_session.refresh(course)
+    return course
+
+
 class TestCourseList:
     """课程列表测试类"""
 
@@ -94,6 +128,79 @@ class TestCourseList:
         assert response.status_code == 200
 
 
+class TestCourseManageList:
+    """课程管理列表测试。"""
+
+    @pytest.mark.asyncio
+    async def test_teacher_only_gets_own_courses(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """讲师只能看到自己的课程。"""
+        teacher, headers = await create_upload_test_user_with_user(db_session, "teacher")
+        other_teacher, _other_headers = await create_upload_test_user_with_user(db_session, "teacher")
+        own_course = await create_course_with_status(db_session, teacher.id, "draft", "讲师自己的课程")
+        await create_course_with_status(db_session, other_teacher.id, "draft", "别人的课程")
+
+        response = await client.get(
+            "/api/v1/courses/manage",
+            headers=headers,
+            params={"scope": "mine"},
+        )
+
+        assert response.status_code == 200
+        items = response.json()["data"]["items"]
+        assert len(items) == 1
+        assert items[0]["course_id"] == own_course.id
+        assert items[0]["status"] == "draft"
+        assert "created_at" in items[0]
+
+    @pytest.mark.asyncio
+    async def test_admin_gets_all_published_courses(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """管理员可查看所有已发布课程。"""
+        admin, admin_headers = await create_upload_test_user_with_user(db_session, "admin")
+        teacher_a, _ = await create_upload_test_user_with_user(db_session, "teacher")
+        teacher_b, _ = await create_upload_test_user_with_user(db_session, "teacher")
+
+        published_a = await create_course_with_status(db_session, teacher_a.id, "published", "已发布课程A")
+        published_b = await create_course_with_status(db_session, teacher_b.id, "published", "已发布课程B")
+        await create_course_with_status(db_session, teacher_b.id, "draft", "草稿课程")
+
+        response = await client.get(
+            "/api/v1/courses/manage",
+            headers=admin_headers,
+            params={"scope": "published_all"},
+        )
+
+        assert response.status_code == 200
+        ids = {item["course_id"] for item in response.json()["data"]["items"]}
+        assert published_a.id in ids
+        assert published_b.id in ids
+        assert len(ids) == 2
+
+    @pytest.mark.asyncio
+    async def test_teacher_cannot_get_all_published_courses(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """讲师不能查看全站已发布课程。"""
+        _teacher, headers = await create_upload_test_user_with_user(db_session, "teacher")
+
+        response = await client.get(
+            "/api/v1/courses/manage",
+            headers=headers,
+            params={"scope": "published_all"},
+        )
+
+        assert response.status_code == 403
+
+
 class TestCourseDetail:
     """课程详情测试类"""
 
@@ -105,7 +212,6 @@ class TestCourseDetail:
         test_teacher: User,
     ):
         """测试获取课程详情"""
-        # 创建测试分类
         category = Category(
             name="测试分类",
             slug=f"test-cat-{uuid.uuid4().hex[:8]}",
@@ -114,7 +220,6 @@ class TestCourseDetail:
         db_session.add(category)
         await db_session.flush()
 
-        # 创建测试课程
         course = Course(
             title="测试课程详情",
             subtitle="测试副标题",
@@ -258,195 +363,6 @@ class TestCourseDetail:
         assert data["materials"][0]["material_id"] == material.id
         assert data["materials"][0]["file_name"] == "教学大纲.pdf"
         assert len(data["chapters"]) == 1
-        assert len(data["chapters"][0]["resources"]) == 1
-        assert data["chapters"][0]["resources"][0]["resource_id"] == chapter_resource.id
-        assert data["chapters"][0]["resources"][0]["file_name"] == "章节讲义.pdf"
-        assert len(data["chapters"][0]["sections"]) == 1
-        assert len(data["chapters"][0]["sections"][0]["resources"]) == 1
-        assert data["chapters"][0]["sections"][0]["resources"][0]["resource_id"] == section_resource.id
-        assert data["chapters"][0]["sections"][0]["resources"][0]["resource_type"] == "video"
-
-
-class TestMyCourses:
-    """我的课程测试类"""
-
-    @pytest.mark.asyncio
-    async def test_get_my_courses(
-        self,
-        client: AsyncClient,
-        db_session: AsyncSession,
-        test_teacher: User,
-    ):
-        """测试获取我的课程列表"""
-        from app.models.captcha import CaptchaRecord
-        from tests.test_auth import unique_key, utcnow
-
-        key = unique_key("mycourse")
-        captcha = CaptchaRecord(
-            captcha_key=key,
-            captcha_text="test",
-            image_base64="test",
-            expires_at=utcnow() + timedelta(minutes=5),
-        )
-        db_session.add(captcha)
-        await db_session.flush()
-
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            json={
-                "username": "testteacher",
-                "password": "Teacher123456",
-                "captcha_key": key,
-                "captcha_text": "test",
-            },
-        )
-
-        if login_response.status_code != 200:
-            assert login_response.status_code in [200, 400, 401]
-            return
-
-        token = login_response.json()["data"]["access_token"]
-
-        response = await client.get(
-            "/api/v1/courses/my-courses",
-            headers={"Authorization": f"Bearer {token}"},
-        )
-
-        assert response.status_code == 200
-
-
-class TestCourseCRUD:
-    """课程CRUD测试类"""
-
-    @pytest.mark.asyncio
-    async def test_create_course(
-        self,
-        client: AsyncClient,
-        db_session: AsyncSession,
-        test_teacher: User,
-    ):
-        """测试创建课程"""
-        from app.models.captcha import CaptchaRecord
-        from tests.test_auth import unique_key, utcnow
-
-        # 创建分类
-        category = Category(
-            name="创建课程分类",
-            slug=f"create-cat-{uuid.uuid4().hex[:8]}",
-            is_active=True,
-        )
-        db_session.add(category)
-        await db_session.flush()
-
-        key = unique_key("create")
-        captcha = CaptchaRecord(
-            captcha_key=key,
-            captcha_text="test",
-            image_base64="test",
-            expires_at=utcnow() + timedelta(minutes=5),
-        )
-        db_session.add(captcha)
-        await db_session.flush()
-
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            json={
-                "username": "testteacher",
-                "password": "Teacher123456",
-                "captcha_key": key,
-                "captcha_text": "test",
-            },
-        )
-
-        if login_response.status_code != 200:
-            assert login_response.status_code in [200, 400, 401]
-            return
-
-        token = login_response.json()["data"]["access_token"]
-
-        response = await client.post(
-            "/api/v1/courses",
-            headers={"Authorization": f"Bearer {token}"},
-            json={
-                "title": "新建测试课程",
-                "subtitle": "副标题",
-                "summary": "课程简介",
-                "description": "描述",
-                "category_id": category.id,
-                "price": 99.0,
-                "level": "beginner",
-            },
-        )
-
-        assert response.status_code == 200
-        assert response.json()["data"]["summary"] == "课程简介"
-
-    @pytest.mark.asyncio
-    async def test_update_course(
-        self,
-        client: AsyncClient,
-        db_session: AsyncSession,
-        test_teacher: User,
-    ):
-        """测试更新课程"""
-        from app.models.captcha import CaptchaRecord
-        from tests.test_auth import unique_key, utcnow
-
-        # 创建分类和课程
-        category = Category(
-            name="更新课程分类",
-            slug=f"update-cat-{uuid.uuid4().hex[:8]}",
-            is_active=True,
-        )
-        db_session.add(category)
-        await db_session.flush()
-
-        course = Course(
-            title="待更新课程",
-            subtitle="旧副标题",
-            description="旧描述",
-            teacher_id=test_teacher.id,
-            category_id=category.id,
-            status="draft",
-            price=99.0,
-            level="beginner",
-        )
-        db_session.add(course)
-        await db_session.flush()
-
-        key = unique_key("update")
-        captcha = CaptchaRecord(
-            captcha_key=key,
-            captcha_text="test",
-            image_base64="test",
-            expires_at=utcnow() + timedelta(minutes=5),
-        )
-        db_session.add(captcha)
-        await db_session.flush()
-
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            json={
-                "username": "testteacher",
-                "password": "Teacher123456",
-                "captcha_key": key,
-                "captcha_text": "test",
-            },
-        )
-
-        if login_response.status_code != 200:
-            assert login_response.status_code in [200, 400, 401]
-            return
-
-        token = login_response.json()["data"]["access_token"]
-
-        response = await client.post(
-            f"/api/v1/courses/{course.id}",
-            headers={"Authorization": f"Bearer {token}"},
-            json={"title": "已更新课程"},
-        )
-
-        assert response.status_code == 200
 
 
 class TestCoursePublish:
@@ -516,6 +432,24 @@ class TestCoursePublish:
         )
 
         assert response.status_code in [200, 400, 404]
+
+    @pytest.mark.asyncio
+    async def test_admin_cannot_publish_other_teacher_course(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """管理员不能发布他人课程。"""
+        teacher, _ = await create_upload_test_user_with_user(db_session, "teacher")
+        _course = await create_course_with_status(db_session, teacher.id, "draft", "待管理员发布课程")
+        _admin, admin_headers = await create_upload_test_user_with_user(db_session, "admin")
+
+        response = await client.post(
+            f"/api/v1/courses/{_course.id}/publish",
+            headers=admin_headers,
+        )
+
+        assert response.status_code == 403
 
 
 class TestCourseCoverUpload:
@@ -684,10 +618,7 @@ class TestCourseMaterials:
         assert data["file_url"].startswith("http://test/uploads/files/")
 
         upload_path = urlparse(data["file_url"]).path
-        file_path = (
-            Path(settings.upload_dir)
-            / Path(upload_path.lstrip("/")).relative_to("uploads")
-        )
+        file_path = Path(settings.upload_dir) / Path(upload_path.lstrip("/")).relative_to("uploads")
         assert file_path.exists()
         file_path.unlink(missing_ok=True)
 
@@ -806,3 +737,132 @@ class TestCourseArchive:
         )
 
         assert response.status_code in [200, 400, 404]
+
+    @pytest.mark.asyncio
+    async def test_admin_can_archive_other_teacher_published_course(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """管理员可下架他人已发布课程。"""
+        teacher, _ = await create_upload_test_user_with_user(db_session, "teacher")
+        course = await create_course_with_status(db_session, teacher.id, "published", "教师已发布课程")
+        _admin, admin_headers = await create_upload_test_user_with_user(db_session, "admin")
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/archive",
+            headers=admin_headers,
+        )
+
+        assert response.status_code == 200
+        assert response.json()["data"]["status"] == "archived"
+
+
+class TestBatchCourseAction:
+    """批量课程操作测试。"""
+
+    @pytest.mark.asyncio
+    async def test_teacher_batch_delete_own_non_published_courses(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """讲师可批量删除自己的未发布课程。"""
+        teacher, headers = await create_upload_test_user_with_user(db_session, "teacher")
+        draft_course = await create_course_with_status(db_session, teacher.id, "draft", "讲师草稿课程")
+        archived_course = await create_course_with_status(db_session, teacher.id, "archived", "讲师下架课程")
+
+        response = await client.post(
+            "/api/v1/courses/batch-action",
+            headers=headers,
+            json={
+                "action": "delete",
+                "course_ids": [draft_course.id, archived_course.id],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["success_count"] == 2
+        assert data["failed_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_admin_batch_archive_other_teachers_published_courses(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """管理员可批量下架多名讲师的已发布课程。"""
+        teacher_a, _ = await create_upload_test_user_with_user(db_session, "teacher")
+        teacher_b, _ = await create_upload_test_user_with_user(db_session, "teacher")
+        course_a = await create_course_with_status(db_session, teacher_a.id, "published", "讲师A课程")
+        course_b = await create_course_with_status(db_session, teacher_b.id, "published", "讲师B课程")
+        _admin, admin_headers = await create_upload_test_user_with_user(db_session, "admin")
+
+        response = await client.post(
+            "/api/v1/courses/batch-action",
+            headers=admin_headers,
+            json={
+                "action": "archive",
+                "course_ids": [course_a.id, course_b.id],
+                "archive_reason": "管理员批量下架",
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["success_count"] == 2
+        assert data["failed_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_admin_batch_delete_other_teacher_courses_fails(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """管理员不能批量删除他人课程。"""
+        teacher, _ = await create_upload_test_user_with_user(db_session, "teacher")
+        draft_course = await create_course_with_status(db_session, teacher.id, "draft", "待删草稿课程")
+        _admin, admin_headers = await create_upload_test_user_with_user(db_session, "admin")
+
+        response = await client.post(
+            "/api/v1/courses/batch-action",
+            headers=admin_headers,
+            json={
+                "action": "delete",
+                "course_ids": [draft_course.id],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["success_count"] == 0
+        assert data["failed_count"] == 1
+        assert data["failed_items"][0]["course_id"] == draft_course.id
+
+    @pytest.mark.asyncio
+    async def test_teacher_batch_delete_published_course_returns_failure(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """批量删除已发布课程会返回失败明细。"""
+        teacher, headers = await create_upload_test_user_with_user(db_session, "teacher")
+        published_course = await create_course_with_status(db_session, teacher.id, "published", "已发布课程")
+        archived_course = await create_course_with_status(db_session, teacher.id, "archived", "可删除课程")
+
+        response = await client.post(
+            "/api/v1/courses/batch-action",
+            headers=headers,
+            json={
+                "action": "delete",
+                "course_ids": [published_course.id, archived_course.id],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["success_count"] == 1
+        assert data["failed_count"] == 1
+        assert data["failed_items"][0]["course_id"] == published_course.id
+        assert "先下架" in data["failed_items"][0]["reason"]

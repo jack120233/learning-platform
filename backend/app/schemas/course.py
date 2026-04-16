@@ -6,7 +6,7 @@ from __future__ import annotations
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -43,6 +43,11 @@ class CourseCreate(BaseModel):
         default=None,
         max_length=500,
         description="封面图片URL",
+    )
+    author: str | None = Field(
+        default=None,
+        max_length=100,
+        description="作者",
     )
     category_id: int | None = Field(
         default=None,
@@ -101,6 +106,11 @@ class CourseUpdate(BaseModel):
         max_length=500,
         description="封面图片URL",
     )
+    author: str | None = Field(
+        default=None,
+        max_length=100,
+        description="作者",
+    )
     category_id: int | None = Field(
         default=None,
         description="分类ID",
@@ -138,6 +148,7 @@ class CourseResponse(BaseModel):
     summary: str | None = Field(default=None, description="简介")
     description: str | None = Field(default=None, description="课程描述")
     cover_url: str | None = Field(default=None, description="封面图片URL")
+    author: str | None = Field(default=None, description="作者")
     teacher_id: int = Field(description="讲师ID")
     teacher_name: str | None = Field(default=None, description="讲师名称")
     category_id: int | None = Field(default=None, description="分类ID")
@@ -171,19 +182,59 @@ class CourseListResponse(BaseModel):
     """课程列表响应（简化版）"""
 
     id: int = Field(description="课程ID")
+    course_id: int = Field(validation_alias="id", description="课程ID")
     title: str = Field(description="课程标题")
     subtitle: str | None = Field(default=None, description="课程副标题")
     cover_url: str | None = Field(default=None, description="封面图片URL")
+    author: str | None = Field(default=None, description="作者")
+    teacher_id: int = Field(description="讲师ID")
     teacher_name: str | None = Field(default=None, description="讲师名称")
     price: float = Field(description="课程价格")
     original_price: float | None = Field(default=None, description="原价")
     level: str = Field(description="难度等级")
+    status: str = Field(description="课程状态")
     is_free: bool = Field(description="是否免费")
     total_duration: int = Field(description="总时长（秒）")
+    total_sections: int = Field(default=0, description="小节数量")
     student_count: int = Field(description="学员数量")
     rating: float = Field(description="评分")
+    rating_count: int = Field(default=0, description="评分人数")
+    view_count: int = Field(default=0, description="浏览量")
+    created_at: datetime = Field(description="创建时间")
+    published_at: datetime | None = Field(default=None, description="发布时间")
 
     model_config = {"from_attributes": True}
+
+
+class CourseManageScope(str):
+    MINE = "mine"
+    PUBLISHED_ALL = "published_all"
+
+
+class BatchCourseActionRequest(BaseModel):
+    """批量课程操作请求。"""
+
+    action: Literal["publish", "archive", "delete"] = Field(description="批量动作")
+    course_ids: list[int] = Field(min_length=1, max_length=100, description="课程ID列表")
+    archive_reason: str | None = Field(default=None, max_length=200, description="批量下架原因")
+
+
+class BatchCourseActionFailure(BaseModel):
+    """批量课程操作失败项。"""
+
+    course_id: int = Field(description="课程ID")
+    reason: str = Field(description="失败原因")
+
+
+class BatchCourseActionResponse(BaseModel):
+    """批量课程操作响应。"""
+
+    action: Literal["publish", "archive", "delete"] = Field(description="批量动作")
+    success_ids: list[int] = Field(default_factory=list, description="成功课程ID")
+    failed_items: list[BatchCourseActionFailure] = Field(default_factory=list, description="失败项")
+    success_count: int = Field(default=0, description="成功数量")
+    failed_count: int = Field(default=0, description="失败数量")
+    message: str | None = Field(default=None, description="结果说明")
 
 
 # ==================== 配套资料模型 ====================

@@ -7,27 +7,52 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Literal
 
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import (
-    ForbiddenException,
-    NotFoundException,
-    ValidationException,
-)
+from app.core.exceptions import ForbiddenException, NotFoundException, ValidationException
 from app.core.resource_types import normalize_resource_type
+from app.models.content import Chapter, Resource, Section
 from app.models.course import Course, CourseMaterial, CourseTag
-from app.models.content import Chapter, Section, Resource
+from app.models.user import User
+from app.schemas.content import ChapterWithSections, ResourceResponse, SectionResponse
 from app.schemas.course import (
+    BatchCourseActionFailure,
+    BatchCourseActionResponse,
     CourseCreate,
+    CourseManageScope,
     CourseUpdate,
     MaterialCreate,
 )
-from app.schemas.content import ChapterWithSections, ResourceResponse, SectionResponse
 
 
 class CourseService:
     """课程管理服务类"""
+
+    def _can_manage_course(self, current_user: User, course: Course) -> bool:
+        return current_user.role == "admin" or course.teacher_id == current_user.id
+
+    def _can_publish_course(self, current_user: User, course: Course) -> bool:
+        return course.teacher_id == current_user.id
+
+    def _can_archive_course(self, current_user: User, course: Course) -> bool:
+        return course.status == "published" and (
+            current_user.role == "admin" or course.teacher_id == current_user.id
+        )
+
+    def _can_delete_course(self, current_user: User, course: Course) -> bool:
+        return course.teacher_id == current_user.id and course.status != "published"
+
+    def _ensure_course_exists(self, course: Course | None) -> Course:
+        if not course:
+            raise NotFoundException("课程不存在")
+        return course
+
+    def _ensure_publishable(self, course: Course) -> None:
+        if course.status == "published":
+            raise ValidationException("课程已发布")
+        if not course.title or not course.description:
+            raise ValidationException("请完善课程信息后再发布")
 
     async def get_list(
         self,
@@ -39,20 +64,7 @@ class CourseService:
         page: int = 1,
         page_size: int = 10,
     ) -> tuple[list[Course], int]:
-        """获取课程列表
-
-        Args:
-            db: 数据库会话
-            status: 状态筛选
-            category_id: 分类筛选
-            teacher_id: 讲师筛选
-            is_free: 是否免费筛选
-            page: 页码
-            page_size: 每页数量
-
-        Returns:
-            课程列表和总数
-        """
+        """获取课程列表"""
         query = select(Course)
 
         if status:
@@ -64,25 +76,58 @@ class CourseService:
         if is_free is not None:
             query = query.where(Course.is_free == is_free)
 
-        # 获取总数
         count_query = select(func.count()).select_from(query.subquery())
         total_result = await db.execute(count_query)
         total = total_result.scalar() or 0
 
-        # 排序和分页
         query = query.order_by(Course.published_at.desc(), Course.id.desc())
         query = query.offset((page - 1) * page_size).limit(page_size)
 
         result = await db.execute(query)
         courses = list(result.scalars().all())
-
         return courses, total
 
-    async def get_by_id(
+    async def get_manage_courses(
         self,
         db: AsyncSession,
-        course_id: int,
-    ) -> Course | None:
+        current_user: User,
+        scope: str = CourseManageScope.MINE,
+        status: str | None = None,
+        keyword: str | None = None,
+        page: int = 1,
+        page_size: int = 10,
+    ) -> tuple[list[Course], int]:
+        """获取课程管理列表。"""
+        query = select(Course)
+
+        if scope == CourseManageScope.PUBLISHED_ALL:
+            if current_user.role != "admin":
+                raise ForbiddenException("仅管理员可查看全部已发布课程")
+            query = query.where(Course.status == "published")
+        else:
+            query = query.where(Course.teacher_id == current_user.id)
+            if status:
+                query = query.where(Course.status == status)
+
+        if keyword:
+            query = query.where(
+                or_(
+                    Course.title.ilike(f"%{keyword}%"),
+                    Course.subtitle.ilike(f"%{keyword}%"),
+                    Course.summary.ilike(f"%{keyword}%"),
+                )
+            )
+
+        count_query = select(func.count()).select_from(query.subquery())
+        total_result = await db.execute(count_query)
+        total = total_result.scalar() or 0
+
+        query = query.order_by(Course.published_at.desc(), Course.created_at.desc(), Course.id.desc())
+        query = query.offset((page - 1) * page_size).limit(page_size)
+        result = await db.execute(query)
+        return list(result.scalars().all()), total
+
+    async def get_by_id(self, db: AsyncSession, course_id: int) -> Course | None:
         """通过ID获取课程"""
         return await db.get(Course, course_id)
 
@@ -93,9 +138,7 @@ class CourseService:
     ) -> list[ChapterWithSections]:
         """获取课程详情页需要的章节树。"""
         chapter_result = await db.execute(
-            select(Chapter)
-            .where(Chapter.course_id == course_id)
-            .order_by(Chapter.sort_order, Chapter.id)
+            select(Chapter).where(Chapter.course_id == course_id).order_by(Chapter.sort_order, Chapter.id)
         )
         chapters = list(chapter_result.scalars().all())
         if not chapters:
@@ -177,22 +220,8 @@ class CourseService:
 
         return chapter_items
 
-    async def create(
-        self,
-        db: AsyncSession,
-        teacher_id: int,
-        data: CourseCreate,
-    ) -> Course:
-        """创建课程
-
-        Args:
-            db: 数据库会话
-            teacher_id: 讲师ID
-            data: 创建数据
-
-        Returns:
-            创建的课程
-        """
+    async def create(self, db: AsyncSession, teacher_id: int, data: CourseCreate) -> Course:
+        """创建课程"""
         course = Course(
             title=data.title,
             subtitle=data.subtitle,
@@ -205,18 +234,14 @@ class CourseService:
             original_price=data.original_price,
             level=data.level,
             is_free=data.is_free,
+            author=data.author,
         )
         db.add(course)
         await db.flush()
 
-        # 添加标签关联
         if data.tag_ids:
             for tag_id in data.tag_ids:
-                course_tag = CourseTag(
-                    course_id=course.id,
-                    tag_id=tag_id,
-                )
-                db.add(course_tag)
+                db.add(CourseTag(course_id=course.id, tag_id=tag_id))
 
         return course
 
@@ -224,160 +249,99 @@ class CourseService:
         self,
         db: AsyncSession,
         course_id: int,
-        user_id: int,
+        current_user: User,
         data: CourseUpdate,
     ) -> Course:
-        """更新课程
-
-        Args:
-            db: 数据库会话
-            course_id: 课程ID
-            user_id: 当前用户ID
-            data: 更新数据
-
-        Returns:
-            更新后的课程
-
-        Raises:
-            NotFoundException: 课程不存在
-            ForbiddenException: 无权限
-        """
-        course = await self.get_by_id(db, course_id)
-        if not course:
-            raise NotFoundException("课程不存在")
-
-        # 检查权限
-        if course.teacher_id != user_id:
+        """更新课程"""
+        course = self._ensure_course_exists(await self.get_by_id(db, course_id))
+        if not self._can_manage_course(current_user, course):
             raise ForbiddenException("无权修改此课程")
 
-        # 更新属性
         update_data = data.model_dump(exclude_unset=True, exclude={"tag_ids"})
         for key, value in update_data.items():
             setattr(course, key, value)
 
-        # 更新标签
         if data.tag_ids is not None:
-            # 删除原有标签
-            await db.execute(
-                CourseTag.__table__.delete().where(CourseTag.course_id == course_id)
-            )
-            # 添加新标签
+            await db.execute(CourseTag.__table__.delete().where(CourseTag.course_id == course_id))
             for tag_id in data.tag_ids:
-                course_tag = CourseTag(
-                    course_id=course.id,
-                    tag_id=tag_id,
-                )
-                db.add(course_tag)
+                db.add(CourseTag(course_id=course.id, tag_id=tag_id))
 
         await db.flush()
         return course
 
-    async def publish(
-        self,
-        db: AsyncSession,
-        course_id: int,
-        user_id: int,
-    ) -> Course:
-        """发布课程
-
-        Args:
-            db: 数据库会话
-            course_id: 课程ID
-            user_id: 当前用户ID
-
-        Returns:
-            发布后的课程
-
-        Raises:
-            NotFoundException: 课程不存在
-            ForbiddenException: 无权限
-            ValidationException: 课程信息不完整
-        """
-        course = await self.get_by_id(db, course_id)
-        if not course:
-            raise NotFoundException("课程不存在")
-
-        # 检查权限
-        if course.teacher_id != user_id:
+    async def publish(self, db: AsyncSession, course_id: int, current_user: User) -> Course:
+        """发布课程"""
+        course = self._ensure_course_exists(await self.get_by_id(db, course_id))
+        if not self._can_publish_course(current_user, course):
             raise ForbiddenException("无权发布此课程")
-
-        # 检查课程状态
-        if course.status == "published":
-            raise ValidationException("课程已发布")
-
-        # 检查课程信息是否完整
-        if not course.title or not course.description:
-            raise ValidationException("请完善课程信息后再发布")
-
+        self._ensure_publishable(course)
         course.status = "published"
         course.published_at = datetime.now(timezone.utc)
-
         await db.flush()
         return course
 
-    async def archive(
-        self,
-        db: AsyncSession,
-        course_id: int,
-        user_id: int,
-    ) -> Course:
-        """下架课程
-
-        Args:
-            db: 数据库会话
-            course_id: 课程ID
-            user_id: 当前用户ID
-
-        Returns:
-            下架后的课程
-
-        Raises:
-            NotFoundException: 课程不存在
-            ForbiddenException: 无权限
-        """
-        course = await self.get_by_id(db, course_id)
-        if not course:
-            raise NotFoundException("课程不存在")
-
-        # 检查权限
-        if course.teacher_id != user_id:
+    async def archive(self, db: AsyncSession, course_id: int, current_user: User) -> Course:
+        """下架课程"""
+        course = self._ensure_course_exists(await self.get_by_id(db, course_id))
+        if not self._can_archive_course(current_user, course):
             raise ForbiddenException("无权下架此课程")
-
         course.status = "archived"
         await db.flush()
         return course
 
-    async def delete(
+    async def delete(self, db: AsyncSession, course_id: int, current_user: User) -> None:
+        """删除课程"""
+        course = self._ensure_course_exists(await self.get_by_id(db, course_id))
+        if not self._can_delete_course(current_user, course):
+            if course.status == "published":
+                raise ValidationException("已发布的课程不能删除，请先下架")
+            raise ForbiddenException("无权删除此课程")
+        await db.delete(course)
+
+    async def batch_action(
         self,
         db: AsyncSession,
-        course_id: int,
-        user_id: int,
-    ) -> None:
-        """删除课程
+        current_user: User,
+        action: Literal["publish", "archive", "delete"],
+        course_ids: list[int],
+    ) -> BatchCourseActionResponse:
+        """批量课程操作。"""
+        unique_ids = list(dict.fromkeys(course_ids))
+        response = BatchCourseActionResponse(action=action)
 
-        Args:
-            db: 数据库会话
-            course_id: 课程ID
-            user_id: 当前用户ID
+        for course_id in unique_ids:
+            course = await self.get_by_id(db, course_id)
+            if not course:
+                response.failed_items.append(BatchCourseActionFailure(course_id=course_id, reason="课程不存在"))
+                continue
 
-        Raises:
-            NotFoundException: 课程不存在
-            ForbiddenException: 无权限
-            ValidationException: 已发布的课程不能删除
-        """
-        course = await self.get_by_id(db, course_id)
-        if not course:
-            raise NotFoundException("课程不存在")
+            try:
+                if action == "publish":
+                    if not self._can_publish_course(current_user, course):
+                        raise ForbiddenException("无权发布此课程")
+                    self._ensure_publishable(course)
+                    course.status = "published"
+                    course.published_at = datetime.now(timezone.utc)
+                elif action == "archive":
+                    if not self._can_archive_course(current_user, course):
+                        raise ForbiddenException("无权下架此课程")
+                    course.status = "archived"
+                else:
+                    if not self._can_delete_course(current_user, course):
+                        if course.status == "published":
+                            raise ValidationException("已发布课程需先下架后才能删除")
+                        raise ForbiddenException("无权删除此课程")
+                    await db.delete(course)
 
-        # 检查权限
-        if course.teacher_id != user_id:
-            raise ForbiddenException("无权删除此课程")
+                response.success_ids.append(course_id)
+            except (ForbiddenException, ValidationException) as exc:
+                response.failed_items.append(BatchCourseActionFailure(course_id=course_id, reason=str(exc)))
 
-        # 检查课程状态
-        if course.status == "published":
-            raise ValidationException("已发布的课程不能删除，请先下架")
-
-        await db.delete(course)
+        response.success_count = len(response.success_ids)
+        response.failed_count = len(response.failed_items)
+        response.message = f"已成功处理 {response.success_count} 门课程"
+        await db.flush()
+        return response
 
     async def get_my_courses(
         self,
@@ -387,18 +351,7 @@ class CourseService:
         page: int = 1,
         page_size: int = 10,
     ) -> tuple[list[Course], int]:
-        """获取我的课程列表
-
-        Args:
-            db: 数据库会话
-            teacher_id: 讲师ID
-            status: 状态筛选
-            page: 页码
-            page_size: 每页数量
-
-        Returns:
-            课程列表和总数
-        """
+        """获取我的课程列表"""
         return await self.get_list(
             db,
             status=status,
@@ -421,27 +374,9 @@ class CourseService:
         page: int = 1,
         page_size: int = 10,
     ) -> tuple[list[Course], int]:
-        """搜索课程
-
-        Args:
-            db: 数据库会话
-            keyword: 关键词
-            category_id: 分类ID
-            level: 难度等级
-            is_free: 是否免费
-            min_price: 最低价格
-            max_price: 最高价格
-            sort_by: 排序字段
-            sort_order: 排序方向
-            page: 页码
-            page_size: 每页数量
-
-        Returns:
-            课程列表和总数
-        """
+        """搜索课程"""
         query = select(Course).where(Course.status == "published")
 
-        # 关键词搜索
         if keyword:
             query = query.where(
                 or_(
@@ -449,8 +384,6 @@ class CourseService:
                     Course.description.ilike(f"%{keyword}%"),
                 )
             )
-
-        # 条件筛选
         if category_id:
             query = query.where(Course.category_id == category_id)
         if level:
@@ -462,47 +395,25 @@ class CourseService:
         if max_price is not None:
             query = query.where(Course.price <= max_price)
 
-        # 获取总数
         count_query = select(func.count()).select_from(query.subquery())
         total_result = await db.execute(count_query)
         total = total_result.scalar() or 0
 
-        # 排序
         sort_column = getattr(Course, sort_by, Course.published_at)
-        if sort_order == "asc":
-            query = query.order_by(sort_column.asc())
-        else:
-            query = query.order_by(sort_column.desc())
-
-        # 分页
+        query = query.order_by(sort_column.asc() if sort_order == "asc" else sort_column.desc())
         query = query.offset((page - 1) * page_size).limit(page_size)
 
         result = await db.execute(query)
-        courses = list(result.scalars().all())
+        return list(result.scalars().all()), total
 
-        return courses, total
-
-    async def get_homepage_courses(
-        self,
-        db: AsyncSession,
-        limit: int = 8,
-    ) -> list[Course]:
-        """获取首页推荐课程
-
-        Args:
-            db: 数据库会话
-            limit: 返回数量
-
-        Returns:
-            推荐课程列表
-        """
-        query = select(Course).where(
-            Course.status == "published"
-        ).order_by(
-            Course.rating.desc(),
-            Course.student_count.desc(),
-        ).limit(limit)
-
+    async def get_homepage_courses(self, db: AsyncSession, limit: int = 8) -> list[Course]:
+        """获取首页推荐课程"""
+        query = (
+            select(Course)
+            .where(Course.status == "published")
+            .order_by(Course.rating.desc(), Course.student_count.desc())
+            .limit(limit)
+        )
         result = await db.execute(query)
         return list(result.scalars().all())
 
@@ -517,25 +428,10 @@ class MaterialService:
         user_id: int,
         data: MaterialCreate,
     ) -> CourseMaterial:
-        """创建配套资料
-
-        Args:
-            db: 数据库会话
-            course_id: 课程ID
-            user_id: 当前用户ID
-            data: 创建数据
-
-        Returns:
-            创建的资料
-
-        Raises:
-            NotFoundException: 课程不存在
-            ForbiddenException: 无权限
-        """
+        """创建配套资料"""
         course = await db.get(Course, course_id)
         if not course:
             raise NotFoundException("课程不存在")
-
         if course.teacher_id != user_id:
             raise ForbiddenException("无权为此课程添加资料")
 
@@ -550,23 +446,8 @@ class MaterialService:
         await db.flush()
         return material
 
-    async def delete(
-        self,
-        db: AsyncSession,
-        material_id: int,
-        user_id: int,
-    ) -> None:
-        """删除配套资料
-
-        Args:
-            db: 数据库会话
-            material_id: 资料ID
-            user_id: 当前用户ID
-
-        Raises:
-            NotFoundException: 资料不存在
-            ForbiddenException: 无权限
-        """
+    async def delete(self, db: AsyncSession, material_id: int, user_id: int) -> None:
+        """删除配套资料"""
         material = await db.get(CourseMaterial, material_id)
         if not material:
             raise NotFoundException("资料不存在")
@@ -577,20 +458,15 @@ class MaterialService:
 
         await db.delete(material)
 
-    async def get_by_course(
-        self,
-        db: AsyncSession,
-        course_id: int,
-    ) -> list[CourseMaterial]:
+    async def get_by_course(self, db: AsyncSession, course_id: int) -> list[CourseMaterial]:
         """获取课程的所有资料"""
         result = await db.execute(
-            select(CourseMaterial).where(
-                CourseMaterial.course_id == course_id
-            ).order_by(CourseMaterial.created_at.desc())
+            select(CourseMaterial)
+            .where(CourseMaterial.course_id == course_id)
+            .order_by(CourseMaterial.created_at.desc())
         )
         return list(result.scalars().all())
 
 
-# 创建全局服务实例
 course_service = CourseService()
 material_service = MaterialService()

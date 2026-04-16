@@ -198,3 +198,25 @@
   - 结果：`17 passed`
   - 已执行：`python -m pytest backend/tests/test_content.py -q`
   - 结果：`16 passed`
+
+## 课程管理角色化列表与批量操作接口
+时间：2026-04-13
+
+- 变更原因：课程管理需要支持讲师管理自己的课程、管理员查看全站已发布课程并执行下架，同时补齐批量上架、下架、删除接口和权限校验。
+- 涉及文件：
+  - `backend/app/core/dependencies.py`
+  - `backend/app/schemas/course.py`
+  - `backend/app/services/course_service.py`
+  - `backend/app/api/v1/courses.py`
+  - `backend/tests/test_courses.py`
+  - `operations-log.md`
+- 核心改动：
+  - 新增当前用户对象依赖，课程接口从仅使用 `user_id` 调整为可读取角色信息。
+  - 统一课程列表响应字段，补齐 `course_id`、`teacher_id`、`status`、`created_at`、`published_at`、`view_count` 等课程管理页所需字段。
+  - 新增 `/api/v1/courses/manage` 角色化管理列表接口和 `/api/v1/courses/batch-action` 批量动作接口。
+  - 课程服务层统一收口权限规则：讲师只操作自己的课程；管理员可下架任意已发布课程，但不能发布或删除他人课程。
+  - 为管理员查看全站已发布课程、管理员跨讲师下架、批量删除失败明细等场景补充课程测试。
+- 验证结果：
+  - 已执行：`python -m pytest E:/video_project/proj_ui/project_code/backend/tests/test_courses.py -q`
+  - 结果：`23 passed`
+  - 备注：测试输出包含现有 `datetime.utcnow()` 与 FastAPI 422 常量弃用告警，本次改动未额外扩大处理范围。

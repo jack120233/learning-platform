@@ -70,6 +70,11 @@ class Course(BaseModel):
         index=True,
         comment="讲师ID",
     )
+    author: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="作者",
+    )
     category_id: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
