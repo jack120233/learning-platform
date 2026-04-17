@@ -14,6 +14,8 @@ const activeMenu = computed(() => {
   return path
 })
 
+const useCompactMainContent = computed(() => route.path === '/profile/messages')
+
 // 未读消息数
 const unreadCount = computed(() => userStore.unreadMessageCount)
 
@@ -72,7 +74,7 @@ const cachedPages = ['ProfileRecords', 'ProfileMessages']
       </el-aside>
 
       <!-- 右侧内容区 -->
-      <el-main class="main-content">
+      <el-main class="main-content" :class="{ 'is-compact': useCompactMainContent }">
         <router-view v-slot="{ Component, route: currentRoute }">
           <keep-alive :include="cachedPages">
             <component :is="Component" :key="currentRoute.fullPath" />
@@ -168,6 +170,10 @@ const cachedPages = ['ProfileRecords', 'ProfileMessages']
   min-height: 600px;
   padding: 24px;
   overflow: visible;
+
+  &.is-compact {
+    min-height: auto;
+  }
 }
 
 // 响应式：平板端以下转为抽屉模式

@@ -82,6 +82,7 @@ export interface MessagesListData extends PaginatedData<MessageItem> {
 /** 消息详情 */
 export interface MessageDetail extends MessageItem {
   read_at: string | null
+  link?: string | null
 }
 
 /** 反馈项 */
@@ -151,17 +152,37 @@ export function fetchLearningRecords(params: LearningRecordsParams): Promise<Pag
 /**
  * 获取消息列表
  */
-export function fetchMessages(params: MessagesParams = {}): Promise<MessagesListData> {
-  return request.get<unknown, MessagesListData>('/messages', {
-    params: { page: 1, page_size: 10, ...params },
-  })
+export async function fetchMessages(params: MessagesParams = {}): Promise<MessagesListData> {
+  const requestParams: Record<string, unknown> = {
+    page: params.page ?? 1,
+    page_size: params.page_size ?? 10,
+    is_read: params.is_read,
+  }
+
+  if (params.message_type && params.message_type !== 'all') {
+    requestParams.type = params.message_type
+  }
+
+  const [listData, unreadData] = await Promise.all([
+    request.get<unknown, PaginatedData<BackendMessageItem>>('/messages', {
+      params: requestParams,
+    }),
+    request.get<unknown, BackendUnreadCountResponse>('/messages/unread-count'),
+  ])
+
+  return {
+    ...listData,
+    items: listData.items.map(mapMessageItem),
+    unread_count: unreadData.total,
+  }
 }
 
 /**
  * 获取消息详情
  */
 export function fetchMessageDetail(id: number): Promise<MessageDetail> {
-  return request.get<unknown, MessageDetail>(`/messages/${id}`)
+  return request.get<unknown, BackendMessageItem>(`/messages/${id}`)
+    .then(mapMessageDetail)
 }
 
 /**
@@ -182,14 +203,15 @@ export function markAllRead(): Promise<{ success: boolean }> {
  * 删除消息
  */
 export function deleteMessage(id: number): Promise<{ success: boolean }> {
-  return request.post<unknown, { success: boolean }>(`/messages/${id}/delete`)
+  return request.delete<unknown, { success: boolean }>(`/messages/${id}`)
 }
 
 /**
  * 获取未读消息数
  */
 export function fetchUnreadCount(): Promise<{ unread_count: number }> {
-  return request.get<unknown, { unread_count: number }>('/messages/unread-count')
+  return request.get<unknown, BackendUnreadCountResponse>('/messages/unread-count')
+    .then((data) => ({ unread_count: data.total }))
 }
 
 /**
@@ -199,4 +221,47 @@ export function fetchMyFeedbacks(params: MyFeedbacksParams = {}): Promise<Pagina
   return request.get<unknown, PaginatedData<FeedbackItem>>('/users/me/feedbacks', {
     params: { page: 1, page_size: 10, ...params },
   })
+}
+
+interface BackendMessageItem {
+  id: number
+  type: string
+  title: string
+  content: string
+  link?: string | null
+  is_read: boolean
+  read_at: string | null
+  created_at: string
+}
+
+interface BackendUnreadCountResponse {
+  total: number
+  announcement?: number
+  notification?: number
+  system?: number
+  course?: number
+  interaction?: number
+}
+
+function mapMessageType(type: string): MessageItem['message_type'] {
+  return type === 'announcement' ? 'announcement' : 'notification'
+}
+
+function mapMessageItem(item: BackendMessageItem): MessageItem {
+  return {
+    message_id: item.id,
+    message_type: mapMessageType(item.type),
+    title: item.title,
+    content: item.content,
+    is_read: item.is_read,
+    created_at: item.created_at,
+  }
+}
+
+function mapMessageDetail(item: BackendMessageItem): MessageDetail {
+  return {
+    ...mapMessageItem(item),
+    read_at: item.read_at,
+    link: item.link ?? null,
+  }
 }

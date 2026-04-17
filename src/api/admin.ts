@@ -101,6 +101,24 @@ export interface AnnouncementsParams {
   page_size?: number
 }
 
+interface BackendAnnouncementItem {
+  id: number
+  title: string
+  content: string
+  is_published: boolean
+  publish_at: string | null
+  author_id: number | null
+  author_name?: string | null
+  created_at: string
+}
+
+interface BackendAnnouncementPayload {
+  title: string
+  content: string
+  is_published: boolean
+  publish_at?: string | null
+}
+
 // ==================== 反馈管理 ====================
 
 /** 反馈列表项（管理端） */
@@ -192,29 +210,73 @@ export function updateRolePermissions(role: 'student' | 'teacher' | 'admin', per
 
 /** 获取公告列表 */
 export function fetchAnnouncements(params: AnnouncementsParams = {}) {
-  return request.get<unknown, PaginatedData<AnnouncementItem>>('/announcements', {
-    params: { page: 1, page_size: 10, ...params },
-  })
+  const requestParams: Record<string, unknown> = {
+    page: params.page ?? 1,
+    page_size: params.page_size ?? 10,
+    keyword: params.keyword,
+  }
+
+  if (params.status === 'draft') {
+    requestParams.is_published = false
+  } else if (params.status === 'published') {
+    requestParams.is_published = true
+  }
+
+  return request.get<unknown, PaginatedData<BackendAnnouncementItem>>('/announcements', {
+    params: requestParams,
+  }).then((data) => ({
+    ...data,
+    items: data.items.map(mapAnnouncementItem),
+  }))
 }
 
 /** 获取公告详情 */
 export function fetchAnnouncementDetail(announcementId: number) {
-  return request.get<unknown, AnnouncementItem>(`/announcements/${announcementId}`)
+  return request.get<unknown, BackendAnnouncementItem>(`/announcements/${announcementId}`)
+    .then(mapAnnouncementItem)
 }
 
 /** 创建公告 */
 export function createAnnouncement(data: AnnouncementFormData) {
-  return request.post<unknown, AnnouncementItem>('/announcements', data)
+  return request.post<unknown, BackendAnnouncementItem>(
+    '/announcements',
+    mapAnnouncementPayload(data)
+  ).then(mapAnnouncementItem)
 }
 
 /** 更新公告 */
 export function updateAnnouncement(announcementId: number, data: AnnouncementFormData) {
-  return request.post<unknown, AnnouncementItem>(`/announcements/${announcementId}`, data)
+  return request.post<unknown, BackendAnnouncementItem>(
+    `/announcements/${announcementId}`,
+    mapAnnouncementPayload(data)
+  ).then(mapAnnouncementItem)
 }
 
 /** 删除公告 */
 export function deleteAnnouncement(announcementId: number) {
   return request.post<unknown, void>(`/announcements/${announcementId}/delete`)
+}
+
+function mapAnnouncementItem(item: BackendAnnouncementItem): AnnouncementItem {
+  return {
+    announcement_id: item.id,
+    title: item.title,
+    content: item.content,
+    status: item.is_published ? 'published' : 'draft',
+    published_at: item.publish_at,
+    creator_name: item.author_name || (item.author_id === null ? '-' : String(item.author_id)),
+    created_at: item.created_at,
+  }
+}
+
+function mapAnnouncementPayload(data: AnnouncementFormData): BackendAnnouncementPayload {
+  const isPublished = data.status === 'published'
+  return {
+    title: data.title,
+    content: data.content,
+    is_published: isPublished,
+    publish_at: isPublished ? undefined : null,
+  }
 }
 
 // ---------- 反馈管理 ----------
