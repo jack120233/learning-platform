@@ -3,9 +3,10 @@
 提供消息管理的业务逻辑。
 """
 
+from collections.abc import Iterable
 from datetime import datetime, timezone
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundException
@@ -15,6 +16,8 @@ from app.schemas.message import MessageSend
 
 class MessageService:
     """消息服务类"""
+
+    NOTIFICATION_TYPES = ("notification", "system", "course", "interaction")
 
     async def get_list(
         self,
@@ -28,8 +31,8 @@ class MessageService:
         """获取消息列表"""
         query = select(Message).where(Message.user_id == user_id)
 
-        if type:
-            query = query.where(Message.type == type)
+        if type and type != "all":
+            query = query.where(self._build_type_filter(type))
         if is_read is not None:
             query = query.where(Message.is_read == is_read)
 
@@ -122,34 +125,20 @@ class MessageService:
         user_id: int,
     ) -> dict:
         """获取未读消息数量"""
-        result = await db.execute(
-            select(func.count()).where(
-                and_(
-                    Message.user_id == user_id,
-                    Message.is_read == False,
-                )
-            )
-        )
-        total = result.scalar() or 0
-
-        type_counts = {}
-        for msg_type in ["system", "course", "interaction"]:
-            result = await db.execute(
-                select(func.count()).where(
-                    and_(
-                        Message.user_id == user_id,
-                        Message.type == msg_type,
-                        Message.is_read == False,
-                    )
-                )
-            )
-            type_counts[msg_type] = result.scalar() or 0
+        total = await self._count_unread(db, user_id)
+        announcement = await self._count_unread(db, user_id, ["announcement"])
+        notification = await self._count_unread(db, user_id, self.NOTIFICATION_TYPES)
+        system = await self._count_unread(db, user_id, ["system"])
+        course = await self._count_unread(db, user_id, ["course"])
+        interaction = await self._count_unread(db, user_id, ["interaction"])
 
         return {
             "total": total,
-            "system": type_counts.get("system", 0),
-            "course": type_counts.get("course", 0),
-            "interaction": type_counts.get("interaction", 0),
+            "announcement": announcement,
+            "notification": notification,
+            "system": system,
+            "course": course,
+            "interaction": interaction,
         }
 
     async def send(
@@ -170,6 +159,32 @@ class MessageService:
         db.add(message)
         await db.flush()
         return message
+
+    def _build_type_filter(self, message_type: str):
+        """构造消息类型筛选条件。"""
+        if message_type == "announcement":
+            return Message.type == "announcement"
+        if message_type == "notification":
+            return or_(*(Message.type == item for item in self.NOTIFICATION_TYPES))
+        return Message.type == message_type
+
+    async def _count_unread(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        message_types: Iterable[str] | None = None,
+    ) -> int:
+        """统计未读消息数量。"""
+        query = select(func.count()).where(
+            and_(
+                Message.user_id == user_id,
+                Message.is_read == False,
+            )
+        )
+        if message_types:
+            query = query.where(or_(*(Message.type == item for item in message_types)))
+        result = await db.execute(query)
+        return result.scalar() or 0
 
 
 # 创建全局服务实例

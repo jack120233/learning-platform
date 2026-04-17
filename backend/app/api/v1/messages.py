@@ -52,7 +52,7 @@ async def get_messages(
 
 
 @router.get(
-    "/{message_id}",
+    "/{message_id:int}",
     response_model=ApiResponse[MessageResponse],
     summary="消息详情",
     description="获取指定消息的详细信息",
@@ -71,7 +71,7 @@ async def get_message(
 
 
 @router.post(
-    "/{message_id}/read",
+    "/{message_id:int}/read",
     response_model=ApiResponse[MessageResponse],
     summary="标记已读",
     description="标记指定消息为已读",
@@ -108,7 +108,7 @@ async def mark_all_read(
 
 
 @router.delete(
-    "/{message_id}",
+    "/{message_id:int}",
     response_model=ApiResponse[None],
     summary="删除消息",
     description="删除指定消息",

@@ -28,8 +28,8 @@ class MessageSend(BaseModel):
     """发送消息请求"""
 
     user_id: int = Field(..., description="接收用户ID")
-    type: Literal["system", "course", "interaction"] = Field(
-        default="system",
+    type: Literal["announcement", "notification", "system", "course", "interaction"] = Field(
+        default="notification",
         description="消息类型",
     )
     title: str = Field(
@@ -55,6 +55,8 @@ class UnreadCountResponse(BaseModel):
     """未读数量响应"""
 
     total: int = Field(description="总未读数")
+    announcement: int = Field(default=0, description="公告未读数")
+    notification: int = Field(default=0, description="通知未读数")
     system: int = Field(default=0, description="系统消息未读数")
     course: int = Field(default=0, description="课程消息未读数")
     interaction: int = Field(default=0, description="互动消息未读数")

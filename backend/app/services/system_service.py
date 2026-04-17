@@ -3,16 +3,19 @@
 提供分类、标签、公告管理的业务逻辑。
 """
 
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Literal
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictException, NotFoundException, ValidationException
 from app.models.category import Category
 from app.models.tag import Tag
 from app.models.announcement import Announcement
+from app.models.message import Message
+from app.models.user import User
 from app.schemas.system import (
     AnnouncementCreate,
     AnnouncementUpdate,
@@ -250,11 +253,14 @@ class TagService:
 class AnnouncementService:
     """公告服务类"""
 
+    MESSAGE_TYPE = "announcement"
+
     async def get_list(
         self,
         db: AsyncSession,
         is_published: bool | None = None,
         type: str | None = None,
+        keyword: str | None = None,
         page: int = 1,
         page_size: int = 10,
     ) -> tuple[list[Announcement], int]:
@@ -276,6 +282,13 @@ class AnnouncementService:
             query = query.where(Announcement.is_published == is_published)
         if type:
             query = query.where(Announcement.type == type)
+        if keyword:
+            query = query.where(
+                or_(
+                    Announcement.title.ilike(f"%{keyword}%"),
+                    Announcement.content.ilike(f"%{keyword}%"),
+                )
+            )
 
         # 获取总数
         count_query = select(func.count()).select_from(query.subquery())
@@ -293,6 +306,68 @@ class AnnouncementService:
         announcements = list(result.scalars().all())
 
         return announcements, total
+
+    async def create(
+        self,
+        db: AsyncSession,
+        data: AnnouncementCreate,
+        author_id: int | None = None,
+    ) -> Announcement:
+        """创建公告。"""
+        create_data = data.model_dump()
+        is_published = create_data.get("is_published", False)
+        if is_published and create_data.get("publish_at") is None:
+            create_data["publish_at"] = datetime.now(timezone.utc)
+        if not is_published:
+            create_data["publish_at"] = None
+        create_data["author_id"] = author_id
+
+        announcement = Announcement(**create_data)
+        db.add(announcement)
+        await db.flush()
+        await self._sync_messages_for_announcement(db, announcement)
+        await db.refresh(announcement)
+        return announcement
+
+    async def update(
+        self,
+        db: AsyncSession,
+        announcement_id: int,
+        data: AnnouncementUpdate,
+    ) -> Announcement:
+        """更新公告。"""
+        announcement = await self.get_by_id(db, announcement_id)
+        if not announcement:
+            raise NotFoundException("公告不存在")
+
+        update_data = data.model_dump(exclude_unset=True)
+        if "is_published" in update_data:
+            if update_data["is_published"]:
+                if update_data.get("publish_at") is None and announcement.publish_at is None:
+                    update_data["publish_at"] = datetime.now(timezone.utc)
+            else:
+                update_data["publish_at"] = None
+
+        for key, value in update_data.items():
+            setattr(announcement, key, value)
+
+        await db.flush()
+        await self._sync_messages_for_announcement(db, announcement)
+        await db.refresh(announcement)
+        return announcement
+
+    async def delete(
+        self,
+        db: AsyncSession,
+        announcement_id: int,
+    ) -> None:
+        """删除公告。"""
+        announcement = await self.get_by_id(db, announcement_id)
+        if not announcement:
+            raise NotFoundException("公告不存在")
+        await self._delete_messages_for_announcement(db, announcement.id)
+        await db.delete(announcement)
+        await db.flush()
 
     async def get_active_list(
         self,
@@ -331,6 +406,90 @@ class AnnouncementService:
     ) -> Announcement | None:
         """通过ID获取公告"""
         return await db.get(Announcement, announcement_id)
+
+    async def _sync_messages_for_announcement(
+        self,
+        db: AsyncSession,
+        announcement: Announcement,
+    ) -> None:
+        """将公告同步到站内消息。"""
+        if not announcement.is_published:
+            await self._delete_messages_for_announcement(db, announcement.id)
+            return
+
+        recipients = await self._get_active_recipient_ids(db)
+        if not recipients:
+            await self._delete_messages_for_announcement(db, announcement.id)
+            return
+
+        link = self._build_announcement_link(announcement.id)
+        result = await db.execute(
+            select(Message).where(
+                and_(
+                    Message.type == self.MESSAGE_TYPE,
+                    Message.link == link,
+                )
+            )
+        )
+        existing_messages = {
+            message.user_id: message
+            for message in result.scalars().all()
+        }
+
+        stale_user_ids = set(existing_messages) - set(recipients)
+        for stale_user_id in stale_user_ids:
+            await db.delete(existing_messages[stale_user_id])
+
+        for recipient_id in recipients:
+            message = existing_messages.get(recipient_id)
+            if message is None:
+                db.add(
+                    Message(
+                        user_id=recipient_id,
+                        type=self.MESSAGE_TYPE,
+                        title=announcement.title,
+                        content=announcement.content,
+                        link=link,
+                        sender_id=announcement.author_id,
+                    )
+                )
+                continue
+
+            message.title = announcement.title
+            message.content = announcement.content
+            message.link = link
+            message.sender_id = announcement.author_id
+
+        await db.flush()
+
+    async def _delete_messages_for_announcement(
+        self,
+        db: AsyncSession,
+        announcement_id: int,
+    ) -> None:
+        """删除公告关联的站内消息。"""
+        result = await db.execute(
+            select(Message).where(
+                and_(
+                    Message.type == self.MESSAGE_TYPE,
+                    Message.link == self._build_announcement_link(announcement_id),
+                )
+            )
+        )
+        for message in result.scalars().all():
+            await db.delete(message)
+        await db.flush()
+
+    async def _get_active_recipient_ids(self, db: AsyncSession) -> Sequence[int]:
+        """获取应接收公告消息的活跃用户 ID。"""
+        result = await db.execute(
+            select(User.id).where(User.status == "active")
+        )
+        return [user_id for user_id in result.scalars().all()]
+
+    def _build_announcement_link(self, announcement_id: int) -> str:
+        """构造公告消息的跳转链接。"""
+        return f"/announcements/{announcement_id}"
 
 
 # 创建全局服务实例

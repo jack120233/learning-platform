@@ -178,6 +178,10 @@ class AnnouncementCreate(BaseModel):
         default=False,
         description="是否置顶",
     )
+    is_published: bool = Field(
+        default=False,
+        description="是否发布",
+    )
     publish_at: datetime | None = Field(
         default=None,
         description="发布时间",
@@ -237,6 +241,7 @@ class AnnouncementResponse(BaseModel):
     expire_at: datetime | None = Field(default=None, description="过期时间")
     view_count: int = Field(description="浏览次数")
     author_id: int | None = Field(default=None, description="作者ID")
+    author_name: str | None = Field(default=None, description="作者名称")
     created_at: datetime = Field(description="创建时间")
 
     model_config = {"from_attributes": True}

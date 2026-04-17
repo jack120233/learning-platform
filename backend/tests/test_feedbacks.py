@@ -199,7 +199,7 @@ class TestMessage:
             headers={"Authorization": f"Bearer {token}"},
         )
 
-        assert response.status_code in [200, 400, 401, 422]
+        assert response.status_code == 200
 
     @pytest.mark.asyncio
     async def test_mark_all_read(
