@@ -89,11 +89,14 @@ export interface MessageDetail extends MessageItem {
 export interface FeedbackItem {
   feedback_id: number
   feedback_type: 'system' | 'course'
+  title?: string
   content: string
   images: string[]
   status: 'pending' | 'processed'
   course_id?: number
   course_title?: string
+  reply?: string | null
+  replied_at?: string | null
   created_at: string
 }
 
@@ -217,10 +220,15 @@ export function fetchUnreadCount(): Promise<{ unread_count: number }> {
 /**
  * 获取我的反馈列表
  */
-export function fetchMyFeedbacks(params: MyFeedbacksParams = {}): Promise<PaginatedData<FeedbackItem>> {
-  return request.get<unknown, PaginatedData<FeedbackItem>>('/users/me/feedbacks', {
+export async function fetchMyFeedbacks(params: MyFeedbacksParams = {}): Promise<PaginatedData<FeedbackItem>> {
+  const data = await request.get<unknown, PaginatedData<BackendFeedbackItem>>('/users/me/feedbacks', {
     params: { page: 1, page_size: 10, ...params },
   })
+
+  return {
+    ...data,
+    items: data.items.map(mapFeedbackItem),
+  }
 }
 
 interface BackendMessageItem {
@@ -231,6 +239,23 @@ interface BackendMessageItem {
   link?: string | null
   is_read: boolean
   read_at: string | null
+  created_at: string
+}
+
+interface BackendFeedbackItem {
+  id: number
+  feedback_id?: number
+  type: string
+  feedback_type?: 'system' | 'course'
+  title: string
+  content: string
+  contact?: string | null
+  images?: string[] | null
+  status: string
+  reply?: string | null
+  replied_at?: string | null
+  course_id?: number | null
+  course_title?: string | null
   created_at: string
 }
 
@@ -263,5 +288,24 @@ function mapMessageDetail(item: BackendMessageItem): MessageDetail {
     ...mapMessageItem(item),
     read_at: item.read_at,
     link: item.link ?? null,
+  }
+}
+
+function mapFeedbackItem(item: BackendFeedbackItem): FeedbackItem {
+  const normalizedStatus = ['processed', 'resolved', 'closed'].includes(item.status) ? 'processed' : 'pending'
+  const feedbackType = item.feedback_type ?? (item.type === 'course' ? 'course' : 'system')
+
+  return {
+    feedback_id: item.feedback_id ?? item.id,
+    feedback_type: feedbackType,
+    title: item.title,
+    content: item.content,
+    images: item.images ?? [],
+    status: normalizedStatus,
+    course_id: item.course_id ?? undefined,
+    course_title: item.course_title ?? undefined,
+    reply: item.reply ?? null,
+    replied_at: item.replied_at ?? null,
+    created_at: item.created_at,
   }
 }

@@ -10,9 +10,11 @@ import {
   markAsRead,
   markAllRead,
   deleteMessage,
+  fetchUnreadCount,
 } from '@/api/profile'
 import type { MessagesParams, MessageItem, MessageDetail } from '@/api/profile'
 import { fetchMessageDetail } from '@/api/profile'
+import UnreadLabelBadge from '@/components/common/UnreadLabelBadge.vue'
 
 // 定义组件名称（用于 keep-alive）
 defineOptions({
@@ -165,6 +167,16 @@ async function handleView(message: MessageItem) {
   }
 }
 
+async function syncUnreadCount() {
+  try {
+    const response = await fetchUnreadCount()
+    unreadCount.value = response.unread_count
+    userStore.setUnreadCount(response.unread_count)
+  } catch (error) {
+    // 保持页面可用，忽略同步失败
+  }
+}
+
 // 批量标记已读
 async function handleMarkAllRead() {
   try {
@@ -264,6 +276,7 @@ function formatTime(time: string) {
 
 // 初始化加载
 onMounted(async () => {
+  await syncUnreadCount()
   await fetchData()
 })
 
@@ -278,8 +291,9 @@ watch(messages, (currentMessages) => {
     <!-- 页面标题 -->
     <div class="page-header">
       <div class="header-left">
-        <h2 class="page-title">消息中心</h2>
-        <el-badge :value="unreadCount" :hidden="unreadCount === 0" class="title-badge" />
+        <h2 class="page-title">
+          <UnreadLabelBadge label="消息中心" :count="unreadCount" />
+        </h2>
       </div>
       <div class="header-actions">
         <template v-if="batchMode">
@@ -466,7 +480,6 @@ watch(messages, (currentMessages) => {
   .header-left {
     display: flex;
     align-items: center;
-    gap: 8px;
   }
 
   .header-actions {
@@ -482,12 +495,6 @@ watch(messages, (currentMessages) => {
     font-weight: 600;
     color: #333;
     margin: 0;
-  }
-
-  .title-badge {
-    :deep(.el-badge__content) {
-      transform: translateY(-2px);
-    }
   }
 }
 

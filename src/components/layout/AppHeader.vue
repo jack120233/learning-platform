@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { useBreakpoint } from '@/composables/useBreakpoint'
+import { fetchUnreadCount } from '@/api/profile'
+import UnreadLabelBadge from '@/components/common/UnreadLabelBadge.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -77,6 +79,28 @@ const handleMobileNavClick = (path: string) => {
   router.push(path)
   showMobileNav.value = false
 }
+
+async function syncUnreadCount() {
+  if (!userStore.isLoggedIn) {
+    userStore.setUnreadCount(0)
+    return
+  }
+
+  try {
+    const response = await fetchUnreadCount()
+    userStore.setUnreadCount(response.unread_count)
+  } catch (error) {
+    // 头部角标同步失败时不阻断页面使用
+  }
+}
+
+onMounted(() => {
+  void syncUnreadCount()
+})
+
+watch(() => route.fullPath, () => {
+  void syncUnreadCount()
+})
 </script>
 
 <template>
@@ -145,16 +169,18 @@ const handleMobileNavClick = (path: string) => {
           <template v-else>
             <el-dropdown trigger="click" @command="handleDropdownSelect">
               <div class="user-info">
-                <el-avatar :size="36" :src="userStore.userInfo.avatarUrl">
-                  <el-icon :size="20"><User /></el-icon>
-                </el-avatar>
+                <div class="user-avatar-wrap">
+                  <el-avatar :size="36" :src="userStore.userInfo.avatarUrl">
+                    <el-icon :size="20"><User /></el-icon>
+                  </el-avatar>
+                  <span
+                    v-if="userStore.unreadMessageCount > 0"
+                    class="avatar-unread-badge"
+                  >
+                    {{ userStore.unreadMessageCount > 99 ? '99+' : userStore.unreadMessageCount }}
+                  </span>
+                </div>
                 <span class="username">{{ userStore.userInfo.nickname || userStore.userInfo.username }}</span>
-                <el-badge
-                  v-if="userStore.unreadMessageCount > 0"
-                  :value="userStore.unreadMessageCount"
-                  :max="99"
-                  class="message-badge"
-                />
               </div>
               <template #dropdown>
                 <el-dropdown-menu>
@@ -164,7 +190,14 @@ const handleMobileNavClick = (path: string) => {
                     :command="item.path"
                   >
                     <el-icon><component :is="item.icon" /></el-icon>
-                    {{ item.label }}
+                    <UnreadLabelBadge
+                      v-if="item.path === '/profile/messages'"
+                      :label="item.label"
+                      :count="userStore.unreadMessageCount"
+                      tone="light"
+                      class="dropdown-message-badge"
+                    />
+                    <span v-else>{{ item.label }}</span>
                   </el-dropdown-item>
                   <el-dropdown-item divided @click="handleLogout">
                     <el-icon><SwitchButton /></el-icon>
@@ -241,8 +274,12 @@ const handleMobileNavClick = (path: string) => {
               </div>
               <div class="menu-item" @click="handleMobileNavClick('/profile/messages')">
                 <el-icon><Bell /></el-icon>
-                <span>消息中心</span>
-                <el-badge v-if="userStore.unreadMessageCount > 0" :value="userStore.unreadMessageCount" :max="99" />
+                <UnreadLabelBadge
+                  label="消息中心"
+                  :count="userStore.unreadMessageCount"
+                  tone="light"
+                  class="mobile-message-badge"
+                />
               </div>
               <div v-if="userStore.canAccessTeacherCenter" class="menu-item" @click="handleMobileNavClick('/teacher/courses')">
                 <el-icon><Notebook /></el-icon>
@@ -345,6 +382,7 @@ const handleMobileNavClick = (path: string) => {
 }
 
 .user-info {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -365,12 +403,36 @@ const handleMobileNavClick = (path: string) => {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .user-avatar-wrap {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+
+  .avatar-unread-badge {
+    position: absolute;
+    top: -6px;
+    right: -8px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #ff5a5f 0%, #f5222d 100%);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    border: 2px solid #fff;
+    box-shadow: 0 6px 14px rgba(245, 34, 45, 0.2);
+  }
 }
 
-.message-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
+.dropdown-message-badge,
+.mobile-message-badge {
+  margin-left: 0;
 }
 
 // 汉堡菜单按钮（移动端）
@@ -495,7 +557,7 @@ const handleMobileNavClick = (path: string) => {
     flex-direction: column;
     gap: 4px;
 
-    .menu-item {
+      .menu-item {
       display: flex;
       align-items: center;
       gap: 10px;
@@ -511,7 +573,7 @@ const handleMobileNavClick = (path: string) => {
         color: #1890ff;
       }
 
-      .el-badge {
+      .mobile-message-badge {
         margin-left: auto;
       }
     }

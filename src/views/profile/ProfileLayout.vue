@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/store/user'
+import { fetchUnreadCount } from '@/api/profile'
+import UnreadLabelBadge from '@/components/common/UnreadLabelBadge.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -30,6 +32,28 @@ const menuItems = [
 
 // 需要缓存的页面
 const cachedPages = ['ProfileRecords', 'ProfileMessages']
+
+async function syncUnreadCount() {
+  if (!userStore.isLoggedIn) {
+    userStore.setUnreadCount(0)
+    return
+  }
+
+  try {
+    const response = await fetchUnreadCount()
+    userStore.setUnreadCount(response.unread_count)
+  } catch (error) {
+    // 保持布局正常，忽略角标同步失败
+  }
+}
+
+onMounted(() => {
+  void syncUnreadCount()
+})
+
+watch(() => route.fullPath, () => {
+  void syncUnreadCount()
+})
 </script>
 
 <template>
@@ -55,12 +79,14 @@ const cachedPages = ['ProfileRecords', 'ProfileMessages']
             <el-icon>
               <component :is="item.icon" />
             </el-icon>
-            <span>{{ item.title }}</span>
-            <el-badge
-              v-if="item.badge && unreadCount > 0"
-              :value="unreadCount > 99 ? '99+' : unreadCount"
-              class="menu-badge"
+            <UnreadLabelBadge
+              v-if="item.badge"
+              :label="item.title"
+              :count="unreadCount"
+              tone="light"
+              class="menu-item-badge"
             />
+            <span v-else>{{ item.title }}</span>
           </el-menu-item>
         </el-menu>
 
@@ -148,9 +174,8 @@ const cachedPages = ['ProfileRecords', 'ProfileMessages']
   }
 }
 
-.menu-badge {
-  margin-left: auto;
-  margin-right: 8px;
+.menu-item-badge {
+  margin-left: 2px;
 }
 
 .feedback-entry {
@@ -215,6 +240,10 @@ const cachedPages = ['ProfileRecords', 'ProfileMessages']
       height: 40px;
       line-height: 40px;
       font-size: 13px;
+
+      .menu-item-badge {
+        margin-left: 0;
+      }
     }
   }
 
