@@ -20,7 +20,7 @@ class ResourceProgress(BaseModel):
         user_id: 用户ID
         course_id: 课程ID
         chapter_id: 章节ID
-        section_id: 小节ID
+        section_id: 小节ID，可为空以支持章节级资源
         resource_id: 资源ID
         progress: 学习进度（百分比）
         position: 播放位置（秒）
@@ -46,8 +46,8 @@ class ResourceProgress(BaseModel):
         index=True,
         comment="章节ID",
     )
-    section_id: Mapped[int] = mapped_column(
-        nullable=False,
+    section_id: Mapped[int | None] = mapped_column(
+        nullable=True,
         index=True,
         comment="小节ID",
     )

@@ -102,8 +102,6 @@ class LearningService:
         resource = await db.get(Resource, data.resource_id)
         if not resource:
             raise NotFoundException("资源不存在")
-        if resource.section_id is None:
-            raise ValidationException("当前资源未绑定到小节，无法记录学习进度")
 
         course_id = data.course_id or resource.course_id
         chapter_id = data.chapter_id or resource.chapter_id
@@ -177,8 +175,8 @@ class LearningService:
         Returns:
             进度列表
         """
-        if course_id is None and (section_id is None or resource_id is None):
-            raise ValidationException("course_id 或 section_id + resource_id 必须至少提供一组")
+        if course_id is None and resource_id is None:
+            raise ValidationException("course_id 或 resource_id 必须至少提供一组")
 
         query = select(ResourceProgress).where(ResourceProgress.user_id == user_id)
         if course_id is not None:
@@ -191,7 +189,7 @@ class LearningService:
         result = await db.execute(query.order_by(ResourceProgress.updated_at.desc(), ResourceProgress.id.desc()))
         progress_items = list(result.scalars().all())
 
-        if section_id is not None and resource_id is not None:
+        if resource_id is not None and course_id is None:
             resource = await db.get(Resource, resource_id)
             if not resource:
                 raise NotFoundException("资源不存在")
@@ -201,7 +199,7 @@ class LearningService:
             return [{
                 "course_id": resource.course_id,
                 "chapter_id": resource.chapter_id,
-                "section_id": section_id,
+                "section_id": resource.section_id,
                 "resource_id": resource_id,
                 "progress": 0.0,
                 "position": 0,
@@ -255,7 +253,7 @@ class LearningService:
         progress = result.scalar_one_or_none()
 
         if progress:
-            section = await db.get(Section, progress.section_id)
+            section = await db.get(Section, progress.section_id) if progress.section_id is not None else None
             resource = await db.get(Resource, progress.resource_id)
             return {
                 "course_id": course_id,

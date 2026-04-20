@@ -69,6 +69,66 @@ async def ensure_database_compatibility(conn: AsyncConnection) -> list[str]:
                     "当前数据库方言不支持自动调整 resources.section_id 可空性，请手动检查"
                 )
 
+    if await conn.run_sync(has_table, "resource_progress"):
+        progress_columns = await conn.run_sync(get_columns, "resource_progress")
+        progress_section_column = next(
+            (column for column in progress_columns if column["name"] == "section_id"),
+            None,
+        )
+        if progress_section_column and not bool(progress_section_column.get("nullable")):
+            if conn.dialect.name == "mysql":
+                await conn.execute(
+                    text(
+                        "ALTER TABLE resource_progress "
+                        "MODIFY COLUMN section_id INTEGER NULL COMMENT '小节ID'"
+                    )
+                )
+                messages.append("已将 resource_progress.section_id 调整为可空，支持章节级资源进度")
+            elif conn.dialect.name == "sqlite":
+                await conn.execute(text("ALTER TABLE resource_progress RENAME TO resource_progress_old"))
+                await conn.execute(
+                    text(
+                        "CREATE TABLE resource_progress ("
+                        "id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, "
+                        "user_id INTEGER NOT NULL, "
+                        "course_id INTEGER NOT NULL, "
+                        "chapter_id INTEGER NOT NULL, "
+                        "section_id INTEGER NULL, "
+                        "resource_id INTEGER NOT NULL, "
+                        "progress FLOAT NOT NULL DEFAULT 0.0, "
+                        "position INTEGER NOT NULL DEFAULT 0, "
+                        "is_completed BOOLEAN NOT NULL DEFAULT 0, "
+                        "completed_at DATETIME NULL, "
+                        "last_play_at DATETIME NULL, "
+                        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                        "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                        ")"
+                    )
+                )
+                await conn.execute(
+                    text(
+                        "INSERT INTO resource_progress ("
+                        "id, user_id, course_id, chapter_id, section_id, resource_id, "
+                        "progress, position, is_completed, completed_at, last_play_at, created_at, updated_at"
+                        ") "
+                        "SELECT "
+                        "id, user_id, course_id, chapter_id, section_id, resource_id, "
+                        "progress, position, is_completed, completed_at, last_play_at, created_at, updated_at "
+                        "FROM resource_progress_old"
+                    )
+                )
+                await conn.execute(text("DROP TABLE resource_progress_old"))
+                await conn.execute(text("CREATE INDEX idx_resource_progress_user_id ON resource_progress (user_id)"))
+                await conn.execute(text("CREATE INDEX idx_resource_progress_course_id ON resource_progress (course_id)"))
+                await conn.execute(text("CREATE INDEX idx_resource_progress_chapter_id ON resource_progress (chapter_id)"))
+                await conn.execute(text("CREATE INDEX idx_resource_progress_section_id ON resource_progress (section_id)"))
+                await conn.execute(text("CREATE INDEX idx_resource_progress_resource_id ON resource_progress (resource_id)"))
+                messages.append("已将 resource_progress.section_id 调整为可空，支持章节级资源进度")
+            else:
+                messages.append(
+                    "当前数据库方言不支持自动调整 resource_progress.section_id 可空性，请手动检查"
+                )
+
     await ensure_column(
         "feedbacks",
         "course_id",

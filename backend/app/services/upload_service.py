@@ -1,5 +1,6 @@
 """文件上传服务模块。"""
 
+import asyncio
 import json
 import shutil
 from math import ceil
@@ -61,6 +62,10 @@ class UploadService:
         "application/x-zip-compressed",
         "application/octet-stream",
     }
+
+    def __init__(self) -> None:
+        """初始化上传服务。"""
+        self._upload_locks: dict[str, asyncio.Lock] = {}
 
     async def save_file(
         self,
@@ -129,6 +134,7 @@ class UploadService:
             "total_chunks": total_chunks,
             "content_type": data.content_type,
             "biz_type": data.biz_type,
+            "status": "uploading",
             "received_chunks": [],
         }
         self._write_manifest(session_dir, manifest)
@@ -146,28 +152,38 @@ class UploadService:
         chunk_file: UploadFile,
     ) -> dict[str, int]:
         """保存单个分片。"""
-        session_dir = self._get_chunk_session_dir(upload_id)
-        manifest = self._read_manifest(session_dir)
-        total_chunks = int(manifest["total_chunks"])
+        lock = self._get_upload_lock(upload_id)
+        try:
+            async with lock:
+                session_dir = self._get_chunk_session_dir(upload_id)
+                manifest = self._read_manifest(session_dir)
+                status = str(manifest.get("status") or "uploading")
+                if status == "merging":
+                    raise ValidationException("上传任务正在合并，无法继续上传分片")
+                if status == "completed":
+                    raise ValidationException("上传任务已完成，无法继续上传分片")
 
-        if chunk_index >= total_chunks:
-            raise ValidationException("chunk_index 超出范围")
+                total_chunks = int(manifest["total_chunks"])
+                if chunk_index >= total_chunks:
+                    raise ValidationException("chunk_index 超出范围")
 
-        content = await chunk_file.read()
-        if not content:
-            raise ValidationException("上传分片不能为空")
+                content = await chunk_file.read()
+                if not content:
+                    raise ValidationException("上传分片不能为空")
 
-        chunk_path = session_dir / f"{chunk_index}.part"
-        with chunk_path.open("wb") as output_file:
-            output_file.write(content)
+                chunk_path = session_dir / f"{chunk_index}.part"
+                with chunk_path.open("wb") as output_file:
+                    output_file.write(content)
 
-        received_chunks = {int(index) for index in manifest.get("received_chunks", [])}
-        received_chunks.add(chunk_index)
-        manifest["received_chunks"] = sorted(received_chunks)
-        self._write_manifest(session_dir, manifest)
+                # 同一个 upload_id 的 save/complete 共用任务锁，避免 chunk 写入
+                # 与 complete 合并过程交叉。同时仍以磁盘上的真实分片为准同步状态。
+                manifest["status"] = "uploading"
+                manifest["received_chunks"] = self._get_received_chunks(session_dir)
+                self._write_manifest(session_dir, manifest)
 
-        await chunk_file.close()
-        return {"chunk_index": chunk_index}
+                return {"chunk_index": chunk_index}
+        finally:
+            await chunk_file.close()
 
     async def complete_chunk_upload(
         self,
@@ -175,57 +191,76 @@ class UploadService:
         base_url: str,
     ) -> dict[str, str | int | None]:
         """合并并完成分片上传。"""
-        session_dir = self._get_chunk_session_dir(data.upload_id)
-        manifest = self._read_manifest(session_dir)
+        lock = self._get_upload_lock(data.upload_id)
+        async with lock:
+            session_dir = self._get_chunk_session_dir(data.upload_id)
+            manifest = self._read_manifest(session_dir)
+            status = str(manifest.get("status") or "uploading")
+            if status == "completed":
+                raise ValidationException("上传任务已完成")
+            if status == "merging":
+                raise ValidationException("上传任务正在合并，请稍后重试")
 
-        if manifest["file_name"] != data.file_name:
-            raise ValidationException("file_name 与初始化信息不一致")
+            manifest["status"] = "merging"
+            self._write_manifest(session_dir, manifest)
 
-        total_chunks = int(manifest["total_chunks"])
-        if total_chunks != data.total_chunks:
-            raise ValidationException("total_chunks 与初始化信息不一致")
+            try:
+                if manifest["file_name"] != data.file_name:
+                    raise ValidationException("file_name 与初始化信息不一致")
 
-        expected_chunks = list(range(total_chunks))
-        received_chunks = [int(index) for index in manifest.get("received_chunks", [])]
-        if received_chunks != expected_chunks:
-            raise ValidationException("分片未上传完成，无法合并")
+                total_chunks = int(manifest["total_chunks"])
+                if total_chunks != data.total_chunks:
+                    raise ValidationException("total_chunks 与初始化信息不一致")
 
-        extension = Path(data.file_name).suffix.lower()
-        content_type = manifest.get("content_type")
-        subdir, _ = self._resolve_storage(
-            extension,
-            content_type.lower() if isinstance(content_type, str) else None,
-        )
+                expected_chunks = list(range(total_chunks))
+                received_chunks = self._get_received_chunks(session_dir)
+                manifest["received_chunks"] = received_chunks
+                self._write_manifest(session_dir, manifest)
+                if received_chunks != expected_chunks:
+                    raise ValidationException("分片未上传完成，无法合并")
 
-        upload_dir = Path(settings.upload_dir) / subdir
-        upload_dir.mkdir(parents=True, exist_ok=True)
-        saved_name = f"{uuid4().hex}{extension}"
-        save_path = upload_dir / saved_name
+                extension = Path(data.file_name).suffix.lower()
+                content_type = manifest.get("content_type")
+                subdir, _ = self._resolve_storage(
+                    extension,
+                    content_type.lower() if isinstance(content_type, str) else None,
+                )
 
-        with save_path.open("wb") as output_file:
-            for chunk_index in expected_chunks:
-                chunk_path = session_dir / f"{chunk_index}.part"
-                if not chunk_path.exists():
-                    raise ValidationException("分片文件缺失，无法合并")
-                output_file.write(chunk_path.read_bytes())
+                upload_dir = Path(settings.upload_dir) / subdir
+                upload_dir.mkdir(parents=True, exist_ok=True)
+                saved_name = f"{uuid4().hex}{extension}"
+                save_path = upload_dir / saved_name
 
-        final_size = save_path.stat().st_size
-        if final_size != int(manifest["file_size"]):
-            save_path.unlink(missing_ok=True)
-            raise ValidationException("合并后的文件大小校验失败")
+                with save_path.open("wb") as output_file:
+                    for chunk_index in expected_chunks:
+                        chunk_path = session_dir / f"{chunk_index}.part"
+                        if not chunk_path.exists():
+                            raise ValidationException("分片文件缺失，无法合并")
+                        output_file.write(chunk_path.read_bytes())
 
-        relative_url = f"{settings.upload_url_prefix.rstrip('/')}/{subdir}/{saved_name}"
-        file_url = f"{base_url.rstrip('/')}{relative_url}"
+                final_size = save_path.stat().st_size
+                if final_size != int(manifest["file_size"]):
+                    save_path.unlink(missing_ok=True)
+                    raise ValidationException("合并后的文件大小校验失败")
 
-        shutil.rmtree(session_dir, ignore_errors=True)
+                relative_url = f"{settings.upload_url_prefix.rstrip('/')}/{subdir}/{saved_name}"
+                file_url = f"{base_url.rstrip('/')}{relative_url}"
 
-        return {
-            "file_name": data.file_name,
-            "file_url": file_url,
-            "url": file_url,
-            "file_size": final_size,
-            "content_type": content_type,
-        }
+                shutil.rmtree(session_dir, ignore_errors=True)
+
+                return {
+                    "file_name": data.file_name,
+                    "file_url": file_url,
+                    "url": file_url,
+                    "file_size": final_size,
+                    "content_type": content_type,
+                }
+            except Exception:
+                if session_dir.exists():
+                    manifest["status"] = "uploading"
+                    manifest["received_chunks"] = self._get_received_chunks(session_dir)
+                    self._write_manifest(session_dir, manifest)
+                raise
 
     def _resolve_storage(
         self,
@@ -283,6 +318,25 @@ class UploadService:
             json.dumps(manifest, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+
+    def _get_received_chunks(self, session_dir: Path) -> list[int]:
+        """根据磁盘上的分片文件返回已收到的分片索引。"""
+        chunk_indexes: list[int] = []
+        for chunk_path in session_dir.glob("*.part"):
+            try:
+                chunk_indexes.append(int(chunk_path.stem))
+            except ValueError:
+                continue
+
+        return sorted(set(chunk_indexes))
+
+    def _get_upload_lock(self, upload_id: str) -> asyncio.Lock:
+        """获取 upload_id 级别的任务锁。"""
+        lock = self._upload_locks.get(upload_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._upload_locks[upload_id] = lock
+        return lock
 
 
 upload_service = UploadService()

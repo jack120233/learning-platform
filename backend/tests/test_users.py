@@ -302,6 +302,108 @@ class TestUserProfile:
         assert item["last_section_title"] == section.title
         assert item["course_status"] == course.status
 
+    @pytest.mark.asyncio
+    async def test_get_learning_records_supports_chapter_resource_progress(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+        test_teacher: User,
+        test_category,
+    ):
+        """测试学习记录接口支持章节级资源进度展示。"""
+        from app.models.captcha import CaptchaRecord
+        from tests.test_auth import unique_key, utcnow
+
+        course = Course(
+            title="章节资源学习记录课程",
+            cover_url="https://example.com/chapter-course-cover.png",
+            teacher_id=test_teacher.id,
+            category_id=test_category.id,
+            status="published",
+            price=0,
+            level="beginner",
+            total_duration=1200,
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter = Chapter(
+            course_id=course.id,
+            title="章节资源章",
+            sort_order=1,
+        )
+        db_session.add(chapter)
+        await db_session.flush()
+
+        resource = Resource(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            section_id=None,
+            title="章节导学视频",
+            type="video",
+            file_url="https://example.com/chapter-video.mp4",
+            duration=480,
+            sort_order=1,
+        )
+        db_session.add(resource)
+        await db_session.flush()
+
+        progress = ResourceProgress(
+            user_id=test_user.id,
+            course_id=course.id,
+            chapter_id=chapter.id,
+            section_id=None,
+            resource_id=resource.id,
+            progress=62.5,
+            position=300,
+            last_play_at=utcnow(),
+        )
+        db_session.add(progress)
+        await db_session.flush()
+
+        key = unique_key("chapter_learning_records")
+        captcha = CaptchaRecord(
+            captcha_key=key,
+            captcha_text="test",
+            image_base64="test",
+            expires_at=utcnow() + timedelta(minutes=5),
+        )
+        db_session.add(captcha)
+        await db_session.flush()
+
+        login_response = await client.post(
+            "/api/v1/auth/login",
+            json={
+                "username": "testuser",
+                "password": "Test123456",
+                "captcha_key": key,
+                "captcha_text": "test",
+            },
+        )
+
+        if login_response.status_code != 200:
+            assert login_response.status_code in [200, 400, 401]
+            return
+
+        token = login_response.json()["data"]["access_token"]
+
+        response = await client.get(
+            "/api/v1/users/me/learning-records",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"page": 1, "page_size": 10, "time_range": "all"},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()["data"]
+        assert payload["total"] >= 1
+        item = next(candidate for candidate in payload["items"] if candidate["course_id"] == course.id)
+        assert item["course_title"] == course.title
+        assert item["course_cover"] == course.cover_url
+        assert item["last_section_id"] is None
+        assert item["last_section_title"] == resource.title
+        assert item["course_status"] == course.status
+
 
 class TestChangePassword:
     """修改密码测试类"""

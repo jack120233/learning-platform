@@ -18,7 +18,7 @@ from app.core.exceptions import (
     ValidationException,
 )
 from app.core.security import hash_password, verify_password
-from app.models.content import Section
+from app.models.content import Resource, Section
 from app.models.course import Course
 from app.models.learning import ResourceProgress
 from app.models.user import User
@@ -154,10 +154,11 @@ class UserService:
                 Course.cover_url.label("course_cover"),
                 Course.total_duration.label("course_total_duration"),
                 Course.status.label("course_status"),
-                Section.title.label("last_section_title"),
+                func.coalesce(Section.title, Resource.title).label("last_section_title"),
             )
             .join(Course, Course.id == ResourceProgress.course_id)
             .outerjoin(Section, Section.id == ResourceProgress.section_id)
+            .outerjoin(Resource, Resource.id == ResourceProgress.resource_id)
             .where(ResourceProgress.user_id == user_id)
         )
 

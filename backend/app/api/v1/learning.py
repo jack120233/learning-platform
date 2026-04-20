@@ -80,7 +80,7 @@ async def get_progress(
     )
     serialized = [ProgressResponse(**p) for p in progress_list]
 
-    if section_id is not None and resource_id is not None:
+    if resource_id is not None and course_id is None:
         return ApiResponse.success(data=serialized[0], message="获取成功")
 
     return ApiResponse.success(data=serialized, message="获取成功")

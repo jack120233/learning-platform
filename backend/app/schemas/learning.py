@@ -21,7 +21,7 @@ class SaveProgressRequest(BaseModel):
 
     course_id: int | None = Field(default=None, description="课程ID")
     chapter_id: int | None = Field(default=None, description="章节ID")
-    section_id: int = Field(..., description="小节ID")
+    section_id: int | None = Field(default=None, description="小节ID，章节资源可为空")
     resource_id: int = Field(..., description="资源ID")
     position: int | None = Field(default=None, ge=0, description="播放位置（秒）")
     progress: float | None = Field(default=None, ge=0, le=100, description="学习进度（百分比）")
@@ -64,8 +64,8 @@ class ProgressResponse(BaseModel):
     """学习进度响应"""
 
     course_id: int = Field(description="课程ID")
-    chapter_id: int = Field(description="章节ID")
-    section_id: int = Field(description="小节ID")
+    chapter_id: int | None = Field(default=None, description="章节ID")
+    section_id: int | None = Field(default=None, description="小节ID")
     resource_id: int = Field(description="资源ID")
     progress: float = Field(description="学习进度（百分比）")
     position: int = Field(description="播放位置（秒）")

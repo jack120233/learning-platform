@@ -1,5 +1,6 @@
 """上传接口测试。"""
 
+import json
 import shutil
 from pathlib import Path
 from urllib.parse import urlparse
@@ -296,4 +297,116 @@ class TestChunkUpload:
         assert response.json()["message"] == "分片未上传完成，无法合并"
 
         session_dir = Path(settings.upload_dir) / settings.chunk_upload_tmp_subdir / upload_id
+        manifest_path = session_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["status"] == "uploading"
+
+        shutil.rmtree(session_dir, ignore_errors=True)
+
+    @pytest.mark.asyncio
+    async def test_complete_chunk_upload_uses_chunk_files_when_manifest_is_stale(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试 manifest 状态滞后时仍可根据真实分片完成上传。"""
+        teacher_headers = await create_upload_test_user(db_session, "teacher")
+        file_content = b"0123456789abcdefghij"
+        init_response = await client.post(
+            "/api/v1/upload/init",
+            headers=teacher_headers,
+            json={
+                "file_name": "lesson-video.mp4",
+                "file_size": len(file_content),
+                "chunk_size": 10,
+            },
+        )
+        upload_id = init_response.json()["data"]["upload_id"]
+        session_dir = Path(settings.upload_dir) / settings.chunk_upload_tmp_subdir / upload_id
+
+        for chunk_index in range(2):
+            start = chunk_index * 10
+            end = start + 10
+            chunk_bytes = file_content[start:end]
+            chunk_response = await client.post(
+                "/api/v1/upload/chunk",
+                headers=teacher_headers,
+                files={
+                    "upload_id": (None, upload_id),
+                    "chunk_index": (None, str(chunk_index)),
+                    "chunk": ("chunk.part", chunk_bytes, "application/octet-stream"),
+                },
+            )
+            assert chunk_response.status_code == 200
+
+        manifest_path = session_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["received_chunks"] = [0]
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        response = await client.post(
+            "/api/v1/upload/complete",
+            headers=teacher_headers,
+            json={
+                "upload_id": upload_id,
+                "file_name": "lesson-video.mp4",
+                "total_chunks": 2,
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        upload_path = urlparse(data["file_url"]).path
+        file_path = (
+            Path(settings.upload_dir)
+            / Path(upload_path.lstrip("/")).relative_to("uploads")
+        )
+        assert file_path.exists()
+        assert file_path.read_bytes() == file_content
+
+        file_path.unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_upload_chunk_rejects_when_task_is_merging(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试合并中的上传任务会拒绝迟到分片。"""
+        teacher_headers = await create_upload_test_user(db_session, "teacher")
+        init_response = await client.post(
+            "/api/v1/upload/init",
+            headers=teacher_headers,
+            json={
+                "file_name": "lesson-video.mp4",
+                "file_size": 20,
+                "chunk_size": 10,
+            },
+        )
+        upload_id = init_response.json()["data"]["upload_id"]
+        session_dir = Path(settings.upload_dir) / settings.chunk_upload_tmp_subdir / upload_id
+        manifest_path = session_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["status"] = "merging"
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        response = await client.post(
+            "/api/v1/upload/chunk",
+            headers=teacher_headers,
+            files={
+                "upload_id": (None, upload_id),
+                "chunk_index": (None, "1"),
+                "chunk": ("chunk.part", b"abcdefghij", "application/octet-stream"),
+            },
+        )
+
+        assert response.status_code == 422
+        assert response.json()["message"] == "上传任务正在合并，无法继续上传分片"
+
         shutil.rmtree(session_dir, ignore_errors=True)

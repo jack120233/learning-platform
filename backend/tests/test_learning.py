@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.models.course import Course
 from app.models.category import Category
-from app.models.content import Chapter, Section
+from app.models.content import Chapter, Resource, Section
 
 
 def unique_key(prefix: str = "learn") -> str:
@@ -286,6 +286,130 @@ class TestContinueLearning:
         )
 
         assert response.status_code in [200, 404]
+
+    @pytest.mark.asyncio
+    async def test_continue_learning_supports_chapter_resource_progress(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+        test_teacher: User,
+    ):
+        """测试章节资源支持继续学习和进度恢复。"""
+        from app.models.captcha import CaptchaRecord
+        from tests.test_auth import unique_key, utcnow
+
+        category = Category(
+            name="章节继续学习分类",
+            slug=f"chapter-continue-{uuid.uuid4().hex[:8]}",
+            is_active=True,
+        )
+        db_session.add(category)
+        await db_session.flush()
+
+        course = Course(
+            title="章节资源继续学习课程",
+            teacher_id=test_teacher.id,
+            category_id=category.id,
+            status="published",
+            price=0,
+            level="beginner",
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter = Chapter(
+            course_id=course.id,
+            title="章节资源章节",
+            sort_order=1,
+        )
+        db_session.add(chapter)
+        await db_session.flush()
+
+        resource = Resource(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            section_id=None,
+            title="chapter-video.mp4",
+            type="video",
+            file_url="http://test/uploads/files/chapter-video.mp4",
+            file_size=1024,
+            duration=300,
+            sort_order=0,
+            is_free=False,
+        )
+        db_session.add(resource)
+        await db_session.flush()
+
+        key = unique_key("chapter_continue")
+        captcha = CaptchaRecord(
+            captcha_key=key,
+            captcha_text="test",
+            image_base64="test",
+            expires_at=utcnow() + timedelta(minutes=5),
+        )
+        db_session.add(captcha)
+        await db_session.flush()
+
+        login_response = await client.post(
+            "/api/v1/auth/login",
+            json={
+                "username": "testuser",
+                "password": "Test123456",
+                "captcha_key": key,
+                "captcha_text": "test",
+            },
+        )
+
+        if login_response.status_code != 200:
+            assert login_response.status_code in [200, 400, 401]
+            return
+
+        token = login_response.json()["data"]["access_token"]
+
+        save_response = await client.post(
+            "/api/v1/learning/progress",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "course_id": course.id,
+                "chapter_id": chapter.id,
+                "resource_id": resource.id,
+                "current_time": 45,
+                "total_time": 300,
+                "is_completed": False,
+            },
+        )
+
+        assert save_response.status_code == 200
+        save_payload = save_response.json()["data"]
+        assert save_payload["chapter_id"] == chapter.id
+        assert save_payload["section_id"] is None
+        assert save_payload["resource_id"] == resource.id
+        assert save_payload["current_time"] == 45
+
+        progress_response = await client.get(
+            f"/api/v1/learning/progress?resource_id={resource.id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert progress_response.status_code == 200
+        progress_payload = progress_response.json()["data"]
+        assert progress_payload["resource_id"] == resource.id
+        assert progress_payload["section_id"] is None
+        assert progress_payload["current_time"] == 45
+
+        continue_response = await client.get(
+            f"/api/v1/learning/courses/{course.id}/continue",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert continue_response.status_code == 200
+        continue_payload = continue_response.json()["data"]
+        assert continue_payload["chapter_id"] == chapter.id
+        assert continue_payload["section_id"] is None
+        assert continue_payload["last_section_id"] is None
+        assert continue_payload["last_resource_id"] == resource.id
+        assert continue_payload["current_time"] == 45
 
 
 # 导入必要的模型
