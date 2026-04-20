@@ -15,6 +15,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import router as api_v1_router
 from app.config import settings
+from app.core.db_schema import ensure_database_compatibility
+from app.core.dependencies import engine
 from app.core.exceptions import AppException, app_exception_to_http_exception
 from app.core.logging import get_logger, setup_logging
 from app.middleware import RequestLoggingMiddleware
@@ -46,6 +48,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"🌐 API 文档: http://{settings.host}:{settings.port}/docs")
     logger.info(f"📁 日志目录: {settings.log_dir}")
     logger.info(f"🖼️ 上传目录: {settings.upload_dir}")
+    async with engine.begin() as conn:
+        schema_messages = await ensure_database_compatibility(conn)
+    for message in schema_messages:
+        if "请手动检查" in message:
+            logger.warning(message)
+        else:
+            logger.info(message)
 
     yield
 

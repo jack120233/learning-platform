@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import DBSession, CurrentUserId
 from app.schemas.common import ApiResponse, PageData
+from app.schemas.feedback import FeedbackResponse
 from app.schemas.user import (
     AdminApplicationCreate,
     AdminApplicationResponse,
@@ -29,6 +30,7 @@ from app.services.user_service import (
     teacher_audit_service,
     admin_application_service,
 )
+from app.services.feedback_service import feedback_service
 
 router = APIRouter(prefix="/users", tags=["用户管理"])
 
@@ -99,6 +101,7 @@ async def change_password(
 async def get_learning_records(
     db: DBSession,
     user_id: CurrentUserId,
+    time_range: str = Query(default="all", description="时间范围：recent_7/recent_30/all"),
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=10, ge=1, le=50, description="每页数量"),
 ) -> ApiResponse[PageData[LearningRecordResponse]]:
@@ -106,12 +109,44 @@ async def get_learning_records(
     records, total = await user_service.get_learning_records(
         db,
         user_id,
+        time_range=time_range,
         page=page,
         page_size=page_size,
     )
     return ApiResponse.success(
         data=PageData.create(
             items=[LearningRecordResponse.model_validate(r) for r in records],
+            total=total,
+            page=page,
+            page_size=page_size,
+        ),
+    )
+
+
+@router.get(
+    "/me/feedbacks",
+    response_model=ApiResponse[PageData[FeedbackResponse]],
+    summary="获取我的反馈",
+    description="获取当前用户提交的反馈列表",
+)
+async def get_my_feedbacks(
+    db: DBSession,
+    user_id: CurrentUserId,
+    status: str | None = Query(default=None, description="状态筛选"),
+    page: int = Query(default=1, ge=1, description="页码"),
+    page_size: int = Query(default=10, ge=1, le=50, description="每页数量"),
+) -> ApiResponse[PageData[FeedbackResponse]]:
+    """获取当前用户反馈列表接口。"""
+    feedbacks, total = await feedback_service.get_list(
+        db,
+        user_id=user_id,
+        status=status,
+        page=page,
+        page_size=page_size,
+    )
+    return ApiResponse.success(
+        data=PageData.create(
+            items=[FeedbackResponse.model_validate(feedback) for feedback in feedbacks],
             total=total,
             page=page,
             page_size=page_size,

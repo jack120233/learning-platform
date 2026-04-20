@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy import inspect, text
 
 from app.core.dependencies import engine
+from app.core.db_schema import ensure_database_compatibility
 from app.models import Base
 
 
@@ -35,32 +36,9 @@ async def init_database() -> None:
             # 创建所有表
             await conn.run_sync(Base.metadata.create_all)
             print("✅ 数据库表初始化完成")
-
-            def has_course_summary_column(sync_conn) -> bool:
-                columns = inspect(sync_conn).get_columns("courses")
-                return any(column["name"] == "summary" for column in columns)
-
-            if not await conn.run_sync(has_course_summary_column):
-                await conn.execute(
-                    text("ALTER TABLE courses ADD COLUMN summary VARCHAR(500)")
-                )
-                print("✅ 已为 courses 表补充 summary 字段")
-
-            def is_resource_section_nullable(sync_conn) -> bool:
-                columns = inspect(sync_conn).get_columns("resources")
-                for column in columns:
-                    if column["name"] == "section_id":
-                        return bool(column.get("nullable"))
-                return False
-
-            if not await conn.run_sync(is_resource_section_nullable):
-                if conn.dialect.name == "mysql":
-                    await conn.execute(
-                        text("ALTER TABLE resources MODIFY COLUMN section_id INTEGER NULL COMMENT '小节ID'")
-                    )
-                    print("✅ 已将 resources.section_id 调整为可空，支持章节级资源")
-                else:
-                    print("⚠️ resources.section_id 仍为非空，请手动检查当前数据库方言的迁移策略")
+            for message in await ensure_database_compatibility(conn):
+                prefix = "⚠️" if "请手动检查" in message else "✅"
+                print(f"{prefix} {message}")
 
         # 显示创建的表
         async with engine.connect() as conn:

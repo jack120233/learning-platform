@@ -1,21 +1,21 @@
-"""反馈管理 API 路由
+"""反馈管理 API 路由。
 
 提供反馈管理相关的 API 接口。
 """
 
-import json
-
 from fastapi import APIRouter, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import DBSession, CurrentUserId
+from app.core.dependencies import CurrentUser, DBSession
+from app.core.exceptions import ForbiddenException, NotFoundException
 from app.schemas.common import ApiResponse, PageData
 from app.schemas.feedback import (
+    FeedbackBatchProcess,
     FeedbackCreate,
-    FeedbackResponse,
     FeedbackProcess,
+    FeedbackResponse,
 )
 from app.services.feedback_service import feedback_service
+from app.services.permission_service import permission_service
 
 router = APIRouter(prefix="/feedbacks", tags=["反馈管理"])
 
@@ -29,12 +29,13 @@ router = APIRouter(prefix="/feedbacks", tags=["反馈管理"])
 async def create_feedback(
     data: FeedbackCreate,
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
 ) -> ApiResponse[FeedbackResponse]:
     """提交反馈接口"""
-    feedback = await feedback_service.create(db, user_id, data)
+    feedback = await feedback_service.create(db, current_user.id, data)
+    detail = await feedback_service.get_by_id(db, feedback.id)
     return ApiResponse.success(
-        data=FeedbackResponse.model_validate(feedback),
+        data=FeedbackResponse.model_validate(detail),
         message="提交成功",
     )
 
@@ -47,41 +48,36 @@ async def create_feedback(
 )
 async def get_feedbacks(
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
+    feedback_type: str | None = Query(default=None, description="类型筛选：system/course"),
     status: str | None = Query(default=None, description="状态筛选"),
+    keyword: str | None = Query(default=None, description="关键字搜索"),
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=10, ge=1, le=50, description="每页数量"),
 ) -> ApiResponse[PageData[FeedbackResponse]]:
     """获取反馈列表接口"""
-    # 实际项目中需要根据用户角色决定是否传入 user_id
+    target_user_id = None if current_user.role == "admin" else current_user.id
+    if current_user.role == "admin":
+        await permission_service.ensure_permission(
+            db,
+            current_user.role,
+            "admin.feedback",
+            "无权查看全部反馈",
+        )
+
     feedbacks, total = await feedback_service.get_list(
         db,
-        user_id=user_id,  # 普通用户只能看自己的反馈
+        user_id=target_user_id,
+        feedback_type=feedback_type,
         status=status,
+        keyword=keyword if current_user.role == "admin" else None,
         page=page,
         page_size=page_size,
     )
 
-    items = []
-    for f in feedbacks:
-        f_dict = {
-            "id": f.id,
-            "user_id": f.user_id,
-            "type": f.type,
-            "title": f.title,
-            "content": f.content,
-            "contact": f.contact,
-            "images": json.loads(f.images) if f.images else None,
-            "status": f.status,
-            "reply": f.reply,
-            "replied_at": f.replied_at,
-            "created_at": f.created_at,
-        }
-        items.append(FeedbackResponse(**f_dict))
-
     return ApiResponse.success(
         data=PageData.create(
-            items=items,
+            items=[FeedbackResponse.model_validate(feedback) for feedback in feedbacks],
             total=total,
             page=page,
             page_size=page_size,
@@ -98,28 +94,25 @@ async def get_feedbacks(
 async def get_feedback(
     feedback_id: int,
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
 ) -> ApiResponse[FeedbackResponse]:
     """获取反馈详情接口"""
     feedback = await feedback_service.get_by_id(db, feedback_id)
     if not feedback:
-        from app.core.exceptions import NotFoundException
         raise NotFoundException("反馈不存在")
 
-    f_dict = {
-        "id": feedback.id,
-        "user_id": feedback.user_id,
-        "type": feedback.type,
-        "title": feedback.title,
-        "content": feedback.content,
-        "contact": feedback.contact,
-        "images": json.loads(feedback.images) if feedback.images else None,
-        "status": feedback.status,
-        "reply": feedback.reply,
-        "replied_at": feedback.replied_at,
-        "created_at": feedback.created_at,
-    }
-    return ApiResponse.success(data=FeedbackResponse(**f_dict))
+    if current_user.role != "admin" and feedback["user_id"] != current_user.id:
+        raise ForbiddenException("无权查看该反馈")
+
+    if current_user.role == "admin":
+        await permission_service.ensure_permission(
+            db,
+            current_user.role,
+            "admin.feedback",
+            "无权查看反馈详情",
+        )
+
+    return ApiResponse.success(data=FeedbackResponse.model_validate(feedback))
 
 
 @router.post(
@@ -130,13 +123,50 @@ async def get_feedback(
 )
 async def process_feedback(
     feedback_id: int,
-    data: FeedbackProcess,
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
+    data: FeedbackProcess | None = None,
 ) -> ApiResponse[FeedbackResponse]:
     """处理反馈接口（管理员）"""
-    feedback = await feedback_service.process(db, feedback_id, data, user_id)
+    await permission_service.ensure_permission(
+        db,
+        current_user.role,
+        "admin.feedback",
+        "无权处理反馈",
+    )
+    feedback = await feedback_service.process(db, feedback_id, data, current_user.id)
+    detail = await feedback_service.get_by_id(db, feedback.id)
     return ApiResponse.success(
-        data=FeedbackResponse.model_validate(feedback),
+        data=FeedbackResponse.model_validate(detail),
         message="处理成功",
+    )
+
+
+@router.post(
+    "/batch-process",
+    response_model=ApiResponse[dict],
+    summary="批量标记已处理",
+    description="批量处理反馈（管理员）",
+)
+async def batch_process_feedbacks(
+    data: FeedbackBatchProcess,
+    db: DBSession,
+    current_user: CurrentUser,
+) -> ApiResponse[dict]:
+    """批量处理反馈接口（管理员）。"""
+    await permission_service.ensure_permission(
+        db,
+        current_user.role,
+        "admin.feedback",
+        "无权处理反馈",
+    )
+
+    count = 0
+    for feedback_id in data.feedback_ids:
+        await feedback_service.process(db, feedback_id, None, current_user.id)
+        count += 1
+
+    return ApiResponse.success(
+        data={"count": count},
+        message="批量处理成功",
     )

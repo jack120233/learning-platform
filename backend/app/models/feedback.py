@@ -1,4 +1,4 @@
-"""反馈消息数据模型
+"""反馈消息数据模型。
 
 定义反馈、消息相关的数据库模型。
 """
@@ -18,12 +18,13 @@ class Feedback(BaseModel):
 
     Attributes:
         user_id: 用户ID
-        type: 反馈类型（bug/suggestion/question/other）
+        type: 反馈类型（system/course）
+        course_id: 关联课程ID
         title: 反馈标题
         content: 反馈内容
         contact: 联系方式
         images: 图片URLs（JSON数组）
-        status: 处理状态（pending/processing/resolved/closed）
+        status: 处理状态（pending/processed）
         reply: 回复内容
         replied_at: 回复时间
         replied_by: 回复人ID
@@ -38,9 +39,15 @@ class Feedback(BaseModel):
     )
     type: Mapped[str] = mapped_column(
         String(20),
-        default="other",
+        default="system",
         nullable=False,
         comment="反馈类型",
+    )
+    course_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment="关联课程ID",
     )
     title: Mapped[str] = mapped_column(
         String(200),

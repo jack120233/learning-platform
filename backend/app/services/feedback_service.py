@@ -1,4 +1,4 @@
-"""反馈消息服务模块
+"""反馈消息服务模块。
 
 提供反馈、消息管理的业务逻辑。
 """
@@ -6,18 +6,34 @@
 import json
 from datetime import datetime, timezone
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundException
+from app.models.course import Course
 from app.models.feedback import Feedback
 from app.models.message import Message
+from app.models.user import User
 from app.schemas.feedback import FeedbackCreate, FeedbackProcess
 from app.schemas.message import MessageSend
 
 
 class FeedbackService:
     """反馈服务类"""
+
+    @staticmethod
+    def normalize_feedback_type(raw_type: str | None, course_id: int | None = None) -> str:
+        """统一反馈类型到前端使用的 system/course。"""
+        if course_id is not None or raw_type == "course":
+            return "course"
+        return "system"
+
+    @staticmethod
+    def normalize_feedback_status(raw_status: str | None) -> str:
+        """统一反馈状态到前端使用的 pending/processed。"""
+        if raw_status in {"processed", "resolved", "closed"}:
+            return "processed"
+        return "pending"
 
     async def create(
         self,
@@ -37,7 +53,8 @@ class FeedbackService:
         """
         feedback = Feedback(
             user_id=user_id,
-            type=data.type,
+            type=data.feedback_type,
+            course_id=data.course_id,
             title=data.title,
             content=data.content,
             contact=data.contact,
@@ -51,40 +68,87 @@ class FeedbackService:
         self,
         db: AsyncSession,
         user_id: int | None = None,
+        feedback_type: str | None = None,
         status: str | None = None,
+        keyword: str | None = None,
         page: int = 1,
         page_size: int = 10,
-    ) -> tuple[list[Feedback], int]:
+    ) -> tuple[list[dict], int]:
         """获取反馈列表
 
         Args:
             db: 数据库会话
             user_id: 用户ID（用户查看自己的反馈）
+            feedback_type: 反馈类型筛选
             status: 状态筛选（管理员查看）
+            keyword: 关键字搜索（管理员查看）
             page: 页码
             page_size: 每页数量
 
         Returns:
             反馈列表和总数
         """
-        query = select(Feedback)
+        base_query = (
+            select(
+                Feedback,
+                User.username.label("username"),
+                User.email.label("user_email"),
+                User.phone.label("user_phone"),
+                Course.title.label("course_title"),
+            )
+            .join(User, User.id == Feedback.user_id)
+            .outerjoin(Course, Course.id == Feedback.course_id)
+        )
+
+        conditions = []
 
         if user_id:
-            query = query.where(Feedback.user_id == user_id)
-        if status:
-            query = query.where(Feedback.status == status)
+            conditions.append(Feedback.user_id == user_id)
+
+        if feedback_type == "course":
+            conditions.append(or_(Feedback.course_id.is_not(None), Feedback.type == "course"))
+        elif feedback_type == "system":
+            conditions.append(and_(Feedback.course_id.is_(None), Feedback.type != "course"))
+
+        if status == "processed":
+            conditions.append(Feedback.status.in_(["processed", "resolved", "closed"]))
+        elif status == "pending":
+            conditions.append(Feedback.status.in_(["pending", "processing"]))
+        elif status:
+            conditions.append(Feedback.status == status)
+
+        if keyword:
+            pattern = f"%{keyword.strip()}%"
+            conditions.append(
+                or_(
+                    Feedback.content.ilike(pattern),
+                    Feedback.title.ilike(pattern),
+                    User.username.ilike(pattern),
+                    Course.title.ilike(pattern),
+                )
+            )
+
+        if conditions:
+            base_query = base_query.where(*conditions)
 
         # 获取总数
-        count_query = select(func.count()).select_from(query.subquery())
+        count_query = select(func.count()).select_from(base_query.subquery())
         total_result = await db.execute(count_query)
         total = total_result.scalar() or 0
 
         # 分页查询
-        query = query.order_by(Feedback.created_at.desc())
-        query = query.offset((page - 1) * page_size).limit(page_size)
+        query = (
+            base_query
+            .order_by(Feedback.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
 
         result = await db.execute(query)
-        feedbacks = list(result.scalars().all())
+        feedbacks = [
+            self.serialize_feedback_row(feedback, username, user_email, user_phone, course_title)
+            for feedback, username, user_email, user_phone, course_title in result.all()
+        ]
 
         return feedbacks, total
 
@@ -92,15 +156,39 @@ class FeedbackService:
         self,
         db: AsyncSession,
         feedback_id: int,
-    ) -> Feedback | None:
-        """通过ID获取反馈"""
-        return await db.get(Feedback, feedback_id)
+    ) -> dict | None:
+        """通过ID获取反馈详情。"""
+        query = (
+            select(
+                Feedback,
+                User.username.label("username"),
+                User.email.label("user_email"),
+                User.phone.label("user_phone"),
+                Course.title.label("course_title"),
+            )
+            .join(User, User.id == Feedback.user_id)
+            .outerjoin(Course, Course.id == Feedback.course_id)
+            .where(Feedback.id == feedback_id)
+        )
+        result = await db.execute(query)
+        row = result.first()
+        if row is None:
+            return None
+
+        feedback, username, user_email, user_phone, course_title = row
+        return self.serialize_feedback_row(
+            feedback,
+            username,
+            user_email,
+            user_phone,
+            course_title,
+        )
 
     async def process(
         self,
         db: AsyncSession,
         feedback_id: int,
-        data: FeedbackProcess,
+        data: FeedbackProcess | None,
         reviewer_id: int,
     ) -> Feedback:
         """处理反馈
@@ -117,17 +205,53 @@ class FeedbackService:
         Raises:
             NotFoundException: 反馈不存在
         """
-        feedback = await self.get_by_id(db, feedback_id)
+        feedback = await db.get(Feedback, feedback_id)
         if not feedback:
             raise NotFoundException("反馈不存在")
 
-        feedback.status = "resolved"
-        feedback.reply = data.reply
+        feedback.status = "processed"
+        if data is not None:
+            feedback.reply = data.reply
         feedback.replied_at = datetime.now(timezone.utc)
         feedback.replied_by = reviewer_id
 
         await db.flush()
         return feedback
+
+    def serialize_feedback_row(
+        self,
+        feedback: Feedback,
+        username: str | None = None,
+        user_email: str | None = None,
+        user_phone: str | None = None,
+        course_title: str | None = None,
+    ) -> dict:
+        """将反馈模型与关联信息序列化为前端需要的结构。"""
+        feedback_type = self.normalize_feedback_type(feedback.type, feedback.course_id)
+        normalized_status = self.normalize_feedback_status(feedback.status)
+        images = json.loads(feedback.images) if feedback.images else []
+
+        return {
+            "feedback_id": feedback.id,
+            "id": feedback.id,
+            "user_id": feedback.user_id,
+            "username": username,
+            "user_email": user_email,
+            "user_phone": user_phone,
+            "feedback_type": feedback_type,
+            "type": feedback_type,
+            "course_id": feedback.course_id,
+            "course_title": course_title,
+            "title": feedback.title,
+            "content": feedback.content,
+            "contact": feedback.contact,
+            "images": images,
+            "status": normalized_status,
+            "reply": feedback.reply,
+            "replied_at": feedback.replied_at,
+            "processed_at": feedback.replied_at,
+            "created_at": feedback.created_at,
+        }
 
 
 class MessageService:

@@ -4,7 +4,7 @@
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from sqlalchemy import select, func, and_, or_
@@ -18,10 +18,12 @@ from app.core.exceptions import (
     ValidationException,
 )
 from app.core.security import hash_password, verify_password
+from app.models.content import Section
+from app.models.course import Course
+from app.models.learning import ResourceProgress
 from app.models.user import User
 from app.models.teacher_audit import TeacherAudit
 from app.models.admin_application import AdminApplication
-from app.models.learning_progress import LearningProgress
 from app.schemas.user import (
     AdminApplicationCreate,
     AdminApplicationReview,
@@ -129,37 +131,83 @@ class UserService:
         self,
         db: AsyncSession,
         user_id: int,
+        time_range: Literal["recent_7", "recent_30", "all"] = "all",
         page: int = 1,
         page_size: int = 10,
-    ) -> tuple[list[LearningProgress], int]:
+    ) -> tuple[list[dict], int]:
         """获取学习记录
 
         Args:
             db: 数据库会话
             user_id: 用户ID
+            time_range: 时间范围
             page: 页码
             page_size: 每页数量
 
         Returns:
             学习记录列表和总数
         """
-        query = select(LearningProgress).where(
-            LearningProgress.user_id == user_id
+        query = (
+            select(
+                ResourceProgress,
+                Course.title.label("course_title"),
+                Course.cover_url.label("course_cover"),
+                Course.total_duration.label("course_total_duration"),
+                Course.status.label("course_status"),
+                Section.title.label("last_section_title"),
+            )
+            .join(Course, Course.id == ResourceProgress.course_id)
+            .outerjoin(Section, Section.id == ResourceProgress.section_id)
+            .where(ResourceProgress.user_id == user_id)
         )
 
-        # 获取总数
-        count_query = select(func.count()).select_from(query.subquery())
-        total_result = await db.execute(count_query)
-        total = total_result.scalar() or 0
+        cutoff: datetime | None = None
+        if time_range == "recent_7":
+            cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        elif time_range == "recent_30":
+            cutoff = datetime.now(timezone.utc) - timedelta(days=30)
 
-        # 分页查询
-        query = query.order_by(LearningProgress.updated_at.desc())
-        query = query.offset((page - 1) * page_size).limit(page_size)
+        if cutoff is not None:
+            query = query.where(ResourceProgress.updated_at >= cutoff)
+
+        query = query.order_by(
+            ResourceProgress.updated_at.desc(),
+            ResourceProgress.id.desc(),
+        )
 
         result = await db.execute(query)
-        records = list(result.scalars().all())
+        latest_records: list[dict] = []
+        seen_course_ids: set[int] = set()
 
-        return records, total
+        for progress, course_title, course_cover, course_total_duration, course_status, last_section_title in result.all():
+            if progress.course_id in seen_course_ids:
+                continue
+
+            seen_course_ids.add(progress.course_id)
+            last_learn_at = progress.last_play_at or progress.updated_at
+            latest_records.append(
+                {
+                    "id": progress.id,
+                    "course_id": progress.course_id,
+                    "course_title": course_title,
+                    "course_name": course_title,
+                    "course_cover": course_cover,
+                    "progress": progress.progress,
+                    "total_duration": course_total_duration or 0,
+                    "last_section_id": progress.section_id,
+                    "last_section_title": last_section_title or "",
+                    "last_learn_at": last_learn_at,
+                    "course_status": course_status,
+                    "completed_at": progress.completed_at,
+                    "created_at": progress.created_at,
+                    "updated_at": last_learn_at,
+                }
+            )
+
+        total = len(latest_records)
+        start = (page - 1) * page_size
+        end = start + page_size
+        return latest_records[start:end], total
 
     async def get_user_list(
         self,
