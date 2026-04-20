@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, defineAsyncComponent } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, defineAsyncComponent, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { ElMessage, ElNotification } from 'element-plus'
 import '@vue-office/docx/lib/index.css'
@@ -24,9 +24,11 @@ import {
   getResourcePlayUrl,
   getProgress,
   type CourseChapter,
+  type CourseResource,
   type CourseSection,
   type SectionResource,
 } from '@/api/learning'
+import { BREAKPOINT_VALUES, useBreakpoint } from '@/composables/useBreakpoint'
 import { useProgressSync } from '@/composables/useProgressSync'
 import { formatDuration } from '@/utils/format'
 
@@ -34,6 +36,7 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const learnStore = useLearnStore()
+const { width } = useBreakpoint()
 const VueOfficeDocx = defineAsyncComponent(() => import('@vue-office/docx'))
 const VueOfficePdf = defineAsyncComponent(() => import('@vue-office/pdf'))
 const VueOfficePptx = defineAsyncComponent(() => import('@vue-office/pptx'))
@@ -66,6 +69,7 @@ const documentRenderMode = ref<'text' | 'docx' | 'pdf' | 'pptx' | 'download'>('d
 // 计算属性
 const courseId = computed(() => Number(route.params.courseId))
 const targetSectionId = computed(() => route.query.sectionId ? Number(route.query.sectionId) : null)
+const targetChapterId = computed(() => route.query.chapterId ? Number(route.query.chapterId) : null)
 const targetResourceId = computed(() => route.query.resourceId ? Number(route.query.resourceId) : null)
 
 const activeResource = computed(() => learnStore.activeResource)
@@ -73,6 +77,7 @@ const hasActiveResource = computed(() => learnStore.hasActiveResource)
 const courseChapters = computed(() => learnStore.currentCourseChapters)
 const activeDocumentExtension = computed(() => getDocumentExtension(activeResource.value.fileUrl))
 const activeDocumentFileName = computed(() => getActiveResourceFileName())
+const isOverlaySidebar = computed(() => width.value <= BREAKPOINT_VALUES.lg)
 
 // 资源类型图标映射
 const resourceIconMap: Record<string, typeof VideoPlay> = {
@@ -84,9 +89,10 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
 
 // 构建目录树（带 UI 状态）
 interface SectionTreeNode {
+  chapter_id: number
   section_id: number
   title: string
-  resources: { resource_id: number; resource_type: string; file_name: string; duration?: number }[]
+  resources: CourseResource[]
   isActive: boolean
 }
 
@@ -94,6 +100,8 @@ interface ChapterTreeNode {
   chapter_id: number
   title: string
   isExpanded: boolean
+  resources: CourseResource[]
+  hasActiveChapterResource: boolean
   sections: SectionTreeNode[]
 }
 
@@ -107,6 +115,47 @@ function getSectionId(section: CourseSection): number {
 
 function getSectionResources(section: CourseSection): SectionResource[] {
   return section.resources ?? []
+}
+
+function getChapterResources(chapter: CourseChapter): CourseResource[] {
+  return chapter.resources ?? []
+}
+
+function getTaskResources(): CourseResource[] {
+  if (activeResource.value.sectionId != null) {
+    for (const chapter of courseChapters.value) {
+      const section = chapter.sections.find(s => getSectionId(s) === activeResource.value.sectionId)
+      if (section) {
+        return getSectionResources(section)
+      }
+    }
+    return []
+  }
+
+  if (activeResource.value.chapterId != null) {
+    const chapter = courseChapters.value.find(item => getChapterId(item) === activeResource.value.chapterId)
+    return chapter ? getChapterResources(chapter) : []
+  }
+
+  return []
+}
+
+function findResourceLocation(resourceId: number): { chapterId: number; sectionId: number | null; resource: CourseResource } | null {
+  for (const chapter of courseChapters.value) {
+    const chapterId = getChapterId(chapter)
+    const chapterResource = getChapterResources(chapter).find(item => item.resource_id === resourceId)
+    if (chapterResource) {
+      return { chapterId, sectionId: null, resource: chapterResource }
+    }
+
+    for (const section of chapter.sections) {
+      const sectionResource = getSectionResources(section).find(item => item.resource_id === resourceId)
+      if (sectionResource) {
+        return { chapterId, sectionId: getSectionId(section), resource: sectionResource }
+      }
+    }
+  }
+  return null
 }
 
 function getDocumentExtension(fileUrl: string): string {
@@ -129,6 +178,10 @@ function getActiveResourceFileName(): string {
   if (!resourceId) return ''
 
   for (const chapter of courseChapters.value) {
+    const chapterResource = getChapterResources(chapter).find(item => item.resource_id === resourceId)
+    if (chapterResource) {
+      return chapterResource.file_name
+    }
     for (const section of chapter.sections) {
       const resource = getSectionResources(section).find(item => item.resource_id === resourceId)
       if (resource) {
@@ -162,7 +215,11 @@ const chapterTree = computed<ChapterTreeNode[]>(() => {
     chapter_id: getChapterId(chapter),
     title: chapter.title,
     isExpanded: chapterExpandMap.value[getChapterId(chapter)] ?? false,
+    resources: getChapterResources(chapter),
+    hasActiveChapterResource:
+      activeResource.value.chapterId === getChapterId(chapter) && activeResource.value.sectionId == null,
     sections: chapter.sections.map(section => ({
+      chapter_id: getChapterId(chapter),
       section_id: getSectionId(section),
       title: section.title,
       resources: getSectionResources(section),
@@ -172,33 +229,25 @@ const chapterTree = computed<ChapterTreeNode[]>(() => {
 })
 
 // 当前小节的资源列表（用于"当前任务"Tab）
-const currentSectionResources = computed(() => {
-  if (!activeResource.value.sectionId) return []
-
-  for (const chapter of courseChapters.value) {
-    const section = chapter.sections.find(s => getSectionId(s) === activeResource.value.sectionId)
-    if (section) {
-      return getSectionResources(section).map(r => {
-        const cache = learnStore.progressCache.get(r.resource_id)
-        const isActive = r.resource_id === activeResource.value.resourceId
-        const liveProgressPercent = activeResource.value.totalTime > 0
-          ? Math.round((activeResource.value.currentTime / activeResource.value.totalTime) * 100)
-          : 0
-        const progressPercent = isActive
-          ? liveProgressPercent
-          : cache && cache.totalTime > 0
-            ? Math.round((cache.currentTime / cache.totalTime) * 100)
-            : 0
-        return {
-          ...r,
-          isActive,
-          isCompleted: cache?.isCompleted ?? false,
-          progressPercent,
-        }
-      })
+const currentTaskResources = computed(() => {
+  return getTaskResources().map(r => {
+    const cache = learnStore.progressCache.get(r.resource_id)
+    const isActive = r.resource_id === activeResource.value.resourceId
+    const liveProgressPercent = activeResource.value.totalTime > 0
+      ? Math.round((activeResource.value.currentTime / activeResource.value.totalTime) * 100)
+      : 0
+    const progressPercent = isActive
+      ? liveProgressPercent
+      : cache && cache.totalTime > 0
+        ? Math.round((cache.currentTime / cache.totalTime) * 100)
+        : 0
+    return {
+      ...r,
+      isActive,
+      isCompleted: cache?.isCompleted ?? false,
+      progressPercent,
     }
-  }
-  return []
+  })
 })
 
 // 初始化课程
@@ -237,31 +286,61 @@ async function initCourse() {
 }
 
 // 确定初始资源
-async function determineInitialResource(): Promise<{ sectionId: number; resourceId: number } | null> {
+async function determineInitialResource(): Promise<{ sectionId: number | null; chapterId: number; resourceId: number } | null> {
   // 优先级 1：路由 query 参数
-  if (targetSectionId.value && targetResourceId.value) {
-    return { sectionId: targetSectionId.value, resourceId: targetResourceId.value }
+  if (targetResourceId.value) {
+    const located = findResourceLocation(targetResourceId.value)
+    if (located) {
+      return {
+        sectionId: located.sectionId,
+        chapterId: targetChapterId.value ?? located.chapterId,
+        resourceId: targetResourceId.value,
+      }
+    }
+    if (targetChapterId.value) {
+      return { sectionId: null, chapterId: targetChapterId.value, resourceId: targetResourceId.value }
+    }
+    if (targetSectionId.value) {
+      return { sectionId: targetSectionId.value, chapterId: 0, resourceId: targetResourceId.value }
+    }
   }
 
   // 优先级 2：继续学习信息
   try {
     const info = await fetchContinueInfo(courseId.value)
     learnStore.setContinueInfo(info)
-    return { sectionId: info.last_section_id, resourceId: info.last_resource_id }
+    if (info.last_resource_id != null) {
+      const located = findResourceLocation(info.last_resource_id)
+      return {
+        sectionId: located?.sectionId ?? info.last_section_id ?? info.section_id ?? null,
+        chapterId: located?.chapterId ?? info.chapter_id ?? 0,
+        resourceId: info.last_resource_id,
+      }
+    }
   } catch {
     learnStore.setContinueInfo(null)
   }
 
-  // 优先级 3：课程第一个资源
+  // 优先级 3：课程第一个资源，优先小节资源，其次章节资源
   const chapters = learnStore.currentCourseChapters
   const firstChapter = chapters[0]
+  const firstChapterResource = firstChapter ? getChapterResources(firstChapter)[0] : null
   const firstSection = firstChapter?.sections[0]
   const firstResource = firstSection ? getSectionResources(firstSection)[0] : null
 
   if (firstChapter && firstSection && firstResource) {
     return {
       sectionId: getSectionId(firstSection),
+      chapterId: getChapterId(firstChapter),
       resourceId: firstResource.resource_id,
+    }
+  }
+
+  if (firstChapter && firstChapterResource) {
+    return {
+      sectionId: null,
+      chapterId: getChapterId(firstChapter),
+      resourceId: firstChapterResource.resource_id,
     }
   }
 
@@ -272,7 +351,7 @@ async function determineInitialResource(): Promise<{ sectionId: number; resource
 let switchAbortController: AbortController | null = null
 let currentSwitchId = 0
 
-async function switchResource(sectionId: number, resourceId: number): Promise<void> {
+async function switchResource(sectionId: number | null, resourceId: number, chapterIdArg?: number): Promise<void> {
   // 取消上一次未完成的切换
   if (switchAbortController) {
     switchAbortController.abort()
@@ -289,13 +368,10 @@ async function switchResource(sectionId: number, resourceId: number): Promise<vo
   documentRenderMode.value = 'download'
 
   // 找到章节 ID
-  let chapterId = 0
-  for (const chapter of courseChapters.value) {
-    const section = chapter.sections.find(s => getSectionId(s) === sectionId)
-    if (section) {
-      chapterId = getChapterId(chapter)
-      break
-    }
+  let chapterId = chapterIdArg ?? 0
+  if (!chapterId) {
+    const located = findResourceLocation(resourceId)
+    chapterId = located?.chapterId ?? 0
   }
 
   try {
@@ -427,7 +503,7 @@ function handleAutoNext() {
     autoNextCountdown.value--
     if (autoNextCountdown.value <= 0) {
       cancelAutoNext()
-      switchResource(next.sectionId, next.resourceId)
+      switchResource(next.sectionId, next.resourceId, next.chapterId)
     }
   }, 1000)
 }
@@ -445,17 +521,34 @@ function toggleSidebar() {
   isSidebarCollapsed.value = !isSidebarCollapsed.value
 }
 
+function closeSidebar() {
+  isSidebarCollapsed.value = true
+}
+
 function toggleChapter(chapterId: number) {
   chapterExpandMap.value[chapterId] = !chapterExpandMap.value[chapterId]
 }
 
-function handleResourceClick(sectionId: number, resourceId: number) {
-  switchResource(sectionId, resourceId)
+function handleResourceClick(sectionId: number | null, resourceId: number, chapterId?: number) {
+  switchResource(sectionId, resourceId, chapterId)
+  if (isOverlaySidebar.value) {
+    closeSidebar()
+  }
 }
 
 function handleSectionClick(section: any) {
   if (section.resources && section.resources.length > 0) {
-    switchResource(section.section_id, section.resources[0].resource_id)
+    switchResource(section.section_id, section.resources[0].resource_id, section.chapter_id)
+    if (isOverlaySidebar.value) {
+      closeSidebar()
+    }
+  }
+}
+
+function handleChapterResourceClick(chapterId: number, resourceId: number) {
+  switchResource(null, resourceId, chapterId)
+  if (isOverlaySidebar.value) {
+    closeSidebar()
   }
 }
 
@@ -510,6 +603,12 @@ function handleKeydown(e: KeyboardEvent) {
         mediaRef.muted = !mediaRef.muted
       }
       break
+    case 'Escape':
+      if (isOverlaySidebar.value && !isSidebarCollapsed.value) {
+        e.preventDefault()
+        closeSidebar()
+      }
+      break
   }
 }
 
@@ -536,8 +635,18 @@ onBeforeRouteLeave(async (_to, _from, next) => {
   next()
 })
 
+watch(isOverlaySidebar, (overlay, previous) => {
+  if (overlay && !previous) {
+    isSidebarCollapsed.value = true
+  }
+})
+
 // 初始化
 onMounted(async () => {
+  if (isOverlaySidebar.value) {
+    isSidebarCollapsed.value = true
+  }
+
   // 检查登录状态
   if (!userStore.isLoggedIn) {
     router.push({ path: '/login', query: { redirect: route.fullPath } })
@@ -624,11 +733,11 @@ onUnmounted(() => {
           <el-tab-pane label="当前任务" name="current-task">
             <div class="task-list">
               <div
-                v-for="resource in currentSectionResources"
+                v-for="resource in currentTaskResources"
                 :key="resource.resource_id"
                 class="task-item"
                 :class="{ active: resource.isActive }"
-                @click="handleResourceClick(activeResource.sectionId!, resource.resource_id)"
+                @click="handleResourceClick(activeResource.sectionId, resource.resource_id, activeResource.chapterId ?? undefined)"
               >
                 <el-icon class="resource-icon" :class="resource.resource_type">
                   <component :is="resourceIconMap[resource.resource_type]" />
@@ -663,6 +772,25 @@ onUnmounted(() => {
                 </div>
                 <div v-show="chapter.isExpanded" class="section-list">
                   <div
+                    v-for="resource in chapter.resources"
+                    :key="`chapter-${chapter.chapter_id}-${resource.resource_id}`"
+                    class="chapter-resource-node"
+                    :class="{ active: chapter.hasActiveChapterResource && activeResource.resourceId === resource.resource_id }"
+                    @click="handleChapterResourceClick(chapter.chapter_id, resource.resource_id)"
+                  >
+                    <div class="section-title">{{ resource.file_name }}</div>
+                    <div class="resource-mini-list">
+                      <div
+                        class="resource-mini-item"
+                        :class="{ active: activeResource.resourceId === resource.resource_id }"
+                      >
+                        <el-icon class="mini-icon" :class="resource.resource_type">
+                          <component :is="resourceIconMap[resource.resource_type]" />
+                        </el-icon>
+                      </div>
+                    </div>
+                  </div>
+                  <div
                     v-for="section in chapter.sections"
                     :key="section.section_id"
                     class="section-node"
@@ -691,6 +819,12 @@ onUnmounted(() => {
         </el-tabs>
       </div>
 
+      <div
+        v-if="isOverlaySidebar && !isSidebarCollapsed"
+        class="sidebar-overlay"
+        @click="closeSidebar"
+      />
+
       <!-- 右侧主内容区 -->
       <div class="learn-content">
         <!-- 加载中 -->
@@ -702,7 +836,7 @@ onUnmounted(() => {
         <div v-else-if="activeResource.loadState === 'error'" class="content-error">
           <el-result icon="warning" :title="activeResource.errorMessage || '资源加载失败'">
             <template #extra>
-              <el-button type="primary" @click="switchResource(activeResource.sectionId!, activeResource.resourceId!)">
+              <el-button type="primary" @click="switchResource(activeResource.sectionId, activeResource.resourceId!, activeResource.chapterId ?? undefined)">
                 重试
               </el-button>
             </template>
@@ -818,6 +952,7 @@ onUnmounted(() => {
   position: fixed;
   top: 0;
   left: 0;
+  z-index: 1001;
   width: 100vw;
   height: 100vh;
   display: flex;
@@ -880,13 +1015,17 @@ onUnmounted(() => {
   width: 320px;
   background: #2b2b2b;
   border-right: 1px solid #3a3a3a;
-  transition: width 0.3s ease;
+  transition: width 0.3s ease, transform 0.3s ease;
   overflow: hidden;
   flex-shrink: 0;
 
   &.collapsed {
     width: 0;
   }
+}
+
+.sidebar-overlay {
+  display: none;
 }
 
 .sidebar-tabs {
@@ -1039,6 +1178,23 @@ onUnmounted(() => {
 
   &.active {
     background: rgba(24, 144, 255, 0.1);
+  }
+}
+
+.chapter-resource-node {
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+
+  &:hover {
+    background: #3a3a3a;
+  }
+
+  &.active {
+    background: rgba(24, 144, 255, 0.1);
+    border-color: rgba(24, 144, 255, 0.4);
   }
 }
 
@@ -1217,6 +1373,17 @@ onUnmounted(() => {
 
 // 响应式
 @media (max-width: $breakpoint-lg) {
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    top: 48px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 90;
+    background: rgba(0, 0, 0, 0.45);
+  }
+
   .learn-sidebar {
     position: fixed;
     top: 48px;

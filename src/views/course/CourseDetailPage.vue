@@ -12,7 +12,6 @@ import {
   Document,
   Headset,
   Picture,
-  Upload,
   Plus,
   Delete,
   User,
@@ -23,12 +22,13 @@ import {
   fetchCourseDetail,
   fetchContinueInfo,
   startLearning,
-  submitFeedback,
-  uploadFile as uploadFileApi,
   type CourseDetail,
   type CourseMaterial,
+  type CourseChapter,
+  type CourseResource,
 } from '@/api/learning'
 import { formatFileSize, formatDuration, formatDate } from '@/utils/format'
+import FeedbackForm from '@/components/feedback/FeedbackForm.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -52,14 +52,6 @@ const isFetchingContinue = ref(false)
 
 // 资料下载
 const downloadingMap = ref<Record<number, boolean>>({})
-
-// 反馈表单
-const feedbackForm = ref({
-  content: '',
-  images: [] as string[],
-  uploading: false,
-  submitting: false,
-})
 
 // 预览状态
 const previewVisible = ref(false)
@@ -189,12 +181,19 @@ async function handleStartLearn() {
 
   // 跳转学习页
   if (continueInfo.value) {
+    const query: Record<string, number> = {}
+    if (continueInfo.value.last_resource_id != null) {
+      query.resourceId = continueInfo.value.last_resource_id
+    }
+    if (continueInfo.value.last_section_id != null) {
+      query.sectionId = continueInfo.value.last_section_id
+    } else if (continueInfo.value.chapter_id != null) {
+      query.chapterId = continueInfo.value.chapter_id
+    }
+
     router.push({
       path: `/learn/${courseId.value}`,
-      query: {
-        sectionId: continueInfo.value.last_section_id,
-        resourceId: continueInfo.value.last_resource_id,
-      },
+      query,
     })
   } else {
     router.push(`/learn/${courseId.value}`)
@@ -283,86 +282,6 @@ function handlePreview(material: CourseMaterial) {
   previewVisible.value = true
 }
 
-// 处理图片上传
-async function handleImageUpload(uploadFile: { raw?: File }) {
-  const file = uploadFile.raw
-  if (!file) return
-
-  // 校验文件类型
-  if (!['image/jpeg', 'image/png'].includes(file.type)) {
-    ElMessage.warning('仅支持 JPG/PNG 格式')
-    return
-  }
-
-  // 校验文件大小
-  if (file.size > 5 * 1024 * 1024) {
-    ElMessage.warning('单张图片最大 5MB')
-    return
-  }
-
-  // 校验数量
-  if (feedbackForm.value.images.length >= 8) {
-    ElMessage.warning('最多上传 8 张图片')
-    return
-  }
-
-  feedbackForm.value.uploading = true
-  try {
-    const result = await uploadFileApi(file)
-    feedbackForm.value.images.push(result.file_url)
-  } catch {
-    ElMessage.error('图片上传失败')
-  } finally {
-    feedbackForm.value.uploading = false
-  }
-}
-
-// 删除已上传图片
-function handleRemoveImage(index: number) {
-  feedbackForm.value.images.splice(index, 1)
-}
-
-// 提交反馈
-async function handleSubmitFeedback() {
-  if (!userStore.isLoggedIn) {
-    ElMessage.warning('请先登录后再提交反馈')
-    router.push({ path: '/login', query: { redirect: route.fullPath } })
-    return
-  }
-
-  // 校验内容
-  if (feedbackForm.value.content.length < 10) {
-    ElMessage.warning('反馈内容至少 10 个字符')
-    return
-  }
-  if (feedbackForm.value.content.length > 500) {
-    ElMessage.warning('反馈内容最多 500 个字符')
-    return
-  }
-
-  feedbackForm.value.submitting = true
-  try {
-    await submitFeedback({
-      feedback_type: 'course',
-      course_id: courseId.value,
-      content: feedbackForm.value.content,
-      images: feedbackForm.value.images.length > 0 ? feedbackForm.value.images : undefined,
-    })
-    ElMessage.success('反馈已提交，感谢您的反馈')
-    feedbackForm.value.content = ''
-    feedbackForm.value.images = []
-  } catch (error: unknown) {
-    const err = error as { response?: { status?: number } }
-    if (err.response?.status === 429) {
-      ElMessage.warning('提交过于频繁，请稍后再试')
-    } else {
-      ElMessage.error('反馈提交失败，请稍后重试')
-    }
-  } finally {
-    feedbackForm.value.submitting = false
-  }
-}
-
 // 返回首页
 function goHome() {
   router.push('/')
@@ -390,6 +309,38 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
   audio: Headset,
   document: Document,
   image: Picture,
+}
+
+function getChapterResources(chapter: CourseChapter): CourseResource[] {
+  return chapter.resources ?? []
+}
+
+function getChapterResourceCount(chapter: CourseChapter): number {
+  return getChapterResources(chapter).length
+}
+
+function openChapterResource(resource: CourseResource) {
+  if (!userStore.isLoggedIn) {
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+
+  const chapter = course.value?.chapters?.find(item =>
+    (item.resources ?? []).some(candidate => candidate.resource_id === resource.resource_id)
+  )
+
+  if (!chapter) {
+    ElMessage.warning('未找到资源所属章节，暂时无法打开')
+    return
+  }
+
+  router.push({
+    path: `/learn/${courseId.value}`,
+    query: {
+      chapterId: chapter.chapter_id,
+      resourceId: resource.resource_id,
+    },
+  })
 }
 </script>
 
@@ -547,9 +498,31 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
                     <ArrowRight />
                   </el-icon>
                   <span class="chapter-title">{{ chapter.title }}</span>
-                  <span class="section-count">{{ chapter.sections.length }} 小节</span>
+                  <span class="section-count">
+                    {{ chapter.sections.length }} 小节
+                    <template v-if="getChapterResourceCount(chapter) > 0">
+                      / {{ getChapterResourceCount(chapter) }} 章节资源
+                    </template>
+                  </span>
                 </div>
                 <div v-show="chapterExpandMap[chapter.chapter_id!]" class="section-list">
+                  <div v-if="getChapterResourceCount(chapter) > 0" class="chapter-resource-group">
+                    <div class="chapter-resource-title">章节资源</div>
+                    <div
+                      v-for="resource in getChapterResources(chapter)"
+                      :key="resource.resource_id"
+                      class="resource-item chapter-resource-item"
+                      @click="openChapterResource(resource)"
+                    >
+                      <el-icon class="resource-icon" :class="resource.resource_type">
+                        <component :is="resourceIconMap[resource.resource_type]" />
+                      </el-icon>
+                      <span class="resource-name">{{ resource.file_name }}</span>
+                      <span v-if="resource.duration" class="resource-duration">
+                        {{ formatDuration(resource.duration) }}
+                      </span>
+                    </div>
+                  </div>
                   <div
                     v-for="section in chapter.sections"
                     :key="section.section_id"
@@ -625,60 +598,14 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
 
           <!-- 反馈 -->
           <el-tab-pane label="反馈" name="feedback">
-            <div class="feedback-form">
-              <el-form label-position="top">
-                <el-form-item label="反馈类型">
-                  <el-select value="课程问题" disabled>
-                    <el-option label="课程问题" value="course" />
-                  </el-select>
-                </el-form-item>
-                <el-form-item label="反馈内容">
-                  <el-input
-                    v-model="feedbackForm.content"
-                    type="textarea"
-                    :rows="5"
-                    :maxlength="500"
-                    show-word-limit
-                    placeholder="请描述您遇到的问题或建议..."
-                  />
-                </el-form-item>
-                <el-form-item label="截图（可选，最多8张）">
-                  <el-upload
-                    ref="uploadRef"
-                    action="#"
-                    list-type="picture-card"
-                    :auto-upload="false"
-                    :on-change="handleImageUpload"
-                    :show-file-list="false"
-                    accept="image/jpeg,image/png"
-                  >
-                    <el-icon v-if="feedbackForm.uploading" class="is-loading"><Upload /></el-icon>
-                    <el-icon v-else><Plus /></el-icon>
-                  </el-upload>
-                  <div v-if="feedbackForm.images.length > 0" class="image-preview-list">
-                    <div
-                      v-for="(img, index) in feedbackForm.images"
-                      :key="index"
-                      class="image-preview-item"
-                    >
-                      <el-image :src="img" fit="cover" />
-                      <div class="remove-btn" @click="handleRemoveImage(index)">
-                        <el-icon><Delete /></el-icon>
-                      </div>
-                    </div>
-                  </div>
-                </el-form-item>
-                <el-form-item>
-                  <el-button
-                    type="primary"
-                    :loading="feedbackForm.submitting"
-                    :disabled="feedbackForm.content.length < 10"
-                    @click="handleSubmitFeedback"
-                  >
-                    提交反馈
-                  </el-button>
-                </el-form-item>
-              </el-form>
+            <div class="course-feedback-panel">
+              <FeedbackForm
+                class="course-feedback-form"
+                mode="inline"
+                default-type="course"
+                :type-locked="true"
+                :course-id="courseId"
+              />
             </div>
           </el-tab-pane>
         </el-tabs>
@@ -1077,6 +1004,18 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
     background: #fff;
   }
 
+  .chapter-resource-group {
+    padding: 4px 0 12px;
+  }
+
+  .chapter-resource-title {
+    padding: 0 12px 8px;
+    font-size: $font-size-xs;
+    font-weight: 600;
+    color: $text-tertiary;
+    letter-spacing: 0.04em;
+  }
+
   .section-item {
     padding: 10px 12px;
     border-radius: $radius-md;
@@ -1150,6 +1089,17 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
       color: $text-tertiary;
     }
   }
+
+  .chapter-resource-item {
+    margin-bottom: 4px;
+    cursor: pointer;
+    border: 1px dashed $border-color-light;
+
+    &:hover {
+      background: rgba($primary-color, 0.05);
+      border-color: rgba($primary-color, 0.3);
+    }
+  }
 }
 
 // 课程简介
@@ -1216,48 +1166,16 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
   }
 }
 
-// 反馈表单
-.feedback-form {
-  max-width: 600px;
+// 反馈区
+.course-feedback-panel {
+  max-width: 720px;
   padding: 24px 0;
 }
 
-.image-preview-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.image-preview-item {
-  position: relative;
-  width: 100px;
-  height: 100px;
-  border-radius: $radius-sm;
-  overflow: hidden;
-
-  .el-image {
-    width: 100%;
-    height: 100%;
-  }
-
-  .remove-btn {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.5);
-    border-radius: 50%;
-    color: white;
-    cursor: pointer;
-
-    &:hover {
-      background: rgba(0, 0, 0, 0.7);
-    }
+.course-feedback-form {
+  :deep(.feedback-form.inline) {
+    padding: 0;
+    background: #fff;
   }
 }
 
@@ -1367,7 +1285,7 @@ const resourceIconMap: Record<string, typeof VideoPlay> = {
     }
   }
 
-  .feedback-form {
+  .course-feedback-panel {
     padding: 16px 0;
   }
 

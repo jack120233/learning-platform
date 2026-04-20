@@ -40,6 +40,17 @@ export interface CourseMaterial {
   download_count: number
 }
 
+/** 课程资源 */
+export interface CourseResource {
+  resource_id: number
+  section_id?: number | null
+  resource_type: 'video' | 'audio' | 'document' | 'image'
+  file_name: string
+  file_url?: string
+  file_size?: number
+  duration?: number
+}
+
 /** 课程章节 */
 export interface CourseChapter {
   id?: number          // 后端返回字段
@@ -51,6 +62,7 @@ export interface CourseChapter {
   is_free?: boolean
   total_duration?: number
   section_count?: number
+  resources?: CourseResource[]
   sections: CourseSection[]
 }
 
@@ -66,23 +78,22 @@ export interface CourseSection {
   is_free?: boolean
   duration?: number
   resource_count?: number
-  resources?: SectionResource[]  // 详情页可能不返回
+  resources?: CourseResource[]  // 详情页可能不返回
 }
 
 /** 小节资源 */
-export interface SectionResource {
-  resource_id: number
-  resource_type: 'video' | 'audio' | 'document' | 'image'
-  file_name: string
-  duration?: number
-}
+export interface SectionResource extends CourseResource {}
 
 /** 继续学习信息 */
 export interface ContinueLearningInfo {
   course_id: number
-  last_section_id: number
+  chapter_id: number | null
+  section_id: number | null
+  resource_id: number | null
+  position: number
+  last_section_id: number | null
   last_section_title: string
-  last_resource_id: number
+  last_resource_id: number | null
   last_resource_type: string
   current_time: number
   last_learn_at: string
@@ -100,7 +111,7 @@ export interface ResourcePlayInfo {
 
 /** 保存学习进度请求 */
 export interface SaveProgressRequest {
-  section_id: number
+  section_id?: number
   resource_id: number
   current_time: number
   total_time: number
@@ -109,7 +120,7 @@ export interface SaveProgressRequest {
 
 /** 学习进度 */
 export interface LearningProgress {
-  section_id: number
+  section_id: number | null
   resource_id: number
   current_time: number
   total_time: number
@@ -171,9 +182,12 @@ export function getResourcePlayUrl(resourceId: number): Promise<ResourcePlayInfo
 /**
  * 获取学习进度
  */
-export function getProgress(sectionId: number, resourceId: number): Promise<LearningProgress> {
+export function getProgress(sectionId: number | null | undefined, resourceId: number): Promise<LearningProgress> {
   return request.get<unknown, LearningProgress>('/learning/progress', {
-    params: { section_id: sectionId, resource_id: resourceId },
+    params: {
+      resource_id: resourceId,
+      ...(sectionId != null ? { section_id: sectionId } : {}),
+    },
   })
 }
 

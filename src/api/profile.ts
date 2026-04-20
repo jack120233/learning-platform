@@ -43,8 +43,8 @@ export interface LearningRecordItem {
   course_id: number
   course_title: string
   course_cover: string
-  last_section_id: number
-  last_section_title: string
+  last_section_id: number | null
+  last_section_title: string | null
   last_learn_at: string
   course_status: 'published' | 'archived'
 }

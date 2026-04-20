@@ -149,7 +149,7 @@ onMounted(() => {
 
             <p class="record-section">
               <el-icon><VideoPlay /></el-icon>
-              上次学习：{{ record.last_section_title }}
+              上次学习：{{ record.last_section_title || '章节资源' }}
             </p>
 
             <p class="record-time">

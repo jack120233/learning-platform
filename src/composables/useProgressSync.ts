@@ -56,7 +56,8 @@ export function useProgressSync(options: UseProgressSyncOptions = {}) {
 
     try {
       const request: SaveProgressRequest = {
-        section_id: active.sectionId!,
+        ...(active.sectionId != null ? { section_id: active.sectionId } : {}),
+        ...(active.chapterId != null ? { chapter_id: active.chapterId } : {}),
         resource_id: active.resourceId,
         current_time: Math.floor(active.currentTime),
         total_time: Math.floor(active.totalTime),
@@ -76,7 +77,8 @@ export function useProgressSync(options: UseProgressSyncOptions = {}) {
       // 如果是网络错误，加入离线队列
       if (!navigator.onLine) {
         offlineQueue.value.push({
-          section_id: active.sectionId!,
+          ...(active.sectionId != null ? { section_id: active.sectionId } : {}),
+          ...(active.chapterId != null ? { chapter_id: active.chapterId } : {}),
           resource_id: active.resourceId,
           current_time: Math.floor(active.currentTime),
           total_time: Math.floor(active.totalTime),
@@ -132,6 +134,7 @@ export function useProgressSync(options: UseProgressSyncOptions = {}) {
 
     const payload = JSON.stringify({
       section_id: active.sectionId,
+      chapter_id: active.chapterId,
       resource_id: active.resourceId,
       current_time: Math.floor(active.currentTime),
       total_time: Math.floor(active.totalTime),

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { CourseChapter, ContinueLearningInfo } from '@/api/learning'
+import type { CourseChapter, ContinueLearningInfo, CourseResource } from '@/api/learning'
 
 // ==================== 类型定义 ====================
 
@@ -43,6 +43,12 @@ interface ProgressCacheItem {
   totalTime: number
   isCompleted: boolean
   lastSyncedAt: number
+}
+
+interface ResourceLocator {
+  chapterId: number
+  sectionId: number | null
+  resource: CourseResource
 }
 
 function getSectionId(section: CourseChapter['sections'][number]): number {
@@ -115,7 +121,7 @@ export const useLearnStore = defineStore('learn', () => {
   function setActiveResource(data: {
     resourceId: number
     resourceType: 'video' | 'audio' | 'document' | 'image'
-    sectionId: number
+    sectionId: number | null
     chapterId: number
     fileUrl: string
     totalTime?: number
@@ -217,51 +223,58 @@ export const useLearnStore = defineStore('learn', () => {
   /**
    * 获取下一个资源
    */
-  function getNextResource(): { sectionId: number; resourceId: number } | null {
-    const chapters = currentCourseChapters.value
-    const current = activeResource.value
-    if (!current.resourceId) return null
+  function getNextResource(): { sectionId: number | null; chapterId: number; resourceId: number } | null {
+    const orderedResources = flattenCourseResources()
+    const currentIndex = orderedResources.findIndex(item => item.resource.resource_id === activeResource.value.resourceId)
+    if (currentIndex < 0 || currentIndex + 1 >= orderedResources.length) return null
 
-    let found = false
-
-    for (const chapter of chapters) {
-      for (const section of chapter.sections) {
-        for (const resource of section.resources ?? []) {
-          if (found) {
-            return { sectionId: getSectionId(section), resourceId: resource.resource_id }
-          }
-          if (resource.resource_id === current.resourceId) {
-            found = true
-          }
-        }
-      }
+    const next = orderedResources[currentIndex + 1]
+    return {
+      sectionId: next.sectionId,
+      chapterId: next.chapterId,
+      resourceId: next.resource.resource_id,
     }
-
-    return null
   }
 
   /**
    * 获取上一个资源
    */
-  function getPrevResource(): { sectionId: number; resourceId: number } | null {
-    const chapters = currentCourseChapters.value
-    const current = activeResource.value
-    if (!current.resourceId) return null
+  function getPrevResource(): { sectionId: number | null; chapterId: number; resourceId: number } | null {
+    const orderedResources = flattenCourseResources()
+    const currentIndex = orderedResources.findIndex(item => item.resource.resource_id === activeResource.value.resourceId)
+    if (currentIndex <= 0) return null
 
-    let prev: { sectionId: number; resourceId: number } | null = null
+    const prev = orderedResources[currentIndex - 1]
+    return {
+      sectionId: prev.sectionId,
+      chapterId: prev.chapterId,
+      resourceId: prev.resource.resource_id,
+    }
+  }
 
-    for (const chapter of chapters) {
+  function flattenCourseResources(): ResourceLocator[] {
+    const resources: ResourceLocator[] = []
+    for (const chapter of currentCourseChapters.value) {
+      const chapterId = chapter.chapter_id ?? 0
+      for (const resource of chapter.resources ?? []) {
+        resources.push({
+          chapterId,
+          sectionId: null,
+          resource,
+        })
+      }
       for (const section of chapter.sections) {
+        const sectionId = getSectionId(section)
         for (const resource of section.resources ?? []) {
-          if (resource.resource_id === current.resourceId) {
-            return prev
-          }
-          prev = { sectionId: getSectionId(section), resourceId: resource.resource_id }
+          resources.push({
+            chapterId,
+            sectionId,
+            resource,
+          })
         }
       }
     }
-
-    return null
+    return resources
   }
 
   /**
@@ -320,6 +333,7 @@ export const useLearnStore = defineStore('learn', () => {
     restoreProgress,
     markResourceCompleted,
     updateProgressCache,
+    flattenCourseResources,
     getNextResource,
     getPrevResource,
     cleanup,
