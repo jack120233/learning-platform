@@ -58,6 +58,10 @@ const feedbackTypes = [
   { label: '课程问题', value: 'course' },
 ]
 
+const currentFeedbackTypeLabel = computed(() =>
+  feedbackTypes.find((type) => type.value === form.feedback_type)?.label ?? form.feedback_type
+)
+
 // 表单校验规则
 const rules = {
   feedback_type: [
@@ -174,9 +178,12 @@ function handleCancel() {
     >
       <!-- 反馈类型 -->
       <el-form-item label="反馈类型" prop="feedback_type">
+        <div v-if="typeLocked" class="readonly-type-field">
+          <span class="readonly-type-label">{{ currentFeedbackTypeLabel }}</span>
+        </div>
         <el-select
+          v-else
           v-model="form.feedback_type"
-          :disabled="typeLocked"
           placeholder="请选择反馈类型"
           style="width: 100%"
         >
@@ -257,6 +264,28 @@ function handleCancel() {
     background: #fafafa;
     border-radius: 8px;
   }
+}
+
+.readonly-type-field {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  background: #f4f7fb;
+  border: 1px solid #dbe5f0;
+  border-radius: 10px;
+}
+
+.readonly-type-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  background: #e8f1ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .upload-tip {

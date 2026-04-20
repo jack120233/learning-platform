@@ -61,6 +61,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       title: '学习中',
       requiresAuth: true,
+      hideAppChrome: true,
     },
   },
   {

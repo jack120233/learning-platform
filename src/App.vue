@@ -1,20 +1,25 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
+
+const route = useRoute()
+const hideAppChrome = computed(() => route.meta.hideAppChrome === true)
 </script>
 
 <template>
   <el-config-provider>
     <div class="app-container">
-      <AppHeader />
-      <main class="main-content">
+      <AppHeader v-if="!hideAppChrome" />
+      <main class="main-content" :class="{ immersive: hideAppChrome }">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
             <component :is="Component" />
           </transition>
         </router-view>
       </main>
-      <AppFooter />
+      <AppFooter v-if="!hideAppChrome" />
     </div>
   </el-config-provider>
 </template>
@@ -29,6 +34,10 @@ import AppFooter from '@/components/layout/AppFooter.vue'
 .main-content {
   flex: 1;
   background-color: #f5f7fa;
+}
+
+.main-content.immersive {
+  background-color: transparent;
 }
 
 // 页面切换动画
