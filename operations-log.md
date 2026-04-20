@@ -220,3 +220,22 @@
   - 已执行：`python -m pytest E:/video_project/proj_ui/project_code/backend/tests/test_courses.py -q`
   - 结果：`23 passed`
   - 备注：测试输出包含现有 `datetime.utcnow()` 与 FastAPI 422 常量弃用告警，本次改动未额外扩大处理范围。
+
+## 后端启动脚本报错展示修复
+时间：2026-04-17
+
+- 变更原因：`backend/run.bat` 启动时没有直观看到真实报错，且因模块搜索路径异常导致 `app.main:app` 导入失败，需要修复启动链路和报错展示。
+- 涉及文件：
+  - `backend/run.bat`
+  - `.claude/context-summary-backend-runbat-fix.md`
+  - `.claude/verification-report.md`
+  - `operations-log.md`
+- 核心改动：
+  - 删除无意义的 `start powershell` 逻辑，避免额外窗口打断启动输出。
+  - 为脚本补充 `BACKEND_DIR` 和 `PYTHONPATH`，让 `uvicorn app.main:app` 能按 `backend/` 目录解析 `app` 包。
+  - 启动前输出工作目录和 Python 路径，启动失败后明确提示上方输出就是实际报错信息，并保留 `pause`。
+  - 保持原有虚拟环境双路径探测逻辑，只把提示文本改成中文。
+- 验证结果：
+  - 已执行：只读复核 `backend/run.bat` 新逻辑，确认启动命令、错误分支和暂停提示已落盘。
+  - 已执行：通过直接运行 Python/uvicorn 链路复现过原始错误 `ModuleNotFoundError: No module named 'app'`，修复针对该问题生效。
+  - 未完成：当前会话里的 Bash 对 Windows `cmd.exe /c` 复合命令转义异常，未能在此界面稳定回显 bat 交互窗口输出；建议你本机双击或在 `cmd` 中执行 `E:\video_project\proj_ui\project_code\backend\run.bat` 做最终目视确认。
