@@ -3,9 +3,11 @@ import { useUserStore } from '@/store/user'
 
 const ADMIN_ROUTE_PERMISSIONS = [
   { path: '/admin/users', permissionCode: 'admin.user' },
-  { path: '/admin/roles', permissionCode: 'admin.role_permission' },
   { path: '/admin/announcements', permissionCode: 'admin.announcement' },
   { path: '/admin/feedbacks', permissionCode: 'admin.feedback' },
+  { path: '/admin/messages', permissionCode: 'admin.message' },
+  { path: '/admin/categories', permissionCode: 'admin.category' },
+  { path: '/admin/tags', permissionCode: 'admin.tag' },
 ]
 
 const routes: RouteRecordRaw[] = [
@@ -153,12 +155,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '用户管理', permissionCode: 'admin.user' },
       },
       {
-        path: 'roles',
-        name: 'AdminRoles',
-        component: () => import('@/views/admin/RolePermissionPage.vue'),
-        meta: { title: '角色权限', permissionCode: 'admin.role_permission' },
-      },
-      {
         path: 'announcements',
         name: 'AdminAnnouncements',
         component: () => import('@/views/admin/AnnouncementPage.vue'),
@@ -169,6 +165,24 @@ const routes: RouteRecordRaw[] = [
         name: 'AdminFeedbacks',
         component: () => import('@/views/admin/FeedbackManagePage.vue'),
         meta: { title: '反馈管理', permissionCode: 'admin.feedback' },
+      },
+      {
+        path: 'messages',
+        name: 'AdminMessages',
+        component: () => import('@/views/admin/AdminMessagePage.vue'),
+        meta: { title: '系统消息', permissionCode: 'admin.message' },
+      },
+      {
+        path: 'categories',
+        name: 'AdminCategories',
+        component: () => import('@/views/admin/CategoryManagePage.vue'),
+        meta: { title: '分类管理', permissionCode: 'admin.category' },
+      },
+      {
+        path: 'tags',
+        name: 'AdminTags',
+        component: () => import('@/views/admin/TagManagePage.vue'),
+        meta: { title: '标签管理', permissionCode: 'admin.tag' },
       },
     ],
   },

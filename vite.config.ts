@@ -6,6 +6,9 @@ import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 export default defineConfig({
+  // Keep Vite's prebundle cache out of node_modules on Windows to avoid
+  // intermittent ENOTEMPTY/EPERM cleanup failures around deps_temp_* dirs.
+  cacheDir: resolve(__dirname, '.vite-cache'),
   plugins: [
     vue(),
     AutoImport({

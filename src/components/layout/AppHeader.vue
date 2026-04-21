@@ -264,7 +264,7 @@ watch(() => route.fullPath, () => {
               </el-avatar>
               <div class="user-info-text">
                 <div class="nickname">{{ userStore.userInfo.nickname || userStore.userInfo.username }}</div>
-                <div class="role-tag">{{ userStore.isAdmin ? '管理员' : userStore.isTeacher ? '讲师' : '学员' }}</div>
+                <div class="role-tag">{{ userStore.isTeacher || userStore.isAdmin ? '讲师' : '学员' }}</div>
               </div>
             </div>
             <div class="user-menu">

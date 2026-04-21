@@ -95,6 +95,16 @@ onMounted(() => {
             关联课程：{{ feedback.course_title }}
           </p>
 
+          <div v-if="feedback.reply" class="feedback-reply">
+            <div class="feedback-reply__header">
+              <span class="feedback-reply__title">管理员回复</span>
+              <span v-if="feedback.replied_at" class="feedback-reply__time">
+                {{ formatTime(feedback.replied_at) }}
+              </span>
+            </div>
+            <p class="feedback-reply__content">{{ feedback.reply }}</p>
+          </div>
+
           <!-- 图片列表 -->
           <div class="feedback-images" v-if="feedback.images?.length">
             <el-image
@@ -216,6 +226,42 @@ onMounted(() => {
   gap: 6px;
 }
 
+.feedback-reply {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  background: #f0f7ff;
+  border-radius: 8px;
+  border-left: 3px solid #409eff;
+}
+
+.feedback-reply__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.feedback-reply__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #409eff;
+}
+
+.feedback-reply__time {
+  font-size: 12px;
+  color: #999;
+}
+
+.feedback-reply__content {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #333;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .feedback-images {
   display: flex;
   gap: 8px;
@@ -256,5 +302,25 @@ onMounted(() => {
   margin-top: 24px;
   display: flex;
   justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .my-feedbacks-page {
+    .page-header {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 8px;
+    }
+  }
+
+  .card-header,
+  .feedback-reply__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .feedback-card {
+    padding: 14px;
+  }
 }
 </style>

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Search, View, Check } from '@element-plus/icons-vue'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { Search, ChatDotRound } from '@element-plus/icons-vue'
 import { usePagination } from '@/composables/usePagination'
 import {
   fetchFeedbacks,
   fetchFeedbackDetail,
   processFeedback,
+  batchProcessFeedbacks,
   type AdminFeedbackItem,
   type AdminFeedbackDetail,
   type AdminFeedbacksParams,
@@ -51,7 +52,8 @@ const statusMap: Record<string, { text: string; type: 'warning' | 'success' }> =
 }
 
 // 格式化时间
-function formatTime(time: string) {
+function formatTime(time: string | null | undefined) {
+  if (!time) return '-'
   return new Date(time).toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
@@ -66,13 +68,18 @@ const showDetailDrawer = ref(false)
 const currentFeedback = ref<AdminFeedbackDetail | null>(null)
 const isLoadingDetail = ref(false)
 
+async function loadFeedbackDetail(feedbackId: number) {
+  const detail = await fetchFeedbackDetail(feedbackId)
+  currentFeedback.value = detail
+  return detail
+}
+
 // 查看详情
 async function handleViewDetail(feedback: AdminFeedbackItem) {
   isLoadingDetail.value = true
   showDetailDrawer.value = true
   try {
-    const detail = await fetchFeedbackDetail(feedback.feedback_id)
-    currentFeedback.value = detail
+    await loadFeedbackDetail(feedback.feedback_id)
   } catch (error) {
     ElMessage.error('加载详情失败')
     showDetailDrawer.value = false
@@ -81,14 +88,67 @@ async function handleViewDetail(feedback: AdminFeedbackItem) {
   }
 }
 
-// 标记已处理
-async function handleProcess(feedback: AdminFeedbackItem) {
+function handleRowClick(row: AdminFeedbackItem, column?: { type?: string; property?: string }) {
+  if (!column || column.type === 'selection' || column.property === '__actions') {
+    return
+  }
+  handleViewDetail(row)
+}
+
+// 处理弹窗
+const showProcessDialog = ref(false)
+const processTarget = ref<AdminFeedbackItem | AdminFeedbackDetail | null>(null)
+const processFormRef = ref<FormInstance>()
+const processForm = ref({
+  reply: '',
+})
+const isSubmitting = ref(false)
+
+const processRules: FormRules = {
+  reply: [
+    { required: true, message: '请输入回复内容', trigger: 'blur' },
+    { min: 2, max: 1000, message: '回复内容长度需在 2-1000 个字符之间', trigger: 'blur' },
+  ],
+}
+
+function openProcessDialog(feedback: AdminFeedbackItem | AdminFeedbackDetail) {
+  processTarget.value = feedback
+  processForm.value.reply = feedback.reply || ''
+  showProcessDialog.value = true
+}
+
+function resetProcessDialog() {
+  processTarget.value = null
+  processForm.value.reply = ''
+  processFormRef.value?.clearValidate()
+}
+
+async function handleSubmitProcess() {
+  if (!processTarget.value) return
+
   try {
-    await processFeedback(feedback.feedback_id)
-    ElMessage.success('已标记为已处理')
-    fetchData()
+    await processFormRef.value?.validate()
+  } catch {
+    return
+  }
+
+  isSubmitting.value = true
+  try {
+    const detail = await processFeedback(processTarget.value.feedback_id, {
+      reply: processForm.value.reply.trim(),
+    })
+
+    if (currentFeedback.value?.feedback_id === detail.feedback_id) {
+      currentFeedback.value = detail
+    }
+
+    showProcessDialog.value = false
+    ElMessage.success('回复并处理成功')
+    await fetchData()
   } catch (error) {
-    ElMessage.error('操作失败')
+    ElMessage.error('处理失败')
+  } finally {
+    isSubmitting.value = false
   }
 }
 
@@ -106,10 +166,14 @@ async function handleBatchProcess() {
   }
 
   try {
-    await Promise.all(selectedIds.value.map(id => processFeedback(id)))
+    const processedIds = [...selectedIds.value]
+    await batchProcessFeedbacks(processedIds)
     ElMessage.success('批量处理成功')
     selectedIds.value = []
-    fetchData()
+    if (currentFeedback.value && processedIds.includes(currentFeedback.value.feedback_id)) {
+      await loadFeedbackDetail(currentFeedback.value.feedback_id)
+    }
+    await fetchData()
   } catch (error) {
     ElMessage.error('批量处理失败')
   }
@@ -196,7 +260,9 @@ onMounted(() => {
       v-loading="isLoading"
       stripe
       border
+      class="feedback-table"
       @selection-change="handleSelectionChange"
+      @row-click="handleRowClick"
     >
       <el-table-column type="selection" width="50" />
       <el-table-column prop="username" label="用户名" width="100" />
@@ -227,8 +293,8 @@ onMounted(() => {
             trigger="hover"
           >
             <template #reference>
-              <el-badge :value="row.images.length" type="primary">
-                <el-button size="small" text>查看</el-button>
+              <el-badge :value="row.images.length" type="primary" @click.stop>
+                <el-button size="small" text @click.stop>查看</el-button>
               </el-badge>
             </template>
             <div class="image-preview-list">
@@ -253,26 +319,32 @@ onMounted(() => {
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="回复状态" width="110" align="center">
+        <template #default="{ row }">
+          <span v-if="row.reply" class="reply-status">已回复</span>
+          <span v-else class="text-muted">未回复</span>
+        </template>
+      </el-table-column>
       <el-table-column label="提交时间" width="150" align="center">
         <template #default="{ row }">
           {{ formatTime(row.created_at) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="160" fixed="right">
+      <el-table-column label="操作" width="120" fixed="right" prop="__actions">
         <template #default="{ row }">
-          <el-button text size="small" :icon="View" @click="handleViewDetail(row)">
-            详情
-          </el-button>
-          <el-button
-            v-if="row.status === 'pending'"
-            text
-            size="small"
-            type="success"
-            :icon="Check"
-            @click="handleProcess(row)"
-          >
-            处理
-          </el-button>
+          <div class="action-buttons" @click.stop>
+            <el-button
+              v-if="row.status === 'pending'"
+              text
+              size="small"
+              type="success"
+              :icon="ChatDotRound"
+              @click.stop="openProcessDialog(row)"
+            >
+              回复并处理
+            </el-button>
+            <span v-else class="text-muted">-</span>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -319,12 +391,23 @@ onMounted(() => {
             <span class="detail-label">提交时间</span>
             <span class="detail-value">{{ formatTime(currentFeedback.created_at) }}</span>
           </div>
+          <div class="detail-row" v-if="currentFeedback.replied_at">
+            <span class="detail-label">回复时间</span>
+            <span class="detail-value">{{ formatTime(currentFeedback.replied_at) }}</span>
+          </div>
         </div>
 
         <el-divider>反馈内容</el-divider>
         <div class="feedback-content">
           {{ currentFeedback.content }}
         </div>
+
+        <template v-if="currentFeedback.reply">
+          <el-divider>管理员回复</el-divider>
+          <div class="reply-content">
+            {{ currentFeedback.reply }}
+          </div>
+        </template>
 
         <template v-if="currentFeedback.images?.length">
           <el-divider>截图</el-divider>
@@ -342,12 +425,61 @@ onMounted(() => {
         </template>
 
         <div class="action-area" v-if="currentFeedback.status === 'pending'">
-          <el-button type="primary" @click="handleProcess(currentFeedback)">
-            标记为已处理
+          <el-button type="primary" :icon="ChatDotRound" @click="openProcessDialog(currentFeedback)">
+            回复并处理
           </el-button>
         </div>
       </template>
     </el-drawer>
+
+    <el-dialog
+      v-model="showProcessDialog"
+      title="回复并处理"
+      width="520px"
+      @closed="resetProcessDialog"
+    >
+      <template v-if="processTarget">
+        <div class="process-summary">
+          <div class="process-summary__row">
+            <span class="process-summary__label">反馈类型</span>
+            <span>{{ typeMap[processTarget.feedback_type]?.text || processTarget.feedback_type }}</span>
+          </div>
+          <div class="process-summary__row" v-if="processTarget.course_title">
+            <span class="process-summary__label">关联课程</span>
+            <span>{{ processTarget.course_title }}</span>
+          </div>
+          <div class="process-summary__row process-summary__row--block">
+            <span class="process-summary__label">反馈内容</span>
+            <div class="process-summary__content">{{ processTarget.content }}</div>
+          </div>
+        </div>
+
+        <el-form
+          ref="processFormRef"
+          :model="processForm"
+          :rules="processRules"
+          label-position="top"
+        >
+          <el-form-item label="回复内容" prop="reply">
+            <el-input
+              v-model="processForm.reply"
+              type="textarea"
+              :rows="5"
+              maxlength="1000"
+              show-word-limit
+              placeholder="请输入给用户的处理回复"
+            />
+          </el-form-item>
+        </el-form>
+      </template>
+
+      <template #footer>
+        <el-button @click="showProcessDialog = false">取消</el-button>
+        <el-button type="primary" :loading="isSubmitting" @click="handleSubmitProcess">
+          确认处理
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -407,6 +539,29 @@ onMounted(() => {
   color: $text-tertiary;
 }
 
+.feedback-table {
+  :deep(.el-table__row) {
+    cursor: pointer;
+  }
+
+  :deep(.el-table__cell:first-child),
+  :deep(.el-table__cell:last-child) {
+    cursor: default;
+  }
+}
+
+.action-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+}
+
+.reply-status {
+  color: $success-color;
+  font-weight: 500;
+}
+
 .pagination {
   margin-top: 24px;
   display: flex;
@@ -452,12 +607,49 @@ onMounted(() => {
   }
 }
 
-.feedback-content {
+.feedback-content,
+.reply-content {
   padding: 16px;
   background: $bg-color;
   border-radius: $radius-sm;
   line-height: 1.6;
   color: $text-primary;
+}
+
+.process-summary {
+  margin-bottom: 16px;
+  padding: 16px;
+  background: $bg-white;
+  border-radius: $radius-sm;
+
+  &__row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+    color: $text-primary;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  &__row--block {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__label {
+    color: $text-secondary;
+    min-width: 72px;
+    flex-shrink: 0;
+  }
+
+  &__content {
+    padding: 12px;
+    border-radius: $radius-sm;
+    background: $bg-color;
+    line-height: 1.6;
+  }
 }
 
 .image-list {
@@ -476,5 +668,22 @@ onMounted(() => {
   margin-top: 24px;
   padding-top: 24px;
   border-top: 1px solid $border-color-light;
+}
+
+@media (max-width: 768px) {
+  .filter-bar {
+    .filter-left,
+    .filter-right {
+      width: 100%;
+      flex-wrap: wrap;
+    }
+  }
+
+  .feedback-table {
+    :deep(.el-button) {
+      padding-left: 0;
+      padding-right: 0;
+    }
+  }
 }
 </style>

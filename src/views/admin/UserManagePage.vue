@@ -122,8 +122,8 @@ async function handleDelete(user: AdminUserItem) {
 const showAuditDialog = ref(false)
 const auditItem = ref<TeacherAuditItem | null>(null)
 const auditForm = ref({
-  status: 'approved' as 'approved' | 'rejected',
-  reject_reason: '',
+  approve: true,
+  comment: '',
 })
 const isSubmitting = ref(false)
 
@@ -134,6 +134,10 @@ async function handleAudit(user: AdminUserItem) {
     const audit = result.items.find(a => a.user_id === user.user_id)
     if (audit) {
       auditItem.value = audit
+      auditForm.value = {
+        approve: true,
+        comment: '',
+      }
       showAuditDialog.value = true
     } else {
       ElMessage.warning('未找到审核记录')
@@ -146,7 +150,7 @@ async function handleAudit(user: AdminUserItem) {
 async function handleSubmitAudit() {
   if (!auditItem.value) return
 
-  if (auditForm.value.status === 'rejected' && !auditForm.value.reject_reason.trim()) {
+  if (!auditForm.value.approve && !auditForm.value.comment.trim()) {
     ElMessage.warning('请填写驳回原因')
     return
   }
@@ -154,10 +158,10 @@ async function handleSubmitAudit() {
   isSubmitting.value = true
   try {
     await reviewTeacher(auditItem.value!.audit_id, {
-      audit_status: auditForm.value.status,
-      reject_reason: auditForm.value.status === 'rejected' ? auditForm.value.reject_reason : undefined,
+      approve: auditForm.value.approve,
+      comment: auditForm.value.comment.trim() || undefined,
     })
-    ElMessage.success(auditForm.value.status === 'approved' ? '审核通过' : '已驳回')
+    ElMessage.success(auditForm.value.approve ? '审核通过' : '已驳回')
     showAuditDialog.value = false
     fetchData()
   } catch (error) {
@@ -364,21 +368,21 @@ onMounted(() => {
         <el-divider />
         <el-form label-width="80px">
           <el-form-item label="审核结果">
-            <el-radio-group v-model="auditForm.status">
-              <el-radio value="approved">
+            <el-radio-group v-model="auditForm.approve">
+              <el-radio :value="true">
                 <el-icon><Check /></el-icon> 通过
               </el-radio>
-              <el-radio value="rejected">
+              <el-radio :value="false">
                 <el-icon><Close /></el-icon> 驳回
               </el-radio>
             </el-radio-group>
           </el-form-item>
-          <el-form-item v-if="auditForm.status === 'rejected'" label="驳回原因">
+          <el-form-item :label="auditForm.approve ? '审核备注' : '驳回原因'">
             <el-input
-              v-model="auditForm.reject_reason"
+              v-model="auditForm.comment"
               type="textarea"
               :rows="3"
-              placeholder="请输入驳回原因（必填）"
+              :placeholder="auditForm.approve ? '可选填写审核备注' : '请输入驳回原因（必填）'"
             />
           </el-form-item>
         </el-form>

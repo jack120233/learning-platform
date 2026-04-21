@@ -36,18 +36,23 @@ export interface TeacherAuditItem {
   audit_id: number
   user_id: number
   username: string
+  real_name: string
   email: string
   phone: string
-  nickname: string
+  organization?: string | null
+  title?: string | null
+  introduction?: string | null
+  certificate_urls?: string[] | null
   audit_status: 'pending' | 'approved' | 'rejected'
   created_at: string
-  reject_reason?: string
+  reviewed_at?: string | null
+  review_comment?: string | null
 }
 
 /** 审核请求 */
 export interface ReviewTeacherRequest {
-  audit_status: 'approved' | 'rejected'
-  reject_reason?: string
+  approve: boolean
+  comment?: string
 }
 
 /** 用户状态更新请求 */
@@ -71,6 +76,112 @@ export interface PermissionItem {
 export interface RolePermissions {
   role: 'student' | 'teacher' | 'admin'
   permissions: number[]
+}
+
+// ==================== 管理员申请 ====================
+
+/** 管理员申请列表项 */
+export interface AdminApplicationItem {
+  application_id: number
+  user_id: number
+  username: string
+  reason: string
+  department?: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  review_comment?: string | null
+  created_at: string
+  reviewed_at?: string | null
+}
+
+/** 管理员申请列表请求参数 */
+export interface AdminApplicationsParams {
+  status?: 'all' | 'pending' | 'approved' | 'rejected'
+  page?: number
+  page_size?: number
+}
+
+/** 管理员申请审核请求 */
+export interface ReviewAdminApplicationRequest {
+  approve: boolean
+  comment?: string
+}
+
+// ==================== 分类管理 ====================
+
+/** 后台分类项 */
+export interface AdminCategoryItem {
+  category_id: number
+  name: string
+  slug: string
+  description?: string | null
+  icon?: string | null
+  sort_order: number
+  parent_id: number | null
+  is_active: boolean
+  created_at: string
+}
+
+/** 分类表单数据 */
+export interface AdminCategoryFormData {
+  name: string
+  slug: string
+  description?: string
+  icon?: string
+  parent_id?: number | null
+  sort_order?: number
+  is_active?: boolean
+}
+
+// ==================== 标签管理 ====================
+
+/** 后台标签项 */
+export interface AdminTagItem {
+  tag_id: number
+  name: string
+  slug: string
+  color?: string | null
+  use_count: number
+  created_at: string
+}
+
+/** 标签列表请求参数 */
+export interface AdminTagsParams {
+  keyword?: string
+  page?: number
+  page_size?: number
+}
+
+/** 标签表单数据 */
+export interface AdminTagFormData {
+  name: string
+  slug: string
+  color?: string
+}
+
+/** 标签批量删除失败项 */
+export interface AdminTagBatchDeleteFailure {
+  tag_id: number
+  reason: string
+}
+
+/** 标签批量删除结果 */
+export interface AdminTagBatchDeleteResult {
+  success_ids: number[]
+  failed_items: AdminTagBatchDeleteFailure[]
+  success_count: number
+  failed_count: number
+  message?: string | null
+}
+
+// ==================== 系统消息管理 ====================
+
+/** 系统消息表单数据 */
+export interface AdminMessageFormData {
+  user_id: number
+  type: 'announcement' | 'notification' | 'system' | 'course' | 'interaction'
+  title: string
+  content: string
+  link?: string
 }
 
 // ==================== 公告管理 ====================
@@ -99,6 +210,56 @@ export interface AnnouncementsParams {
   keyword?: string
   page?: number
   page_size?: number
+}
+
+interface BackendTeacherAuditItem {
+  id: number
+  user_id: number
+  username?: string | null
+  real_name: string
+  email: string
+  phone: string
+  organization?: string | null
+  title?: string | null
+  introduction?: string | null
+  certificate_urls?: string[] | null
+  status: 'pending' | 'approved' | 'rejected'
+  review_comment?: string | null
+  created_at: string
+  reviewed_at?: string | null
+}
+
+interface BackendAdminApplicationItem {
+  id: number
+  user_id: number
+  username?: string | null
+  reason: string
+  department?: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  review_comment?: string | null
+  created_at: string
+  reviewed_at?: string | null
+}
+
+interface BackendCategoryItem {
+  id: number
+  name: string
+  slug: string
+  description?: string | null
+  icon?: string | null
+  sort_order: number
+  parent_id: number | null
+  is_active: boolean
+  created_at: string
+}
+
+interface BackendTagItem {
+  id: number
+  name: string
+  slug: string
+  color?: string | null
+  use_count: number
+  created_at: string
 }
 
 interface BackendAnnouncementItem {
@@ -132,6 +293,8 @@ export interface AdminFeedbackItem {
   content: string
   images: string[]
   status: 'pending' | 'processed'
+  reply: string | null
+  replied_at: string | null
   created_at: string
   processed_at: string | null
 }
@@ -140,6 +303,11 @@ export interface AdminFeedbackItem {
 export interface AdminFeedbackDetail extends AdminFeedbackItem {
   user_email: string
   user_phone: string
+}
+
+/** 反馈处理请求 */
+export interface ProcessFeedbackRequest {
+  reply: string
 }
 
 /** 反馈列表请求参数 */
@@ -179,14 +347,98 @@ export function deleteUser(userId: number) {
 
 /** 获取讲师审核列表 */
 export function fetchTeacherAudits(params: { status?: 'all' | 'pending' | 'approved' | 'rejected'; page?: number; page_size?: number } = {}) {
-  return request.get<unknown, PaginatedData<TeacherAuditItem>>('/users/teacher-audits', {
-    params: { page: 1, page_size: 10, ...params },
-  })
+  return request.get<unknown, PaginatedData<BackendTeacherAuditItem>>('/users/teacher-audits', {
+    params: {
+      page: params.page ?? 1,
+      page_size: params.page_size ?? 10,
+      status: params.status === 'all' ? undefined : params.status,
+    },
+  }).then((data) => ({
+    ...data,
+    items: data.items.map(mapTeacherAuditItem),
+  }))
 }
 
 /** 审核讲师 */
 export function reviewTeacher(auditId: number, data: ReviewTeacherRequest) {
   return request.post<unknown, void>(`/users/teacher-audits/${auditId}/review`, data)
+}
+
+/** 获取管理员申请列表 */
+export function fetchAdminApplications(params: AdminApplicationsParams = {}) {
+  return request.get<unknown, PaginatedData<BackendAdminApplicationItem>>('/users/admin-applications', {
+    params: {
+      page: params.page ?? 1,
+      page_size: params.page_size ?? 10,
+      status: params.status === 'all' ? undefined : params.status,
+    },
+  }).then((data) => ({
+    ...data,
+    items: data.items.map(mapAdminApplicationItem),
+  }))
+}
+
+/** 审核管理员申请 */
+export function reviewAdminApplication(applicationId: number, data: ReviewAdminApplicationRequest) {
+  return request.post<unknown, void>(`/users/admin-applications/${applicationId}/review`, data)
+}
+
+/** 获取后台分类列表 */
+export function fetchAdminCategories(params: { parent_id?: number; is_active?: boolean } = {}) {
+  return request.get<unknown, BackendCategoryItem[]>('/categories', {
+    params,
+  }).then((items) => items.map(mapCategoryItem))
+}
+
+/** 创建分类 */
+export function createCategory(data: AdminCategoryFormData) {
+  return request.post<unknown, BackendCategoryItem>('/categories', data).then(mapCategoryItem)
+}
+
+/** 更新分类 */
+export function updateCategory(categoryId: number, data: AdminCategoryFormData) {
+  return request.put<unknown, BackendCategoryItem>(`/categories/${categoryId}`, data).then(mapCategoryItem)
+}
+
+/** 删除分类 */
+export function deleteCategory(categoryId: number) {
+  return request.delete<unknown, void>(`/categories/${categoryId}`)
+}
+
+/** 获取后台标签列表 */
+export function fetchAdminTags(params: AdminTagsParams = {}) {
+  return request.get<unknown, PaginatedData<BackendTagItem>>('/tags', {
+    params: {
+      page: params.page ?? 1,
+      page_size: params.page_size ?? 10,
+      keyword: params.keyword,
+    },
+  }).then((data) => ({
+    ...data,
+    items: data.items.map(mapTagItem),
+  }))
+}
+
+/** 创建标签 */
+export function createAdminTag(data: AdminTagFormData) {
+  return request.post<unknown, BackendTagItem>('/tags', data).then(mapTagItem)
+}
+
+/** 删除标签 */
+export function deleteAdminTag(tagId: number) {
+  return request.delete<unknown, void>(`/tags/${tagId}`)
+}
+
+/** 批量删除标签 */
+export function batchDeleteAdminTags(tagIds: number[]) {
+  return request.post<unknown, AdminTagBatchDeleteResult>('/tags/batch-delete', {
+    tag_ids: tagIds,
+  })
+}
+
+/** 发送系统消息 */
+export function sendAdminMessage(data: AdminMessageFormData) {
+  return request.post<unknown, void>('/messages/send', data)
 }
 
 // ---------- 角色权限管理 ----------
@@ -257,6 +509,64 @@ export function deleteAnnouncement(announcementId: number) {
   return request.post<unknown, void>(`/announcements/${announcementId}/delete`)
 }
 
+function mapTeacherAuditItem(item: BackendTeacherAuditItem): TeacherAuditItem {
+  return {
+    audit_id: item.id,
+    user_id: item.user_id,
+    username: item.username || `用户${item.user_id}`,
+    real_name: item.real_name,
+    email: item.email,
+    phone: item.phone,
+    organization: item.organization,
+    title: item.title,
+    introduction: item.introduction,
+    certificate_urls: item.certificate_urls,
+    audit_status: item.status,
+    created_at: item.created_at,
+    reviewed_at: item.reviewed_at,
+    review_comment: item.review_comment,
+  }
+}
+
+function mapAdminApplicationItem(item: BackendAdminApplicationItem): AdminApplicationItem {
+  return {
+    application_id: item.id,
+    user_id: item.user_id,
+    username: item.username || `用户${item.user_id}`,
+    reason: item.reason,
+    department: item.department,
+    status: item.status,
+    review_comment: item.review_comment,
+    created_at: item.created_at,
+    reviewed_at: item.reviewed_at,
+  }
+}
+
+function mapCategoryItem(item: BackendCategoryItem): AdminCategoryItem {
+  return {
+    category_id: item.id,
+    name: item.name,
+    slug: item.slug,
+    description: item.description,
+    icon: item.icon,
+    sort_order: item.sort_order,
+    parent_id: item.parent_id,
+    is_active: item.is_active,
+    created_at: item.created_at,
+  }
+}
+
+function mapTagItem(item: BackendTagItem): AdminTagItem {
+  return {
+    tag_id: item.id,
+    name: item.name,
+    slug: item.slug,
+    color: item.color,
+    use_count: item.use_count,
+    created_at: item.created_at,
+  }
+}
+
 function mapAnnouncementItem(item: BackendAnnouncementItem): AnnouncementItem {
   return {
     announcement_id: item.id,
@@ -294,8 +604,8 @@ export function fetchFeedbackDetail(feedbackId: number) {
 }
 
 /** 标记反馈已处理 */
-export function processFeedback(feedbackId: number) {
-  return request.post<unknown, void>(`/feedbacks/${feedbackId}/process`)
+export function processFeedback(feedbackId: number, data: ProcessFeedbackRequest) {
+  return request.post<unknown, AdminFeedbackDetail>(`/feedbacks/${feedbackId}/process`, data)
 }
 
 /** 批量标记反馈已处理 */

@@ -18,9 +18,9 @@ import {
 const router = useRouter()
 const userStore = useUserStore()
 
-const isAdmin = computed(() => userStore.isAdmin)
-const canCreateCourse = computed(() => !isAdmin.value)
-const pageTitle = computed(() => isAdmin.value ? '课程管理' : '我的课程')
+const canViewPublishedAll = computed(() => userStore.isTeacher || userStore.isAdmin)
+const canCreateCourse = computed(() => manageScope.value !== 'published_all')
+const pageTitle = computed(() => manageScope.value === 'published_all' ? '课程管理' : '我的课程')
 
 const manageScope = ref<CourseManageScope>('mine')
 const statusFilter = ref<'all' | 'draft' | 'published' | 'archived'>('all')
@@ -28,7 +28,7 @@ const keyword = ref('')
 const selectedRows = ref<TeacherCourseItem[]>([])
 
 const availableStatusTabs = computed(() => {
-  if (isAdmin.value && manageScope.value === 'published_all') {
+  if (canViewPublishedAll.value && manageScope.value === 'published_all') {
     return [{ label: '已发布', name: 'published' as const }]
   }
   return [
@@ -40,7 +40,7 @@ const availableStatusTabs = computed(() => {
 })
 
 function getEffectiveStatus() {
-  if (isAdmin.value && manageScope.value === 'published_all') {
+  if (canViewPublishedAll.value && manageScope.value === 'published_all') {
     return 'published'
   }
   return statusFilter.value === 'all' ? undefined : statusFilter.value
@@ -104,7 +104,7 @@ function canPublishCourse(course: TeacherCourseItem) {
 
 function canArchiveCourse(course: TeacherCourseItem) {
   if (course.status !== 'published') return false
-  if (isAdmin.value && manageScope.value === 'published_all') return true
+  if (canViewPublishedAll.value && manageScope.value === 'published_all') return true
   return isOwnCourse(course)
 }
 
@@ -230,7 +230,7 @@ function handleReset() {
 
 function handleScopeChange() {
   selectedRows.value = []
-  if (isAdmin.value && manageScope.value === 'published_all') {
+  if (canViewPublishedAll.value && manageScope.value === 'published_all') {
     statusFilter.value = 'published'
   } else {
     statusFilter.value = 'all'
@@ -313,7 +313,7 @@ async function handleBatchAction(action: BatchCourseAction) {
 }
 
 onMounted(() => {
-  if (isAdmin.value) {
+  if (canViewPublishedAll.value) {
     manageScope.value = 'published_all'
     statusFilter.value = 'published'
   }
@@ -333,7 +333,7 @@ onMounted(() => {
     <div class="filter-bar">
       <div class="filter-left">
         <el-segmented
-          v-if="isAdmin"
+          v-if="canViewPublishedAll"
           v-model="manageScope"
           :options="[
             { label: '全站已发布', value: 'published_all' },
@@ -370,13 +370,13 @@ onMounted(() => {
 
     <div v-if="selectedCount > 0" class="batch-actions">
       <span class="selected-count">已选择 {{ selectedCount }} 门课程</span>
-      <el-button v-if="!isAdmin || manageScope === 'mine'" type="success" size="small" :icon="Upload" :disabled="!canBatchPublish" @click="handleBatchAction('publish')">
+      <el-button v-if="manageScope === 'mine'" type="success" size="small" :icon="Upload" :disabled="!canBatchPublish" @click="handleBatchAction('publish')">
         批量上架
       </el-button>
       <el-button type="warning" size="small" :icon="Bottom" :disabled="!canBatchArchive" @click="handleBatchAction('archive')">
         批量下架
       </el-button>
-      <el-button v-if="!isAdmin || manageScope === 'mine'" type="danger" size="small" :icon="Delete" :disabled="!canBatchDelete" @click="handleBatchAction('delete')">
+      <el-button v-if="manageScope === 'mine'" type="danger" size="small" :icon="Delete" :disabled="!canBatchDelete" @click="handleBatchAction('delete')">
         批量删除
       </el-button>
     </div>
@@ -409,7 +409,7 @@ onMounted(() => {
           <template #default="{ row }">
             <div class="course-title-wrap">
               <span class="course-title">{{ row.title }}</span>
-              <span v-if="isAdmin && row.teacher_name" class="teacher-name">讲师：{{ row.teacher_name }}</span>
+              <span v-if="manageScope === 'published_all' && row.teacher_name" class="teacher-name">讲师：{{ row.teacher_name }}</span>
             </div>
           </template>
         </el-table-column>

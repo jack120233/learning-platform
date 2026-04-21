@@ -55,7 +55,6 @@ const ADMIN_ENTRY_PERMISSION_CODES = [
   'admin.user',
   'admin.teacher_audit',
   'admin.admin_application',
-  'admin.role_permission',
   'admin.announcement',
   'admin.feedback',
   'admin.message',
