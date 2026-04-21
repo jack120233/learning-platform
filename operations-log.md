@@ -366,3 +366,19 @@
   - 已执行：`python E:/video_project/proj_ui/project_code/backend/scripts/init_db.py`
   - 结果：成功连接真实数据库并完成初始化，脚本输出 `已补齐老师角色当前默认权限`，当前 21 张表已完成检查。
   - 备注：如前端当前已登录，仍建议重新登录一次，确保本地保存的 `permission_codes` 刷成最新结果。
+
+## 启动脚本端口检查与启动日志补强
+时间：2026-04-21 21:05:00
+
+- 变更原因：`run.bat` 启动时遇到端口占用或 uvicorn 启动失败，错误只出现在控制台，缺少明确的端口占用提示和单独启动日志，排查成本高。
+- 涉及文件：
+  - `backend/run.bat`
+  - `operations-log.md`
+- 核心改动：
+  - 在启动前新增 8000 端口监听检查，若已被占用则直接打印占用进程的 PID、进程名和路径，并终止启动。
+  - 新增 `logs/startup.log` 与 `logs/startup_error.log`，把 uvicorn 启动层输出与失败摘要单独留痕，不再只依赖应用内 `app.log`/`app_error.log`。
+  - 保留原有虚拟环境探测与 `pause` 行为，确保双击启动时也能看清失败原因。
+- 验证结果：
+  - 已执行：本地关闭 8000 端口占用进程后，确认端口空闲。
+  - 已执行：只读复核 `backend/run.bat` 新逻辑，确认端口检查、启动输出落盘和错误摘要写入均已落盘。
+  - 备注：当前会话的 Bash 对 Windows bat/PowerShell 复合交互输出兼容性较差，未在本界面完整复现双击窗口表现；建议你本机再次执行 `E:/video_project/proj_ui/project_code/backend/run.bat` 做最终目视确认。

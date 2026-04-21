@@ -3,6 +3,11 @@ setlocal
 cd /d "%~dp0"
 
 set "BACKEND_DIR=%~dp0"
+set "LOG_DIR=%BACKEND_DIR%logs"
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+set "STARTUP_LOG=%LOG_DIR%\startup.log"
+set "STARTUP_ERROR_LOG=%LOG_DIR%\startup_error.log"
+
 set "VENV_PATH=%~dp0..\.venv"
 if exist "%VENV_PATH%\Scripts\python.exe" goto VENV_OK
 
@@ -14,25 +19,43 @@ echo 已检查:
 echo   %~dp0..\.venv
 echo   %~dp0..\..\.venv
 echo 请确认虚拟环境位置后重试。
+>> "%STARTUP_ERROR_LOG%" echo [%date% %time%] 未找到虚拟环境。
 pause
 exit /b 1
 
 :VENV_OK
 set "PYTHON=%VENV_PATH%\Scripts\python.exe"
 set "PYTHONPATH=%BACKEND_DIR%"
+set "PORT_INFO="
+
+for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "$conn = Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1; if ($conn) { $proc = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue; if ($proc) { Write-Output ('PID=' + $proc.Id + ';NAME=' + $proc.ProcessName + ';PATH=' + $proc.Path) } else { Write-Output ('PID=' + $conn.OwningProcess) } }"`) do set "PORT_INFO=%%i"
+
+if defined PORT_INFO (
+    echo [ERROR] 端口 8000 已被占用。
+    echo %PORT_INFO%
+    echo 启动已取消，请先释放端口后重试。
+    >> "%STARTUP_ERROR_LOG%" echo [%date% %time%] 端口 8000 被占用。%PORT_INFO%
+    pause
+    exit /b 1
+)
 
 echo 正在启动 FastAPI 服务...
 echo 工作目录: %BACKEND_DIR%
 echo Python: %PYTHON%
+echo 启动日志: %STARTUP_LOG%
+echo 错误摘要: %STARTUP_ERROR_LOG%
 echo.
 
-"%PYTHON%" -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+>> "%STARTUP_LOG%" echo ==================================================
+>> "%STARTUP_LOG%" echo [%date% %time%] 启动命令: "%PYTHON%" -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+powershell -NoProfile -Command "& { & '%PYTHON%' -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000 2>&1 | Tee-Object -FilePath '%STARTUP_LOG%' -Append; exit $LASTEXITCODE }"
 set "EXIT_CODE=%ERRORLEVEL%"
 
 if not "%EXIT_CODE%"=="0" (
     echo.
     echo [ERROR] 服务启动失败，退出码: %EXIT_CODE%
-    echo 上面的输出就是实际报错信息。
+    echo 详细输出已写入: %STARTUP_LOG%
+    >> "%STARTUP_ERROR_LOG%" echo [%date% %time%] 服务启动失败，退出码: %EXIT_CODE%。详见 startup.log
     pause
     exit /b %EXIT_CODE%
 )
