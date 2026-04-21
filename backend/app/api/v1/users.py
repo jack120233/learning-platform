@@ -8,7 +8,7 @@ import json
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import DBSession, CurrentUserId
+from app.core.dependencies import CurrentUser, DBSession, CurrentUserId
 from app.schemas.common import ApiResponse, PageData
 from app.schemas.feedback import FeedbackResponse
 from app.schemas.user import (
@@ -31,6 +31,7 @@ from app.services.user_service import (
     admin_application_service,
 )
 from app.services.feedback_service import feedback_service
+from app.services.permission_service import permission_service
 
 router = APIRouter(prefix="/users", tags=["用户管理"])
 
@@ -164,7 +165,7 @@ async def get_my_feedbacks(
 )
 async def get_user_list(
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
     keyword: str | None = Query(default=None, description="搜索关键词"),
     role: str | None = Query(default=None, description="角色筛选"),
     status: str | None = Query(default=None, description="状态筛选"),
@@ -172,6 +173,12 @@ async def get_user_list(
     page_size: int = Query(default=10, ge=1, le=100, description="每页数量"),
 ) -> ApiResponse[PageData[UserListResponse]]:
     """获取用户列表接口（管理员）"""
+    await permission_service.ensure_permission(
+        db,
+        current_user.role,
+        "admin.user",
+        "无权查看用户列表",
+    )
     users, total = await user_service.get_user_list(
         db,
         keyword=keyword,
@@ -200,10 +207,16 @@ async def update_user_status(
     target_user_id: int,
     data: UserStatusUpdate,
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
 ) -> ApiResponse[UserResponse]:
     """更新用户状态接口（管理员）"""
-    user = await user_service.update_user_status(db, target_user_id, data, user_id)
+    await permission_service.ensure_permission(
+        db,
+        current_user.role,
+        "admin.user",
+        "无权更新用户状态",
+    )
+    user = await user_service.update_user_status(db, target_user_id, data, current_user.id)
     return ApiResponse.success(
         data=UserResponse.model_validate(user),
         message="状态更新成功",
@@ -219,10 +232,16 @@ async def update_user_status(
 async def delete_user(
     target_user_id: int,
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
 ) -> ApiResponse[None]:
     """删除用户接口（管理员）"""
-    await user_service.delete_user(db, target_user_id, user_id)
+    await permission_service.ensure_permission(
+        db,
+        current_user.role,
+        "admin.user",
+        "无权删除用户",
+    )
+    await user_service.delete_user(db, target_user_id, current_user.id)
     return ApiResponse.success(message="删除成功")
 
 
@@ -236,12 +255,18 @@ async def delete_user(
 )
 async def get_teacher_audits(
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
     status: str | None = Query(default=None, description="状态筛选"),
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=10, ge=1, le=50, description="每页数量"),
 ) -> ApiResponse[PageData[TeacherAuditResponse]]:
     """获取讲师审核列表接口"""
+    await permission_service.ensure_permission(
+        db,
+        current_user.role,
+        "admin.teacher_audit",
+        "无权查看讲师审核列表",
+    )
     audits, total = await teacher_audit_service.get_list(
         db,
         status=status,
@@ -298,10 +323,16 @@ async def review_teacher_audit(
     audit_id: int,
     data: TeacherAuditReview,
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
 ) -> ApiResponse[TeacherAuditResponse]:
     """审核讲师申请接口"""
-    audit = await teacher_audit_service.review(db, audit_id, data, user_id)
+    await permission_service.ensure_permission(
+        db,
+        current_user.role,
+        "admin.teacher_audit",
+        "无权审核讲师申请",
+    )
+    audit = await teacher_audit_service.review(db, audit_id, data, current_user.id)
     return ApiResponse.success(
         data=TeacherAuditResponse.model_validate(audit),
         message="审核完成",
@@ -318,12 +349,18 @@ async def review_teacher_audit(
 )
 async def get_admin_applications(
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
     status: str | None = Query(default=None, description="状态筛选"),
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=10, ge=1, le=50, description="每页数量"),
 ) -> ApiResponse[PageData[AdminApplicationResponse]]:
     """获取管理员申请列表接口"""
+    await permission_service.ensure_permission(
+        db,
+        current_user.role,
+        "admin.admin_application",
+        "无权查看管理员申请列表",
+    )
     applications, total = await admin_application_service.get_list(
         db,
         status=status,
@@ -366,10 +403,16 @@ async def review_admin_application(
     application_id: int,
     data: AdminApplicationReview,
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
 ) -> ApiResponse[AdminApplicationResponse]:
     """审核管理员申请接口"""
-    application = await admin_application_service.review(db, application_id, data, user_id)
+    await permission_service.ensure_permission(
+        db,
+        current_user.role,
+        "admin.admin_application",
+        "无权审核管理员申请",
+    )
+    application = await admin_application_service.review(db, application_id, data, current_user.id)
     return ApiResponse.success(
         data=AdminApplicationResponse.model_validate(application),
         message="审核完成",

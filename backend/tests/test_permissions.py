@@ -108,7 +108,7 @@ class TestRolePermissions:
         assert response.status_code == 200
         payload = response.json()
         assert payload["code"] == 200
-        assert payload["data"] == [1, 2, 11, 12, 13, 14, 21, 22, 23]
+        assert payload["data"] == [1, 2, 3, 11, 12, 13, 14, 21, 22, 23, 31, 32, 33, 35, 36, 37, 38, 39]
 
     @pytest.mark.asyncio
     async def test_get_my_permissions_success(
@@ -135,6 +135,15 @@ class TestRolePermissions:
             "teacher.course",
             "teacher.content",
             "teacher.upload",
+            "admin",
+            "admin.user",
+            "admin.teacher_audit",
+            "admin.admin_application",
+            "admin.announcement",
+            "admin.feedback",
+            "admin.message",
+            "admin.category",
+            "admin.tag",
         ]
 
     @pytest.mark.asyncio
@@ -160,6 +169,33 @@ class TestRolePermissions:
         assert follow_up.status_code == 200
         # 自动补齐父级节点 learn(1) 和 teacher(2)
         assert follow_up.json()["data"] == [1, 2, 11, 12, 21, 22, 23]
+
+    @pytest.mark.asyncio
+    async def test_admin_and_teacher_share_default_permissions(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        admin_headers = await login_as_role(client, db_session, "admin")
+        await client.post(
+            "/api/v1/roles/teacher/permissions",
+            headers=admin_headers,
+            json={"permissions": [1, 11, 12, 13, 14, 2, 21, 22, 23, 3, 31, 32, 33, 35, 36, 37, 38, 39]},
+        )
+
+        teacher_headers = await login_as_role(client, db_session, "teacher")
+        teacher_response = await client.get(
+            "/api/v1/users/me/permissions",
+            headers=teacher_headers,
+        )
+        admin_response = await client.get(
+            "/api/v1/users/me/permissions",
+            headers=admin_headers,
+        )
+
+        assert teacher_response.status_code == 200
+        assert admin_response.status_code == 200
+        assert admin_response.json()["data"] == teacher_response.json()["data"]
 
     @pytest.mark.asyncio
     async def test_update_role_permissions_rejects_invalid_permission_id(
@@ -203,17 +239,9 @@ class TestRolePermissions:
         db_session: AsyncSession,
     ):
         admin_headers = await login_as_role(client, db_session, "admin")
-        grant_response = await client.post(
-            "/api/v1/roles/student/permissions",
-            headers=admin_headers,
-            json={"permissions": [34]},
-        )
-        assert grant_response.status_code == 200
-
         student_headers = await login_as_role(client, db_session, "student")
         response = await client.get("/api/v1/permissions/tree", headers=student_headers)
 
-        assert response.status_code == 200
+        assert response.status_code == 403
         payload = response.json()
-        assert payload["code"] == 200
-        assert any(item["code"] == "admin" for item in payload["data"])
+        assert payload["message"] == "无权查看角色权限配置"

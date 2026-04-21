@@ -239,3 +239,90 @@
   - 已执行：只读复核 `backend/run.bat` 新逻辑，确认启动命令、错误分支和暂停提示已落盘。
   - 已执行：通过直接运行 Python/uvicorn 链路复现过原始错误 `ModuleNotFoundError: No module named 'app'`，修复针对该问题生效。
   - 未完成：当前会话里的 Bash 对 Windows `cmd.exe /c` 复合命令转义异常，未能在此界面稳定回显 bat 交互窗口输出；建议你本机双击或在 `cmd` 中执行 `E:\video_project\proj_ui\project_code\backend\run.bat` 做最终目视确认。
+
+## 反馈处理回复链路测试补齐
+时间：2026-04-20 16:20:01
+
+- 变更原因：前端已接入管理员回复后再处理的交互，需要后端补一条反馈处理接口测试，确保 `reply`、`replied_at`、`replied_by` 写入链路可靠。
+- 涉及文件：
+  - `backend/tests/test_feedbacks.py`
+  - `operations-log.md`
+- 核心改动：
+  - 在反馈模块测试中新增管理员处理课程反馈的用例。
+  - 校验处理接口返回 `status=processed`、`reply`、`replied_at`、`processed_at`，并验证数据库中 `replied_by` 正确落库。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/project_code/backend" && python -m pytest tests/test_feedbacks.py -v`
+  - 结果：`8 passed`
+  - 备注：测试过程中出现现有 `datetime.utcnow()` 弃用告警，本次未扩大处理范围。
+
+## 后台权限口径统一修复
+时间：2026-04-20 18:55:00
+
+- 变更原因：继续收口后台 RBAC 权限缺口，统一后端对 `admin.user`、`admin.teacher_audit`、`admin.admin_application`、`admin.category`、`admin.tag`、`admin.message` 的校验口径，并修复配套测试夹具与公告权限测试准备。
+- 涉及文件：
+  - `backend/app/api/v1/users.py`
+  - `backend/app/api/v1/categories.py`
+  - `backend/app/api/v1/tags.py`
+  - `backend/app/api/v1/messages.py`
+  - `backend/tests/test_users.py`
+  - `backend/tests/test_system.py`
+  - `backend/tests/conftest.py`
+  - `operations-log.md`
+- 核心改动：
+  - 为用户列表、讲师审核、管理员申请接口补齐对应 `ensure_permission(...)` 权限校验。
+  - 为分类创建/更新/删除、标签创建、系统消息发送补齐细粒度后台权限校验。
+  - 重写并补齐权限回归测试，明确锁定“无权限返回 403、授予单项权限后可访问”的行为。
+  - 将 `test_admin` 夹具改为幂等初始化，并在测试环境中补齐管理员默认权限映射，避免唯一约束冲突和公告测试因缺权限误报 403。
+- 验证结果：
+  - 已执行：`python -m pytest E:/video_project/proj_ui/project_code/backend/tests/test_users.py -v`
+  - 结果：`18 passed`
+  - 已执行：`python -m pytest E:/video_project/proj_ui/project_code/backend/tests/test_system.py -v`
+  - 结果：`16 passed`
+  - 备注：测试输出包含现有 `datetime.utcnow()` 与 FastAPI 422 常量弃用告警，本次未扩大处理范围。
+
+## 标签管理删除能力补完整
+时间：2026-04-21 13:48:12
+
+- 变更原因：老师拥有 `admin.tag` 权限后，后台标签管理只有查看和新增，缺少单删与批量删除，需要补齐完整管理动作，并保持 `/tags` 公共读取链路不受影响。
+- 涉及文件：
+  - `backend/app/schemas/system.py`
+  - `backend/app/services/system_service.py`
+  - `backend/app/api/v1/tags.py`
+  - `backend/tests/test_system.py`
+  - `operations-log.md`
+- 核心改动：
+  - 为标签管理新增批量删除请求和返回模型，补齐成功列表、失败明细、成功数和失败数。
+  - 在 `TagService` 中新增单删、批量删和课程引用校验逻辑，删除时显式 `flush`，保证当前事务内状态可见。
+  - 在标签路由中新增 `DELETE /tags/{tag_id}` 与 `POST /tags/batch-delete`，并统一继续使用 `admin.tag` 权限校验。
+  - 调整系统测试中的标签权限授予为幂等写法，补齐单删、批量删、被课程引用阻止删除和失败明细回归用例。
+- 验证结果：
+  - 已执行：`python -m pytest E:/video_project/proj_ui/project_code/backend/tests/test_system.py -v`
+  - 结果：`22 passed`
+  - 已执行：`python scripts/init_db.py`
+  - 结果：成功连接真实 MySQL，并确认现有 21 张表已存在，包括 `tags`、`course_tags`、`role_permissions`；本次改动未新增表。
+  - 备注：测试仍包含现有 FastAPI 422 常量弃用告警，本次未扩大处理范围。
+
+## 权限口径简化与讲师后台能力收口
+时间：2026-04-21 16:36:55
+
+- 变更原因：当前业务只需要突出学员和讲师两类主角色，管理员作为兼容角色默认与讲师同权；同时后台不再对外展示角色权限配置页面，但要保持既有权限接口与测试链路可用。
+- 涉及文件：
+  - `backend/app/services/permission_service.py`
+  - `backend/app/services/course_service.py`
+  - `backend/app/api/v1/permissions.py`
+  - `backend/tests/test_permissions.py`
+  - `backend/tests/test_courses.py`
+  - `operations-log.md`
+- 核心改动：
+  - 将默认 `teacher` 与 `admin` 权限集合统一收敛到同一后台与课程管理口径，保持 `student` 学习权限不变。
+  - 角色权限配置接口改回仅管理员可访问，避免前端入口下线后讲师仍可直接修改角色权限。
+  - 放开讲师查看 `published_all` 课程管理列表，使讲师和管理员都能从课程管理页进入全站已发布视角；同时维持发布、删除仍只允许操作自己的课程。
+  - 更新权限与课程测试，覆盖 teacher/admin 默认同权、讲师可查看全站已发布课程、学员仍受限等场景。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/project_code/backend" && python -m pytest tests/test_permissions.py -v`
+  - 结果：`10 passed`
+  - 已执行：`cd "E:/video_project/proj_ui/project_code/backend" && python -m pytest tests/test_system.py -v`
+  - 结果：`22 passed`
+  - 已执行：`cd "E:/video_project/proj_ui/project_code/backend" && python -m pytest tests/test_courses.py -v`
+  - 结果：`23 passed`
+  - 备注：测试输出仍包含现有 `datetime.utcnow()` 与 FastAPI 422 常量弃用告警，本次未扩大处理范围。

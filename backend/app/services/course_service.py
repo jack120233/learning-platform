@@ -30,14 +30,14 @@ class CourseService:
     """课程管理服务类"""
 
     def _can_manage_course(self, current_user: User, course: Course) -> bool:
-        return current_user.role == "admin" or course.teacher_id == current_user.id
+        return course.teacher_id == current_user.id
 
     def _can_publish_course(self, current_user: User, course: Course) -> bool:
         return course.teacher_id == current_user.id
 
     def _can_archive_course(self, current_user: User, course: Course) -> bool:
         return course.status == "published" and (
-            current_user.role == "admin" or course.teacher_id == current_user.id
+            current_user.role in {"teacher", "admin"} or course.teacher_id == current_user.id
         )
 
     def _can_delete_course(self, current_user: User, course: Course) -> bool:
@@ -101,8 +101,8 @@ class CourseService:
         query = select(Course)
 
         if scope == CourseManageScope.PUBLISHED_ALL:
-            if current_user.role != "admin":
-                raise ForbiddenException("仅管理员可查看全部已发布课程")
+            if current_user.role not in {"teacher", "admin"}:
+                raise ForbiddenException("仅讲师可查看全部已发布课程")
             query = query.where(Course.status == "published")
         else:
             query = query.where(Course.teacher_id == current_user.id)

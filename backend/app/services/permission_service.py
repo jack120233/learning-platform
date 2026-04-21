@@ -46,8 +46,8 @@ DEFAULT_PERMISSIONS: tuple[PermissionSeed, ...] = (
 
 DEFAULT_ROLE_PERMISSION_IDS: dict[RoleName, tuple[int, ...]] = {
     "student": (1, 11, 12, 13, 14),
-    "teacher": (1, 11, 12, 13, 14, 2, 21, 22, 23),
-    "admin": tuple(seed.id for seed in DEFAULT_PERMISSIONS),
+    "teacher": (1, 11, 12, 13, 14, 2, 21, 22, 23, 3, 31, 32, 33, 35, 36, 37, 38, 39),
+    "admin": (1, 11, 12, 13, 14, 2, 21, 22, 23, 3, 31, 32, 33, 35, 36, 37, 38, 39),
 }
 
 VALID_ROLES: tuple[RoleName, ...] = ("student", "teacher", "admin")
@@ -140,10 +140,10 @@ class PermissionService:
         await db.flush()
         return normalized_permission_ids
 
-    def ensure_admin(self, role: str) -> None:
+    def ensure_admin(self, role: str, message: str = "仅管理员可管理角色权限") -> None:
         """校验当前用户是否为管理员。"""
         if role != "admin":
-            raise ForbiddenException("仅管理员可管理角色权限")
+            raise ForbiddenException(message)
 
     async def ensure_permission(
         self,

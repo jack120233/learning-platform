@@ -157,40 +157,39 @@ class TestCourseManageList:
         assert "created_at" in items[0]
 
     @pytest.mark.asyncio
-    async def test_admin_gets_all_published_courses(
+    async def test_teacher_gets_all_published_courses(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """管理员可查看所有已发布课程。"""
-        admin, admin_headers = await create_upload_test_user_with_user(db_session, "admin")
-        teacher_a, _ = await create_upload_test_user_with_user(db_session, "teacher")
-        teacher_b, _ = await create_upload_test_user_with_user(db_session, "teacher")
+        """讲师可查看所有已发布课程。"""
+        teacher, teacher_headers = await create_upload_test_user_with_user(db_session, "teacher")
+        other_teacher, _ = await create_upload_test_user_with_user(db_session, "teacher")
 
-        published_a = await create_course_with_status(db_session, teacher_a.id, "published", "已发布课程A")
-        published_b = await create_course_with_status(db_session, teacher_b.id, "published", "已发布课程B")
-        await create_course_with_status(db_session, teacher_b.id, "draft", "草稿课程")
+        own_published = await create_course_with_status(db_session, teacher.id, "published", "我的已发布课程")
+        other_published = await create_course_with_status(db_session, other_teacher.id, "published", "别人的已发布课程")
+        await create_course_with_status(db_session, other_teacher.id, "draft", "草稿课程")
 
         response = await client.get(
             "/api/v1/courses/manage",
-            headers=admin_headers,
+            headers=teacher_headers,
             params={"scope": "published_all"},
         )
 
         assert response.status_code == 200
         ids = {item["course_id"] for item in response.json()["data"]["items"]}
-        assert published_a.id in ids
-        assert published_b.id in ids
+        assert own_published.id in ids
+        assert other_published.id in ids
         assert len(ids) == 2
 
     @pytest.mark.asyncio
-    async def test_teacher_cannot_get_all_published_courses(
+    async def test_student_cannot_get_all_published_courses(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """讲师不能查看全站已发布课程。"""
-        _teacher, headers = await create_upload_test_user_with_user(db_session, "teacher")
+        """学员不能查看全站已发布课程管理列表。"""
+        student, headers = await create_upload_test_user_with_user(db_session, "student")
 
         response = await client.get(
             "/api/v1/courses/manage",

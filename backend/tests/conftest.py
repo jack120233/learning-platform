@@ -175,20 +175,28 @@ async def test_teacher(db_session: AsyncSession):
     Returns:
         User: 测试讲师实例
     """
+    from sqlalchemy import select
     from app.models.user import User
     from app.core.security import hash_password
 
-    teacher = User(
-        username="testteacher",
-        email="teacher@example.com",
-        password_hash=hash_password("Teacher123456"),
-        nickname="测试讲师",
-        role="teacher",
-        status="active",
+    result = await db_session.execute(
+        select(User).where(User.username == "testteacher")
     )
-    db_session.add(teacher)
-    await db_session.flush()
-    await db_session.refresh(teacher)
+    teacher = result.scalar_one_or_none()
+
+    if not teacher:
+        teacher = User(
+            username="testteacher",
+            email="teacher@example.com",
+            password_hash=hash_password("Teacher123456"),
+            nickname="测试讲师",
+            role="teacher",
+            status="active",
+        )
+        db_session.add(teacher)
+        await db_session.flush()
+        await db_session.refresh(teacher)
+
     return teacher
 
 
@@ -204,20 +212,50 @@ async def test_admin(db_session: AsyncSession):
     Returns:
         User: 测试管理员实例
     """
+    from sqlalchemy import select
     from app.models.user import User
+    from app.models.permission import RolePermission
+    from app.services.permission_service import DEFAULT_ROLE_PERMISSION_IDS, permission_service
     from app.core.security import hash_password
 
-    admin = User(
-        username="testadmin",
-        email="admin@example.com",
-        password_hash=hash_password("Admin123456"),
-        nickname="测试管理员",
-        role="admin",
-        status="active",
+    await permission_service.ensure_schema_and_seed(db_session)
+
+    result = await db_session.execute(
+        select(User).where(User.username == "testadmin")
     )
-    db_session.add(admin)
-    await db_session.flush()
-    await db_session.refresh(admin)
+    admin = result.scalar_one_or_none()
+
+    if not admin:
+        admin = User(
+            username="testadmin",
+            email="admin@example.com",
+            password_hash=hash_password("Admin123456"),
+            nickname="测试管理员",
+            role="admin",
+            status="active",
+        )
+        db_session.add(admin)
+        await db_session.flush()
+        await db_session.refresh(admin)
+
+    result = await db_session.execute(
+        select(RolePermission.permission_id).where(RolePermission.role == "admin")
+    )
+    existing_permission_ids = set(result.scalars().all())
+    missing_permission_ids = [
+        permission_id
+        for permission_id in DEFAULT_ROLE_PERMISSION_IDS["admin"]
+        if permission_id not in existing_permission_ids
+    ]
+    if missing_permission_ids:
+        db_session.add_all(
+            [
+                RolePermission(role="admin", permission_id=permission_id)
+                for permission_id in missing_permission_ids
+            ]
+        )
+        await db_session.flush()
+
     return admin
 
 
@@ -331,18 +369,26 @@ async def test_category(db_session: AsyncSession):
     Returns:
         Category: 测试分类实例
     """
+    from sqlalchemy import select
     from app.models.category import Category
 
-    category = Category(
-        name="测试分类",
-        slug="test-category",
-        description="这是一个测试分类",
-        is_active=True,
-        sort_order=1,
+    result = await db_session.execute(
+        select(Category).where(Category.slug == "test-category")
     )
-    db_session.add(category)
-    await db_session.flush()
-    await db_session.refresh(category)
+    category = result.scalar_one_or_none()
+
+    if not category:
+        category = Category(
+            name="测试分类",
+            slug="test-category",
+            description="这是一个测试分类",
+            is_active=True,
+            sort_order=1,
+        )
+        db_session.add(category)
+        await db_session.flush()
+        await db_session.refresh(category)
+
     return category
 
 

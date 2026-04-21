@@ -6,13 +6,14 @@
 from fastapi import APIRouter, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import DBSession
+from app.core.dependencies import CurrentUser, DBSession
 from app.schemas.common import ApiResponse, PageData
 from app.schemas.system import (
     CategoryCreate,
     CategoryResponse,
     CategoryUpdate,
 )
+from app.services.permission_service import permission_service
 from app.services.system_service import category_service
 
 router = APIRouter(prefix="/categories", tags=["分类管理"])
@@ -49,8 +50,15 @@ async def get_categories(
 async def create_category(
     data: CategoryCreate,
     db: DBSession,
+    current_user: CurrentUser,
 ) -> ApiResponse[CategoryResponse]:
     """创建分类接口"""
+    await permission_service.ensure_permission(
+        db,
+        current_user.role,
+        "admin.category",
+        "无权创建分类",
+    )
     category = await category_service.create(db, data)
     return ApiResponse.success(
         data=CategoryResponse.model_validate(category),
@@ -68,8 +76,15 @@ async def update_category(
     category_id: int,
     data: CategoryUpdate,
     db: DBSession,
+    current_user: CurrentUser,
 ) -> ApiResponse[CategoryResponse]:
     """更新分类接口"""
+    await permission_service.ensure_permission(
+        db,
+        current_user.role,
+        "admin.category",
+        "无权更新分类",
+    )
     category = await category_service.update(db, category_id, data)
     return ApiResponse.success(
         data=CategoryResponse.model_validate(category),
@@ -86,7 +101,14 @@ async def update_category(
 async def delete_category(
     category_id: int,
     db: DBSession,
+    current_user: CurrentUser,
 ) -> ApiResponse[None]:
     """删除分类接口"""
+    await permission_service.ensure_permission(
+        db,
+        current_user.role,
+        "admin.category",
+        "无权删除分类",
+    )
     await category_service.delete(db, category_id)
     return ApiResponse.success(message="删除成功")

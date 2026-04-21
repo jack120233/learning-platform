@@ -12,11 +12,46 @@ from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.core.db_schema import ensure_database_compatibility
+from app.core.security import hash_password
+from app.models.permission import RolePermission
 from app.models.user import User
 
 
 def unique_key(prefix: str = "fb") -> str:
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
+
+
+async def create_role_user(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    role: str,
+    password: str = "Test123456",
+) -> dict[str, str | int]:
+    """创建指定角色用户并返回认证头。"""
+    unique_suffix = uuid.uuid4().hex[:8]
+    username = f"{role}_{unique_suffix}"
+    user = User(
+        username=username,
+        email=f"{username}@example.com",
+        password_hash=hash_password(password),
+        nickname=f"{role}-tester",
+        role=role,
+        status="active",
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"username": username, "password": password},
+    )
+    assert response.status_code == 200
+    token = response.json()["data"]["access_token"]
+    return {
+        "user_id": user.id,
+        "username": username,
+        "headers": {"Authorization": f"Bearer {token}"},
+    }
 
 
 class TestFeedback:
@@ -84,41 +119,15 @@ class TestFeedback:
         self,
         client: AsyncClient,
         db_session: AsyncSession,
-        test_user: User,
         test_course,
     ):
         """测试获取反馈列表时返回前端需要的字段。"""
         from app.models.feedback import Feedback
-        from app.models.captcha import CaptchaRecord
-        from tests.test_auth import unique_key, utcnow
 
-        key = unique_key("feedback_list")
-        captcha = CaptchaRecord(
-            captcha_key=key,
-            captcha_text="test",
-            image_base64="test",
-            expires_at=utcnow() + timedelta(minutes=5),
-        )
-        db_session.add(captcha)
-        await db_session.flush()
-
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            json={
-                "username": "testuser",
-                "password": "Test123456",
-                "captcha_key": key,
-                "captcha_text": "test",
-            },
-        )
-
-        if login_response.status_code != 200:
-            pytest.skip("登录失败")
-
-        token = login_response.json()["data"]["access_token"]
+        student_auth = await create_role_user(client, db_session, "student")
 
         feedback = Feedback(
-            user_id=test_user.id,
+            user_id=student_auth["user_id"],
             type="course",
             course_id=test_course.id,
             title="课程反馈",
@@ -131,7 +140,7 @@ class TestFeedback:
 
         response = await client.get(
             "/api/v1/feedbacks",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=student_auth["headers"],
         )
 
         assert response.status_code == 200
@@ -143,7 +152,7 @@ class TestFeedback:
         assert item["feedback_type"] == "course"
         assert item["course_id"] == test_course.id
         assert item["course_title"] == test_course.title
-        assert item["username"] == test_user.username
+        assert item["username"] == student_auth["username"]
         assert item["status"] == "processed"
 
     @pytest.mark.asyncio
@@ -151,41 +160,15 @@ class TestFeedback:
         self,
         client: AsyncClient,
         db_session: AsyncSession,
-        test_user: User,
         test_course,
     ):
         """测试反馈详情接口兼容字典序列化结果。"""
-        from app.models.captcha import CaptchaRecord
         from app.models.feedback import Feedback
-        from tests.test_auth import unique_key, utcnow
 
-        key = unique_key("feedback_detail")
-        captcha = CaptchaRecord(
-            captcha_key=key,
-            captcha_text="test",
-            image_base64="test",
-            expires_at=utcnow() + timedelta(minutes=5),
-        )
-        db_session.add(captcha)
-        await db_session.flush()
-
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            json={
-                "username": "testuser",
-                "password": "Test123456",
-                "captcha_key": key,
-                "captcha_text": "test",
-            },
-        )
-
-        if login_response.status_code != 200:
-            pytest.skip("登录失败")
-
-        token = login_response.json()["data"]["access_token"]
+        student_auth = await create_role_user(client, db_session, "student")
 
         feedback = Feedback(
-            user_id=test_user.id,
+            user_id=student_auth["user_id"],
             type="course",
             course_id=test_course.id,
             title="课程反馈详情",
@@ -197,13 +180,142 @@ class TestFeedback:
 
         response = await client.get(
             f"/api/v1/feedbacks/{feedback.id}",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=student_auth["headers"],
         )
 
         assert response.status_code == 200
         data = response.json()["data"]
         assert data["feedback_id"] == feedback.id
         assert data["course_id"] == test_course.id
+
+    @pytest.mark.asyncio
+    async def test_process_feedback_with_reply(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_course,
+        test_admin: User,
+        admin_headers: dict,
+    ):
+        """测试管理员处理反馈时会写入回复内容和处理信息。"""
+        from app.models.feedback import Feedback
+
+        student_auth = await create_role_user(client, db_session, "student")
+
+        feedback = Feedback(
+            user_id=student_auth["user_id"],
+            type="course",
+            course_id=test_course.id,
+            title="课程反馈待处理",
+            content="这里有一个需要管理员回复的问题",
+            status="pending",
+        )
+        db_session.add(feedback)
+        await db_session.flush()
+
+        response = await client.post(
+            f"/api/v1/feedbacks/{feedback.id}/process",
+            headers=admin_headers,
+            json={"reply": "已核查该课程问题，我们会尽快修复。"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["feedback_id"] == feedback.id
+        assert data["status"] == "processed"
+        assert data["reply"] == "已核查该课程问题，我们会尽快修复。"
+        assert data["replied_at"] is not None
+        assert data["processed_at"] is not None
+
+        await db_session.refresh(feedback)
+        assert feedback.status == "processed"
+        assert feedback.reply == "已核查该课程问题，我们会尽快修复。"
+        assert feedback.replied_at is not None
+        assert feedback.replied_by == test_admin.id
+
+    @pytest.mark.asyncio
+    async def test_teacher_with_feedback_permission_can_view_all_feedbacks(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_course,
+    ):
+        """测试拥有反馈权限的讲师可查看全量反馈列表和详情。"""
+        from app.models.feedback import Feedback
+
+        teacher_auth = await create_role_user(client, db_session, "teacher")
+        student_auth = await create_role_user(client, db_session, "student")
+        db_session.add(RolePermission(role="teacher", permission_id=36))
+        await db_session.flush()
+
+        own_feedback = Feedback(
+            user_id=teacher_auth["user_id"],
+            type="system",
+            title="讲师自己的反馈",
+            content="讲师自己提交的反馈",
+            status="pending",
+        )
+        student_feedback = Feedback(
+            user_id=student_auth["user_id"],
+            type="course",
+            course_id=test_course.id,
+            title="学生课程反馈",
+            content="学生提交的课程问题",
+            status="pending",
+        )
+        db_session.add_all([own_feedback, student_feedback])
+        await db_session.flush()
+
+        list_response = await client.get(
+            "/api/v1/feedbacks",
+            headers=teacher_auth["headers"],
+        )
+
+        assert list_response.status_code == 200
+        items = list_response.json()["data"]["items"]
+        feedback_ids = {item["feedback_id"] for item in items}
+        assert own_feedback.id in feedback_ids
+        assert student_feedback.id in feedback_ids
+
+        detail_response = await client.get(
+            f"/api/v1/feedbacks/{student_feedback.id}",
+            headers=teacher_auth["headers"],
+        )
+        assert detail_response.status_code == 200
+        detail = detail_response.json()["data"]
+        assert detail["feedback_id"] == student_feedback.id
+        assert detail["user_id"] == student_auth["user_id"]
+
+    @pytest.mark.asyncio
+    async def test_student_cannot_view_other_user_feedback_detail(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_course,
+    ):
+        """测试没有反馈管理权限的普通用户不能查看他人反馈详情。"""
+        from app.models.feedback import Feedback
+
+        owner_auth = await create_role_user(client, db_session, "student")
+        student_auth = await create_role_user(client, db_session, "student")
+        feedback = Feedback(
+            user_id=owner_auth["user_id"],
+            type="course",
+            course_id=test_course.id,
+            title="别人的反馈",
+            content="这是别人的反馈内容",
+            status="pending",
+        )
+        db_session.add(feedback)
+        await db_session.flush()
+
+        response = await client.get(
+            f"/api/v1/feedbacks/{feedback.id}",
+            headers=student_auth["headers"],
+        )
+
+        assert response.status_code == 403
+        assert response.json()["message"] == "无权查看该反馈"
 
 
 @pytest.mark.asyncio

@@ -23,12 +23,7 @@ async def get_permission_tree(
     current_user: CurrentUser,
 ) -> ApiResponse[list[PermissionTreeItem]]:
     """获取权限树接口。"""
-    await permission_service.ensure_permission(
-        db,
-        current_user.role,
-        "admin.role_permission",
-        "无权查看角色权限配置",
-    )
+    permission_service.ensure_admin(current_user.role, "无权查看角色权限配置")
     permission_tree = await permission_service.get_permission_tree(db)
     return ApiResponse.success(
         data=[PermissionTreeItem.model_validate(item) for item in permission_tree]
@@ -63,12 +58,7 @@ async def get_role_permissions(
 ) -> ApiResponse[list[int]]:
     """获取角色权限接口。"""
     if current_user.role != role:
-        await permission_service.ensure_permission(
-            db,
-            current_user.role,
-            "admin.role_permission",
-            "无权查看角色权限配置",
-        )
+        permission_service.ensure_admin(current_user.role, "无权查看角色权限配置")
     permission_ids = await permission_service.get_role_permissions(db, role)
     return ApiResponse.success(data=permission_ids)
 
@@ -86,11 +76,6 @@ async def update_role_permissions(
     current_user: CurrentUser,
 ) -> ApiResponse[None]:
     """更新角色权限接口。"""
-    await permission_service.ensure_permission(
-        db,
-        current_user.role,
-        "admin.role_permission",
-        "无权修改角色权限配置",
-    )
+    permission_service.ensure_admin(current_user.role, "无权修改角色权限配置")
     await permission_service.update_role_permissions(db, role, data.permissions)
     return ApiResponse.success(message="权限配置已更新")

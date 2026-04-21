@@ -15,11 +15,45 @@ from app.models.course import Course
 from app.models.learning import ResourceProgress
 from app.models.user import User
 from app.core.security import hash_password
+from app.models.permission import RolePermission
 
 
 def unique_key(prefix: str = "user") -> str:
     """生成唯一键"""
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
+
+
+async def create_role_user(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    role: str,
+    password: str = "Test123456",
+) -> dict[str, str | int]:
+    """创建指定角色用户并返回认证头。"""
+    unique_suffix = uuid.uuid4().hex[:8]
+    username = f"{role}_{unique_suffix}"
+    user = User(
+        username=username,
+        email=f"{username}@example.com",
+        password_hash=hash_password(password),
+        nickname=f"{role}-tester",
+        role=role,
+        status="active",
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"username": username, "password": password},
+    )
+    assert response.status_code == 200
+    token = response.json()["data"]["access_token"]
+    return {
+        "user_id": user.id,
+        "username": username,
+        "headers": {"Authorization": f"Bearer {token}"},
+    }
 
 
 class TestUserProfile:
@@ -559,45 +593,15 @@ class TestUserList:
     """用户列表测试类（管理员）"""
 
     @pytest.mark.asyncio
-    async def test_get_user_list(
+    async def test_admin_can_get_user_list(
         self,
         client: AsyncClient,
-        db_session: AsyncSession,
-        test_admin: User,
+        admin_headers: dict,
     ):
-        """测试获取用户列表"""
-        from app.models.captcha import CaptchaRecord
-        from tests.test_auth import unique_key, utcnow
-
-        key = unique_key("userlist")
-        captcha = CaptchaRecord(
-            captcha_key=key,
-            captcha_text="test",
-            image_base64="test",
-            expires_at=utcnow() + timedelta(minutes=5),
-        )
-        db_session.add(captcha)
-        await db_session.flush()
-
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            json={
-                "username": "testadmin",
-                "password": "Admin123456",
-                "captcha_key": key,
-                "captcha_text": "test",
-            },
-        )
-
-        if login_response.status_code != 200:
-            assert login_response.status_code in [200, 400, 401]
-            return
-
-        token = login_response.json()["data"]["access_token"]
-
+        """测试管理员可获取用户列表。"""
         response = await client.get(
             "/api/v1/users",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=admin_headers,
         )
 
         assert response.status_code == 200
@@ -605,94 +609,90 @@ class TestUserList:
         assert "items" in data["data"]
 
     @pytest.mark.asyncio
-    async def test_get_user_list_unauthorized(
+    async def test_student_without_permission_cannot_get_user_list(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
-        test_user: User,
     ):
-        """测试普通用户无法获取用户列表"""
-        from app.models.captcha import CaptchaRecord
-        from tests.test_auth import unique_key, utcnow
-
-        key = unique_key("userlist_unauth")
-        captcha = CaptchaRecord(
-            captcha_key=key,
-            captcha_text="test",
-            image_base64="test",
-            expires_at=utcnow() + timedelta(minutes=5),
-        )
-        db_session.add(captcha)
-        await db_session.flush()
-
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            json={
-                "username": "testuser",
-                "password": "Test123456",
-                "captcha_key": key,
-                "captcha_text": "test",
-            },
-        )
-
-        if login_response.status_code != 200:
-            assert login_response.status_code in [200, 400, 401]
-            return
-
-        token = login_response.json()["data"]["access_token"]
+        """测试普通用户无法获取用户列表。"""
+        student_auth = await create_role_user(client, db_session, "student")
 
         response = await client.get(
             "/api/v1/users",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=student_auth["headers"],
         )
 
-        # 普通用户可能返回 403 或 200（取决于权限实现）
-        assert response.status_code in [200, 403]
+        assert response.status_code == 403
+        assert response.json()["message"] == "无权查看用户列表"
+
+    @pytest.mark.asyncio
+    async def test_teacher_with_admin_user_permission_can_get_user_list(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试拥有用户管理权限的讲师可获取用户列表。"""
+        teacher_auth = await create_role_user(client, db_session, "teacher")
+        db_session.add(RolePermission(role="teacher", permission_id=31))
+        await db_session.flush()
+
+        response = await client.get(
+            "/api/v1/users",
+            headers=teacher_auth["headers"],
+        )
+
+        assert response.status_code == 200
+        assert "items" in response.json()["data"]
 
 
 class TestTeacherAudit:
     """讲师审核测试类"""
 
     @pytest.mark.asyncio
-    async def test_get_teacher_audits(
+    async def test_admin_can_get_teacher_audits(
+        self,
+        client: AsyncClient,
+        admin_headers: dict,
+    ):
+        """测试管理员可获取讲师审核列表。"""
+        response = await client.get(
+            "/api/v1/users/teacher-audits",
+            headers=admin_headers,
+        )
+
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_student_without_permission_cannot_get_teacher_audits(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
-        test_admin: User,
     ):
-        """测试获取讲师审核列表"""
-        from app.models.captcha import CaptchaRecord
-        from tests.test_auth import unique_key, utcnow
-
-        key = unique_key("teacher")
-        captcha = CaptchaRecord(
-            captcha_key=key,
-            captcha_text="test",
-            image_base64="test",
-            expires_at=utcnow() + timedelta(minutes=5),
-        )
-        db_session.add(captcha)
-        await db_session.flush()
-
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            json={
-                "username": "testadmin",
-                "password": "Admin123456",
-                "captcha_key": key,
-                "captcha_text": "test",
-            },
-        )
-
-        if login_response.status_code != 200:
-            assert login_response.status_code in [200, 400, 401]
-            return
-
-        token = login_response.json()["data"]["access_token"]
+        """测试普通用户无法获取讲师审核列表。"""
+        student_auth = await create_role_user(client, db_session, "student")
 
         response = await client.get(
             "/api/v1/users/teacher-audits",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=student_auth["headers"],
+        )
+
+        assert response.status_code == 403
+        assert response.json()["message"] == "无权查看讲师审核列表"
+
+    @pytest.mark.asyncio
+    async def test_teacher_with_teacher_audit_permission_can_get_teacher_audits(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试拥有讲师审核权限的讲师可获取审核列表。"""
+        teacher_auth = await create_role_user(client, db_session, "teacher")
+        db_session.add(RolePermission(role="teacher", permission_id=32))
+        await db_session.flush()
+
+        response = await client.get(
+            "/api/v1/users/teacher-audits",
+            headers=teacher_auth["headers"],
         )
 
         assert response.status_code == 200
@@ -702,45 +702,50 @@ class TestAdminApplications:
     """管理员申请测试类"""
 
     @pytest.mark.asyncio
-    async def test_get_admin_applications(
+    async def test_admin_can_get_admin_applications(
+        self,
+        client: AsyncClient,
+        admin_headers: dict,
+    ):
+        """测试管理员可获取管理员申请列表。"""
+        response = await client.get(
+            "/api/v1/users/admin-applications",
+            headers=admin_headers,
+        )
+
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_student_without_permission_cannot_get_admin_applications(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
-        test_admin: User,
     ):
-        """测试获取管理员申请列表"""
-        from app.models.captcha import CaptchaRecord
-        from tests.test_auth import unique_key, utcnow
-
-        key = unique_key("admin")
-        captcha = CaptchaRecord(
-            captcha_key=key,
-            captcha_text="test",
-            image_base64="test",
-            expires_at=utcnow() + timedelta(minutes=5),
-        )
-        db_session.add(captcha)
-        await db_session.flush()
-
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            json={
-                "username": "testadmin",
-                "password": "Admin123456",
-                "captcha_key": key,
-                "captcha_text": "test",
-            },
-        )
-
-        if login_response.status_code != 200:
-            assert login_response.status_code in [200, 400, 401]
-            return
-
-        token = login_response.json()["data"]["access_token"]
+        """测试普通用户无法获取管理员申请列表。"""
+        student_auth = await create_role_user(client, db_session, "student")
 
         response = await client.get(
             "/api/v1/users/admin-applications",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=student_auth["headers"],
+        )
+
+        assert response.status_code == 403
+        assert response.json()["message"] == "无权查看管理员申请列表"
+
+    @pytest.mark.asyncio
+    async def test_teacher_with_admin_application_permission_can_get_admin_applications(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试拥有管理员申请审核权限的讲师可获取申请列表。"""
+        teacher_auth = await create_role_user(client, db_session, "teacher")
+        db_session.add(RolePermission(role="teacher", permission_id=33))
+        await db_session.flush()
+
+        response = await client.get(
+            "/api/v1/users/admin-applications",
+            headers=teacher_auth["headers"],
         )
 
         assert response.status_code == 200

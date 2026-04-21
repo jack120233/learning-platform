@@ -17,6 +17,12 @@ from app.schemas.feedback import (
 from app.services.feedback_service import feedback_service
 from app.services.permission_service import permission_service
 
+
+async def has_feedback_admin_permission(db: DBSession, role: str) -> bool:
+    """判断当前角色是否拥有反馈管理权限。"""
+    permission_codes = await permission_service.get_role_permission_codes(db, role)
+    return "admin.feedback" in permission_codes
+
 router = APIRouter(prefix="/feedbacks", tags=["反馈管理"])
 
 
@@ -56,21 +62,14 @@ async def get_feedbacks(
     page_size: int = Query(default=10, ge=1, le=50, description="每页数量"),
 ) -> ApiResponse[PageData[FeedbackResponse]]:
     """获取反馈列表接口"""
-    target_user_id = None if current_user.role == "admin" else current_user.id
-    if current_user.role == "admin":
-        await permission_service.ensure_permission(
-            db,
-            current_user.role,
-            "admin.feedback",
-            "无权查看全部反馈",
-        )
+    can_view_all = await has_feedback_admin_permission(db, current_user.role)
 
     feedbacks, total = await feedback_service.get_list(
         db,
-        user_id=target_user_id,
+        user_id=None if can_view_all else current_user.id,
         feedback_type=feedback_type,
         status=status,
-        keyword=keyword if current_user.role == "admin" else None,
+        keyword=keyword if can_view_all else None,
         page=page,
         page_size=page_size,
     )
@@ -101,16 +100,9 @@ async def get_feedback(
     if not feedback:
         raise NotFoundException("反馈不存在")
 
-    if current_user.role != "admin" and feedback["user_id"] != current_user.id:
+    can_view_all = await has_feedback_admin_permission(db, current_user.role)
+    if not can_view_all and feedback["user_id"] != current_user.id:
         raise ForbiddenException("无权查看该反馈")
-
-    if current_user.role == "admin":
-        await permission_service.ensure_permission(
-            db,
-            current_user.role,
-            "admin.feedback",
-            "无权查看反馈详情",
-        )
 
     return ApiResponse.success(data=FeedbackResponse.model_validate(feedback))
 

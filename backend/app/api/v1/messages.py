@@ -6,7 +6,7 @@
 from fastapi import APIRouter, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import DBSession, CurrentUserId
+from app.core.dependencies import CurrentUser, DBSession, CurrentUserId
 from app.schemas.common import ApiResponse, PageData
 from app.schemas.message import (
     MessageResponse,
@@ -14,6 +14,7 @@ from app.schemas.message import (
     UnreadCountResponse,
 )
 from app.services.message_service import message_service
+from app.services.permission_service import permission_service
 
 router = APIRouter(prefix="/messages", tags=["消息管理"])
 
@@ -147,9 +148,15 @@ async def get_unread_count(
 async def send_message(
     data: MessageSend,
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
 ) -> ApiResponse[MessageResponse]:
     """发送消息接口（管理员）"""
+    await permission_service.ensure_permission(
+        db,
+        current_user.role,
+        "admin.message",
+        "无权发送系统消息",
+    )
     message = await message_service.send(db, data)
     return ApiResponse.success(
         data=MessageResponse.model_validate(message),

@@ -13,12 +13,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ConflictException, NotFoundException, ValidationException
 from app.models.category import Category
 from app.models.tag import Tag
+from app.models.course import CourseTag
 from app.models.announcement import Announcement
 from app.models.message import Message
 from app.models.user import User
 from app.schemas.system import (
     AnnouncementCreate,
     AnnouncementUpdate,
+    BatchTagDeleteFailure,
+    BatchTagDeleteResponse,
     CategoryCreate,
     CategoryUpdate,
     TagCreate,
@@ -235,6 +238,40 @@ class TagService:
         await db.refresh(tag)
         return tag
 
+    async def delete(self, db: AsyncSession, tag_id: int) -> None:
+        """删除标签"""
+        tag = await db.get(Tag, tag_id)
+        if not tag:
+            raise NotFoundException("标签不存在")
+
+        if await self._is_in_use(db, tag_id):
+            raise ValidationException("标签已被课程引用，无法删除")
+
+        await db.delete(tag)
+        await db.flush()
+
+    async def batch_delete(
+        self,
+        db: AsyncSession,
+        tag_ids: list[int],
+    ) -> BatchTagDeleteResponse:
+        """批量删除标签"""
+        unique_ids = list(dict.fromkeys(tag_ids))
+        response = BatchTagDeleteResponse()
+
+        for tag_id in unique_ids:
+            try:
+                await self.delete(db, tag_id)
+                response.success_ids.append(tag_id)
+            except (NotFoundException, ValidationException) as exc:
+                response.failed_items.append(BatchTagDeleteFailure(tag_id=tag_id, reason=str(exc)))
+
+        response.success_count = len(response.success_ids)
+        response.failed_count = len(response.failed_items)
+        response.message = f"已成功删除 {response.success_count} 个标签"
+        await db.flush()
+        return response
+
     async def _get_by_name(self, db: AsyncSession, name: str) -> Tag | None:
         """通过名称获取标签"""
         result = await db.execute(
@@ -248,6 +285,13 @@ class TagService:
             select(Tag).where(Tag.slug == slug)
         )
         return result.scalar_one_or_none()
+
+    async def _is_in_use(self, db: AsyncSession, tag_id: int) -> bool:
+        """检查标签是否已被课程引用"""
+        result = await db.execute(
+            select(func.count()).select_from(CourseTag).where(CourseTag.tag_id == tag_id)
+        )
+        return (result.scalar() or 0) > 0
 
 
 class AnnouncementService:

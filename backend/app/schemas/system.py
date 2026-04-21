@@ -154,6 +154,29 @@ class TagResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class BatchTagDeleteRequest(BaseModel):
+    """批量删除标签请求"""
+
+    tag_ids: list[int] = Field(min_length=1, max_length=100, description="标签ID列表")
+
+
+class BatchTagDeleteFailure(BaseModel):
+    """批量删除标签失败项"""
+
+    tag_id: int = Field(description="标签ID")
+    reason: str = Field(description="失败原因")
+
+
+class BatchTagDeleteResponse(BaseModel):
+    """批量删除标签响应"""
+
+    success_ids: list[int] = Field(default_factory=list, description="成功删除的标签ID")
+    failed_items: list[BatchTagDeleteFailure] = Field(default_factory=list, description="失败项")
+    success_count: int = Field(default=0, description="成功数量")
+    failed_count: int = Field(default=0, description="失败数量")
+    message: str | None = Field(default=None, description="结果说明")
+
+
 # ==================== 公告模型 ====================
 
 class AnnouncementCreate(BaseModel):
