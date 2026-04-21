@@ -9,6 +9,8 @@ from collections.abc import Callable
 from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.services.permission_service import DEFAULT_ROLE_PERMISSION_IDS
+
 
 async def ensure_database_compatibility(conn: AsyncConnection) -> list[str]:
     """补齐当前版本代码依赖的历史兼容字段。
@@ -135,5 +137,42 @@ async def ensure_database_compatibility(conn: AsyncConnection) -> list[str]:
         lambda _: "ALTER TABLE feedbacks ADD COLUMN course_id INTEGER",
         "已为 feedbacks 表补充 course_id 字段",
     )
+
+    if await conn.run_sync(has_table, "permissions") and await conn.run_sync(has_table, "role_permissions"):
+        allowed_teacher_permission_ids = ", ".join(
+            str(permission_id) for permission_id in DEFAULT_ROLE_PERMISSION_IDS["teacher"]
+        )
+        teacher_rows = await conn.execute(
+            text("SELECT permission_id FROM role_permissions WHERE role = 'teacher'")
+        )
+        current_teacher_permission_ids = {row[0] for row in teacher_rows.fetchall()}
+        target_teacher_permission_ids = set(DEFAULT_ROLE_PERMISSION_IDS["teacher"])
+
+        stale_teacher_permission_ids = current_teacher_permission_ids - target_teacher_permission_ids
+        missing_teacher_permission_ids = target_teacher_permission_ids - current_teacher_permission_ids
+
+        if stale_teacher_permission_ids:
+            await conn.execute(
+                text(
+                    "DELETE FROM role_permissions "
+                    "WHERE role = 'teacher' "
+                    f"AND permission_id NOT IN ({allowed_teacher_permission_ids})"
+                )
+            )
+            messages.append("已清理老师角色的历史后台权限")
+
+        for permission_id in sorted(missing_teacher_permission_ids):
+            await conn.execute(
+                text(
+                    "INSERT INTO role_permissions (role, permission_id) "
+                    "SELECT :role, :permission_id "
+                    "WHERE NOT EXISTS ("
+                    "SELECT 1 FROM role_permissions WHERE role = :role AND permission_id = :permission_id"
+                    ")"
+                ),
+                {"role": "teacher", "permission_id": permission_id},
+            )
+        if missing_teacher_permission_ids:
+            messages.append("已补齐老师角色当前默认权限")
 
     return messages

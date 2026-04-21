@@ -179,6 +179,7 @@ async def get_user_list(
         "admin.user",
         "无权查看用户列表",
     )
+    permission_service.ensure_admin(current_user.role, "仅管理员可查看用户列表")
     users, total = await user_service.get_user_list(
         db,
         keyword=keyword,
@@ -216,6 +217,7 @@ async def update_user_status(
         "admin.user",
         "无权更新用户状态",
     )
+    permission_service.ensure_admin(current_user.role, "仅管理员可更新用户状态")
     user = await user_service.update_user_status(db, target_user_id, data, current_user.id)
     return ApiResponse.success(
         data=UserResponse.model_validate(user),
@@ -241,6 +243,7 @@ async def delete_user(
         "admin.user",
         "无权删除用户",
     )
+    permission_service.ensure_admin(current_user.role, "仅管理员可删除用户")
     await user_service.delete_user(db, target_user_id, current_user.id)
     return ApiResponse.success(message="删除成功")
 
@@ -267,6 +270,7 @@ async def get_teacher_audits(
         "admin.teacher_audit",
         "无权查看讲师审核列表",
     )
+    permission_service.ensure_admin(current_user.role, "仅管理员可查看讲师审核列表")
     audits, total = await teacher_audit_service.get_list(
         db,
         status=status,
@@ -332,6 +336,7 @@ async def review_teacher_audit(
         "admin.teacher_audit",
         "无权审核讲师申请",
     )
+    permission_service.ensure_admin(current_user.role, "仅管理员可审核讲师申请")
     audit = await teacher_audit_service.review(db, audit_id, data, current_user.id)
     return ApiResponse.success(
         data=TeacherAuditResponse.model_validate(audit),
@@ -361,6 +366,7 @@ async def get_admin_applications(
         "admin.admin_application",
         "无权查看管理员申请列表",
     )
+    permission_service.ensure_admin(current_user.role, "仅管理员可查看管理员申请列表")
     applications, total = await admin_application_service.get_list(
         db,
         status=status,
@@ -412,6 +418,7 @@ async def review_admin_application(
         "admin.admin_application",
         "无权审核管理员申请",
     )
+    permission_service.ensure_admin(current_user.role, "仅管理员可审核管理员申请")
     application = await admin_application_service.review(db, application_id, data, current_user.id)
     return ApiResponse.success(
         data=AdminApplicationResponse.model_validate(application),

@@ -3,10 +3,13 @@
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db_schema import ensure_database_compatibility
 from app.core.security import hash_password
+from app.models.permission import RolePermission
 from app.models.user import User
 
 
@@ -108,7 +111,7 @@ class TestRolePermissions:
         assert response.status_code == 200
         payload = response.json()
         assert payload["code"] == 200
-        assert payload["data"] == [1, 2, 3, 11, 12, 13, 14, 21, 22, 23, 31, 32, 33, 35, 36, 37, 38, 39]
+        assert payload["data"] == [1, 2, 11, 12, 13, 14, 21, 22, 23]
 
     @pytest.mark.asyncio
     async def test_get_my_permissions_success(
@@ -135,15 +138,6 @@ class TestRolePermissions:
             "teacher.course",
             "teacher.content",
             "teacher.upload",
-            "admin",
-            "admin.user",
-            "admin.teacher_audit",
-            "admin.admin_application",
-            "admin.announcement",
-            "admin.feedback",
-            "admin.message",
-            "admin.category",
-            "admin.tag",
         ]
 
     @pytest.mark.asyncio
@@ -171,17 +165,18 @@ class TestRolePermissions:
         assert follow_up.json()["data"] == [1, 2, 11, 12, 21, 22, 23]
 
     @pytest.mark.asyncio
-    async def test_admin_and_teacher_share_default_permissions(
+    async def test_admin_and_teacher_default_permissions_are_different(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
     ):
         admin_headers = await login_as_role(client, db_session, "admin")
-        await client.post(
+        reset_response = await client.post(
             "/api/v1/roles/teacher/permissions",
             headers=admin_headers,
-            json={"permissions": [1, 11, 12, 13, 14, 2, 21, 22, 23, 3, 31, 32, 33, 35, 36, 37, 38, 39]},
+            json={"permissions": [1, 11, 12, 13, 14, 2, 21, 22, 23]},
         )
+        assert reset_response.status_code == 200
 
         teacher_headers = await login_as_role(client, db_session, "teacher")
         teacher_response = await client.get(
@@ -195,7 +190,20 @@ class TestRolePermissions:
 
         assert teacher_response.status_code == 200
         assert admin_response.status_code == 200
-        assert admin_response.json()["data"] == teacher_response.json()["data"]
+        assert teacher_response.json()["data"] == [
+            "learn",
+            "learn.course",
+            "learn.progress",
+            "learn.profile",
+            "feedback.submit",
+            "teacher",
+            "teacher.course",
+            "teacher.content",
+            "teacher.upload",
+        ]
+        assert "admin.user" in admin_response.json()["data"]
+        assert "admin.teacher_audit" in admin_response.json()["data"]
+        assert admin_response.json()["data"] != teacher_response.json()["data"]
 
     @pytest.mark.asyncio
     async def test_update_role_permissions_rejects_invalid_permission_id(
@@ -231,6 +239,30 @@ class TestRolePermissions:
         assert response.status_code == 403
         payload = response.json()
         assert payload["message"] == "无权修改角色权限配置"
+
+    @pytest.mark.asyncio
+    async def test_ensure_database_compatibility_removes_teacher_admin_permissions(
+        self,
+        db_session: AsyncSession,
+    ):
+        db_session.add_all([
+            RolePermission(role="teacher", permission_id=31),
+            RolePermission(role="teacher", permission_id=32),
+            RolePermission(role="teacher", permission_id=35),
+        ])
+        await db_session.flush()
+
+        async with db_session.bind.begin() as conn:
+            messages = await ensure_database_compatibility(conn)
+
+        permission_ids = await db_session.execute(
+            select(RolePermission.permission_id)
+            .where(RolePermission.role == "teacher")
+            .order_by(RolePermission.permission_id.asc())
+        )
+
+        assert "已清理老师角色的历史后台权限" in messages
+        assert list(permission_ids.scalars().all()) == [1, 2, 11, 12, 13, 14, 21, 22, 23]
 
     @pytest.mark.asyncio
     async def test_get_permission_tree_allows_role_permission_operator(

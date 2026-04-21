@@ -326,3 +326,43 @@
   - 已执行：`cd "E:/video_project/proj_ui/project_code/backend" && python -m pytest tests/test_courses.py -v`
   - 结果：`23 passed`
   - 备注：测试输出仍包含现有 `datetime.utcnow()` 与 FastAPI 422 常量弃用告警，本次未扩大处理范围。
+
+## 老师后台权限收紧与管理员讲师审核恢复
+时间：2026-04-21 18:08:39
+
+- 变更原因：老师不再需要后台管理能力，后台用户管理、讲师审核和管理员申请接口需要加管理员兜底；同时管理员后台要恢复讲师审核入口。
+- 涉及文件：
+  - `backend/app/services/permission_service.py`
+  - `backend/app/api/v1/users.py`
+  - `backend/tests/test_permissions.py`
+  - `backend/tests/test_users.py`
+  - `operations-log.md`
+- 核心改动：
+  - 将老师默认权限收紧为学习中心和讲师中心，不再默认拥有 `admin.user`、`admin.teacher_audit`、`admin.admin_application` 及其他后台管理权限。
+  - 在用户列表、状态更新、删除用户、讲师审核、管理员申请相关接口上追加 `ensure_admin` 校验，避免老师残留历史权限时绕过前端直接访问后台接口。
+  - 调整权限与用户测试，改为覆盖“老师默认无后台权限”以及“老师即使残留后台权限也仍返回 403”的兜底行为。
+- 验证结果：
+  - 已执行：`python -m pytest E:/video_project/proj_ui/project_code/backend/tests/test_users.py -v`
+  - 结果：`18 passed`
+  - 已执行：`python -m pytest E:/video_project/proj_ui/project_code/backend/tests/test_permissions.py -v`
+  - 结果：`10 passed`
+  - 备注：测试输出仍包含现有 `datetime.utcnow()` 与 FastAPI 422 常量弃用告警，本次未扩大处理范围。
+
+## 现有老师角色权限数据同步收口
+时间：2026-04-21 19:52:14
+
+- 变更原因：代码里的老师默认权限虽然已经收紧，但历史数据库中的 `role_permissions` 旧数据不会自动更新，导致老师账号仍可能拿到后台管理菜单。
+- 涉及文件：
+  - `backend/app/core/db_schema.py`
+  - `backend/tests/test_permissions.py`
+  - `operations-log.md`
+- 核心改动：
+  - 在数据库兼容性检查中新增老师角色权限同步逻辑，自动删除老师角色遗留的 `admin.*` 历史权限，并补齐当前默认讲师权限缺口。
+  - 保持兼容逻辑幂等，只有老师角色当前权限与目标默认集合不一致时才执行修正。
+  - 新增测试覆盖，验证兼容逻辑执行后老师角色权限会被收口到当前默认集合。
+- 验证结果：
+  - 已执行：`python -m pytest E:/video_project/proj_ui/project_code/backend/tests/test_permissions.py -v`
+  - 结果：`11 passed`
+  - 已执行：`python E:/video_project/proj_ui/project_code/backend/scripts/init_db.py`
+  - 结果：成功连接真实数据库并完成初始化，脚本输出 `已补齐老师角色当前默认权限`，当前 21 张表已完成检查。
+  - 备注：如前端当前已登录，仍建议重新登录一次，确保本地保存的 `permission_codes` 刷成最新结果。

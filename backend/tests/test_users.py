@@ -626,12 +626,12 @@ class TestUserList:
         assert response.json()["message"] == "无权查看用户列表"
 
     @pytest.mark.asyncio
-    async def test_teacher_with_admin_user_permission_can_get_user_list(
+    async def test_teacher_with_admin_user_permission_still_cannot_get_user_list(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试拥有用户管理权限的讲师可获取用户列表。"""
+        """测试讲师即使残留用户管理权限也不能获取用户列表。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         db_session.add(RolePermission(role="teacher", permission_id=31))
         await db_session.flush()
@@ -641,8 +641,8 @@ class TestUserList:
             headers=teacher_auth["headers"],
         )
 
-        assert response.status_code == 200
-        assert "items" in response.json()["data"]
+        assert response.status_code == 403
+        assert response.json()["message"] == "仅管理员可查看用户列表"
 
 
 class TestTeacherAudit:
@@ -680,12 +680,12 @@ class TestTeacherAudit:
         assert response.json()["message"] == "无权查看讲师审核列表"
 
     @pytest.mark.asyncio
-    async def test_teacher_with_teacher_audit_permission_can_get_teacher_audits(
+    async def test_teacher_with_teacher_audit_permission_still_cannot_get_teacher_audits(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试拥有讲师审核权限的讲师可获取审核列表。"""
+        """测试讲师即使残留讲师审核权限也不能获取审核列表。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         db_session.add(RolePermission(role="teacher", permission_id=32))
         await db_session.flush()
@@ -695,7 +695,8 @@ class TestTeacherAudit:
             headers=teacher_auth["headers"],
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 403
+        assert response.json()["message"] == "仅管理员可查看讲师审核列表"
 
 
 class TestAdminApplications:
@@ -733,12 +734,12 @@ class TestAdminApplications:
         assert response.json()["message"] == "无权查看管理员申请列表"
 
     @pytest.mark.asyncio
-    async def test_teacher_with_admin_application_permission_can_get_admin_applications(
+    async def test_teacher_with_admin_application_permission_still_cannot_get_admin_applications(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试拥有管理员申请审核权限的讲师可获取申请列表。"""
+        """测试讲师即使残留管理员申请权限也不能获取申请列表。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         db_session.add(RolePermission(role="teacher", permission_id=33))
         await db_session.flush()
@@ -748,4 +749,5 @@ class TestAdminApplications:
             headers=teacher_auth["headers"],
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 403
+        assert response.json()["message"] == "仅管理员可查看管理员申请列表"

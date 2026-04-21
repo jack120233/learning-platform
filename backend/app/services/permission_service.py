@@ -46,7 +46,7 @@ DEFAULT_PERMISSIONS: tuple[PermissionSeed, ...] = (
 
 DEFAULT_ROLE_PERMISSION_IDS: dict[RoleName, tuple[int, ...]] = {
     "student": (1, 11, 12, 13, 14),
-    "teacher": (1, 11, 12, 13, 14, 2, 21, 22, 23, 3, 31, 32, 33, 35, 36, 37, 38, 39),
+    "teacher": (1, 11, 12, 13, 14, 2, 21, 22, 23),
     "admin": (1, 11, 12, 13, 14, 2, 21, 22, 23, 3, 31, 32, 33, 35, 36, 37, 38, 39),
 }
 
