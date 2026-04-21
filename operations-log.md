@@ -220,3 +220,28 @@
   - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
   - 结果：通过
   - 备注：构建仍提示既有大体积 chunk 警告，本次未扩大处理范围。
+
+## 注册页移除管理员选项并统一学生文案
+时间：2026-04-21 17:12:00
+
+- 变更原因：注册页当前不再允许管理员自助注册，只保留讲师和学生两种注册入口，同时把前端展示中的“学员”文案统一为“学生”。
+- 涉及文件：
+  - `src/views/auth/RegisterPage.vue`
+  - `src/components/layout/AppHeader.vue`
+  - `src/views/teacher/CourseListPage.vue`
+  - `src/views/profile/ProfileInfoPage.vue`
+  - `src/views/admin/UserManagePage.vue`
+  - `src/views/admin/RolePermissionPage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 注册页角色选择器移除管理员选项，仅保留 `student` 和 `teacher`。
+  - 删除管理员推荐邮箱相关表单、校验和提交字段。
+  - 将注册页、头部角色标签、课程上下架提示、个人信息页、用户管理页和角色权限页中的“学员”统一改为“学生”。
+  - 将注册页中的老师角色展示文案由“讲师”优化为“老师”，并同步更新申请提交提示。
+  - 将头部搜索框默认提示从“搜索课程、讲师”改为“搜索课程”，避免注册页出现多余提示。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npx vue-tsc --noEmit`
+  - 结果：通过
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
+  - 结果：通过
+  - 备注：构建仍提示既有大体积 chunk 警告，本次未扩大处理范围。

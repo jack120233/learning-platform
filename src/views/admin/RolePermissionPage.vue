@@ -10,7 +10,7 @@ import {
 
 // 角色列表
 const roles = [
-  { name: '学员', value: 'student' as const },
+  { name: '学生', value: 'student' as const },
   { name: '讲师', value: 'teacher' as const },
   { name: '管理员', value: 'admin' as const },
 ]

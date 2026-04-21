@@ -56,7 +56,7 @@ const rules = {
 
 // 角色映射
 const roleMap: Record<string, string> = {
-  student: '学员',
+  student: '学生',
   teacher: '讲师',
   admin: '管理员',
 }

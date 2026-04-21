@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { User, Edit, Setting, Lock, Phone, Message, Promotion, Clock } from '@element-plus/icons-vue'
+import { User, Edit, Lock, Phone, Message, Clock } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { register, getCaptcha, sendEmailCode } from '@/api/auth'
@@ -26,7 +26,7 @@ const formRef = ref<FormInstance>()
 
 // 表单数据
 const formData = ref({
-  role: 'student' as 'student' | 'teacher' | 'admin',
+  role: 'student' as 'student' | 'teacher',
   username: '',
   password: '',
   confirmPassword: '',
@@ -35,7 +35,6 @@ const formData = ref({
   captcha: '',
   captchaId: '',
   emailCode: '',
-  referrerEmail: '',
 })
 
 // UI 状态
@@ -51,10 +50,9 @@ const showTeacherPendingDialog = ref(false)
 const { countdown, isActive: isCountdownActive, start: startCountdown } = useCountdown(60)
 
 // 角色选项
-const roleOptions: { value: 'student' | 'teacher' | 'admin'; label: string; desc: string }[] = [
-  { value: 'student', label: '学员', desc: '浏览课程，参与学习' },
-  { value: 'teacher', label: '讲师', desc: '发布课程，审核通过后生效' },
-  { value: 'admin', label: '管理员', desc: '管理平台，需推荐人邀请' },
+const roleOptions: { value: 'student' | 'teacher'; label: string; desc: string }[] = [
+  { value: 'student', label: '学生', desc: '浏览课程，参与学习' },
+  { value: 'teacher', label: '老师', desc: '发布课程，审核通过后生效' },
 ]
 
 // 表单校验规则
@@ -67,10 +65,6 @@ const formRules = computed<FormRules>(() => ({
   email: emailRules,
   captcha: captchaRules,
   emailCode: emailCodeRules,
-  referrerEmail: formData.value.role === 'admin' ? [
-    { required: true, message: '请输入推荐管理员邮箱', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' },
-  ] : [],
 }))
 
 // 加载图形验证码
@@ -134,11 +128,6 @@ const handleSendEmailCode = async () => {
 
 // 角色切换
 const handleRoleChange = () => {
-  // 清空推荐管理员邮箱
-  if (formData.value.role !== 'admin') {
-    formData.value.referrerEmail = ''
-  }
-  // 清除校验错误
   formRef.value?.clearValidate()
 }
 
@@ -168,7 +157,6 @@ const handleSubmit = async () => {
       captcha: formData.value.captcha,
       captcha_id: formData.value.captchaId,
       email_code: formData.value.emailCode,
-      referrer_email: formData.value.role === 'admin' ? formData.value.referrerEmail : undefined,
     })
 
     // 存储登录信息
@@ -204,8 +192,6 @@ const handleSubmit = async () => {
       ElMessage.error('验证码错误')
       // 自动刷新图形验证码
       loadCaptcha()
-    } else if (message.includes('推荐')) {
-      ElMessage.error('推荐管理员账号不存在，请确认后重新输入')
     } else {
       ElMessage.error(message)
       // 其他错误也刷新验证码
@@ -260,8 +246,7 @@ onMounted(() => {
               <div class="role-content">
                 <el-icon :size="24">
                   <User v-if="option.value === 'student'" />
-                  <Edit v-else-if="option.value === 'teacher'" />
-                  <Setting v-else />
+                  <Edit v-else />
                 </el-icon>
                 <span class="role-label">{{ option.label }}</span>
                 <span class="role-desc">{{ option.desc }}</span>
@@ -368,20 +353,6 @@ onMounted(() => {
           </div>
         </el-form-item>
 
-        <!-- 推荐管理员邮箱（管理员专用） -->
-        <el-form-item
-          v-if="formData.role === 'admin'"
-          label="推荐管理员邮箱"
-          prop="referrerEmail"
-        >
-          <el-input
-            v-model="formData.referrerEmail"
-            placeholder="请输入推荐管理员的邮箱"
-            :prefix-icon="Promotion"
-            clearable
-          />
-        </el-form-item>
-
         <!-- 注册按钮 -->
         <el-form-item>
           <el-button
@@ -412,8 +383,8 @@ onMounted(() => {
       <div class="pending-dialog">
         <el-icon :size="64" color="#faad14"><Clock /></el-icon>
         <p class="pending-text">
-          您的讲师申请已提交，审核通过后将通过站内消息通知您。<br />
-          当前您可以作为学员浏览和学习课程。
+          您的老师申请已提交，审核通过后将通过站内消息通知您。<br />
+          当前您可以作为学生浏览和学习课程。
         </p>
       </div>
       <template #footer>

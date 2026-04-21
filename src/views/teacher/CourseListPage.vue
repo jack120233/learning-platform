@@ -137,7 +137,7 @@ function handleEdit(courseId: number) {
 async function handlePublish(course: TeacherCourseItem) {
   try {
     await ElMessageBox.confirm(
-      `确定要上架课程「${course.title}」吗？上架后将对所有学员可见。`,
+      `确定要上架课程「${course.title}」吗？上架后将对所有学生可见。`,
       '上架确认',
       {
         confirmButtonText: '确定上架',
@@ -156,7 +156,7 @@ async function handlePublish(course: TeacherCourseItem) {
 
 async function requestArchiveReason(title: string) {
   const { value } = await ElMessageBox.prompt(
-    `确定要下架${title}吗？下架后学员将无法访问该课程。`,
+    `确定要下架${title}吗？下架后学生将无法访问该课程。`,
     '下架原因',
     {
       confirmButtonText: '确定下架',

@@ -42,7 +42,7 @@ const {
 
 // 角色映射
 const roleMap: Record<string, { text: string; type: 'primary' | 'success' | 'warning' }> = {
-  student: { text: '学员', type: 'primary' },
+  student: { text: '学生', type: 'primary' },
   teacher: { text: '讲师', type: 'success' },
   admin: { text: '管理员', type: 'warning' },
 }
@@ -204,7 +204,7 @@ onMounted(() => {
       <div class="filter-left">
         <el-select v-model="roleFilter" placeholder="角色" style="width: 140px" @change="fetchData">
           <el-option label="全部角色" value="all" />
-          <el-option label="学员" value="student" />
+          <el-option label="学生" value="student" />
           <el-option label="讲师" value="teacher" />
           <el-option label="管理员" value="admin" />
           <el-option label="待审核讲师" value="pending" />

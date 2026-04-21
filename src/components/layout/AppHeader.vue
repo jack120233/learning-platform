@@ -143,7 +143,7 @@ watch(() => route.fullPath, () => {
         <div class="search-box">
           <el-input
             v-model="searchKeyword"
-            placeholder="搜索课程、讲师"
+            placeholder="搜索课程"
             clearable
             @keyup.enter="handleSearch"
           >
@@ -264,7 +264,7 @@ watch(() => route.fullPath, () => {
               </el-avatar>
               <div class="user-info-text">
                 <div class="nickname">{{ userStore.userInfo.nickname || userStore.userInfo.username }}</div>
-                <div class="role-tag">{{ userStore.isTeacher || userStore.isAdmin ? '讲师' : '学员' }}</div>
+                <div class="role-tag">{{ userStore.isTeacher || userStore.isAdmin ? '讲师' : '学生' }}</div>
               </div>
             </div>
             <div class="user-menu">
