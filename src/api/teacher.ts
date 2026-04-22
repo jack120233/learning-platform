@@ -136,7 +136,7 @@ export interface MaterialItem {
 
 /** 下架请求 */
 export interface ArchiveCourseRequest {
-  archive_reason: string
+  archive_reason?: string
 }
 
 export interface BatchCourseActionRequest {
@@ -275,12 +275,12 @@ export function updateCourse(courseId: number, data: UpdateCourseRequest) {
 
 /** 发布课程 */
 export function publishCourse(courseId: number) {
-  return request.post<unknown, void>(`/courses/${courseId}/publish`)
+  return request.post<unknown, TeacherCourseDetail>(`/courses/${courseId}/publish`)
 }
 
 /** 下架课程 */
 export function archiveCourse(courseId: number, data: ArchiveCourseRequest) {
-  return request.post<unknown, void>(`/courses/${courseId}/archive`, data)
+  return request.post<unknown, TeacherCourseDetail>(`/courses/${courseId}/archive`, data)
 }
 
 /** 删除课程 */

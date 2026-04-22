@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Delete, Back } from '@element-plus/icons-vue'
 import Cropper from 'cropperjs'
 import 'cropperjs/dist/cropper.css'
@@ -12,6 +12,7 @@ import {
   createCourse,
   updateCourse,
   publishCourse,
+  archiveCourse,
   uploadFile,
   uploadMaterial,
   deleteMaterial,
@@ -78,6 +79,8 @@ const materials = ref<MaterialItem[]>([])
 
 // 课程详情（编辑模式）
 const courseDetail = ref<TeacherCourseDetail | null>(null)
+
+type PublishedCourseSaveAction = 'archive-only' | 'archive-and-republish'
 
 // 表单校验规则
 const rules = {
@@ -419,6 +422,91 @@ async function handleSaveDraft(isSilent = false) {
   }
 }
 
+function getResolvedCourseId() {
+  return courseDetail.value?.course_id || (courseDetail.value as any)?.id || courseId.value
+}
+
+function mergeCourseDetail(detail: TeacherCourseDetail, fallbackCourseId?: number) {
+  courseDetail.value = {
+    ...(courseDetail.value || {}),
+    ...detail,
+    course_id: detail.course_id || (detail as any).id || fallbackCourseId || 0,
+  }
+}
+
+async function requestPublishedCourseSaveAction(): Promise<PublishedCourseSaveAction | null> {
+  try {
+    await ElMessageBox.confirm(
+      '保存成功，但发布失败，请先下架后再发布',
+      '提示',
+      {
+        confirmButtonText: '下架并重新发布',
+        cancelButtonText: '仅下架',
+        type: 'warning',
+        distinguishCancelAndClose: true,
+        closeOnClickModal: false,
+        closeOnPressEscape: false,
+        showClose: false,
+        center: true,
+      }
+    )
+    return 'archive-and-republish'
+  } catch (action) {
+    if (action === 'cancel') {
+      return 'archive-only'
+    }
+    return null
+  }
+}
+
+async function archiveCurrentCourse(successMessage?: string, archiveReason?: string) {
+  const finalId = getResolvedCourseId()
+  if (!finalId) {
+    ElMessage.error('请先保存课程')
+    return false
+  }
+
+  isSaving.value = true
+  try {
+    const archivedCourse = await archiveCourse(finalId, {
+      archive_reason: archiveReason,
+    })
+    mergeCourseDetail(archivedCourse, finalId)
+    if (successMessage) {
+      ElMessage.success(successMessage)
+    }
+    return true
+  } catch (error) {
+    console.error('下架失败:', error)
+    return false
+  } finally {
+    isSaving.value = false
+  }
+}
+
+async function publishCurrentCourse(successMessage: string) {
+  const finalId = getResolvedCourseId()
+  if (!finalId) {
+    ElMessage.error('请先保存课程')
+    return false
+  }
+
+  isSaving.value = true
+  try {
+    const publishedCourse = await publishCourse(finalId)
+    mergeCourseDetail(publishedCourse, finalId)
+    ElMessage.success(successMessage)
+    router.push('/teacher/courses')
+    return true
+  } catch (error) {
+    // 拦截器已处理具体错误消息，此处仅提供兜底
+    console.error('发布失败:', error)
+    return false
+  } finally {
+    isSaving.value = false
+  }
+}
+
 async function handleSaveAndPublish() {
   const isValid = await validateCourseForm()
   if (!isValid) return
@@ -429,12 +517,23 @@ async function handleSaveAndPublish() {
     return
   }
 
-  // 如果课程已发布，提示保存成功但发布失败
+  // 已发布课程需要先下架，再决定是否重新发布
   if (courseDetail.value?.status === 'published') {
     const saveSuccess = await handleSaveDraft(true)
-    if (saveSuccess) {
-      ElMessage.warning('保存成功，但发布失败，请先下架后再发布')
-    }
+    if (!saveSuccess) return
+
+    const action = await requestPublishedCourseSaveAction()
+    if (!action) return
+
+    const archiveSuccess = await archiveCurrentCourse(
+      action === 'archive-only' ? '课程已下架' : undefined,
+      action === 'archive-only' ? '课程编辑后仅下架' : '课程编辑后下架并重新发布'
+    )
+    if (!archiveSuccess) return
+
+    if (action === 'archive-only') return
+
+    await publishCurrentCourse('下架并重新发布成功')
     return
   }
 
@@ -442,20 +541,7 @@ async function handleSaveAndPublish() {
   const saveSuccess = await handleSaveDraft(true)
   if (!saveSuccess) return
 
-  const finalId = courseDetail.value?.course_id || (courseDetail.value as any)?.id || courseId.value
-  if (!finalId) {
-    ElMessage.error('请先保存课程')
-    return
-  }
-
-  try {
-    await publishCourse(finalId)
-    ElMessage.success('保存并发布成功')
-    router.push('/teacher/courses')
-  } catch (error) {
-    // 拦截器已处理具体错误消息，此处仅提供兜底
-    console.error('发布失败:', error)
-  }
+  await publishCurrentCourse('保存并发布成功')
 }
 
 function handleBack() {
