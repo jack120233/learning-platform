@@ -382,3 +382,74 @@
   - 已执行：本地关闭 8000 端口占用进程后，确认端口空闲。
   - 已执行：只读复核 `backend/run.bat` 新逻辑，确认端口检查、启动输出落盘和错误摘要写入均已落盘。
   - 备注：当前会话的 Bash 对 Windows bat/PowerShell 复合交互输出兼容性较差，未在本界面完整复现双击窗口表现；建议你本机再次执行 `E:/video_project/proj_ui/project_code/backend/run.bat` 做最终目视确认。
+
+## 启动脚本 PowerShell 转义修复
+时间：2026-04-21 21:16:00
+
+- 变更原因：上一版 `run.bat` 把 PowerShell 管道直接写进批处理命令，导致 `cmd` 先行解析 `|` 和重定向符，实际启动时报出 `.venv is not recognized` 与 `| was unexpected at this time`。
+- 涉及文件：
+  - `backend/run.bat`
+  - `operations-log.md`
+- 核心改动：
+  - 为端口检查命令里的 `|` 补上批处理转义，避免 `for /f` 子命令被 `cmd` 提前拆开。
+  - 为 uvicorn 启动输出的 `2>&1 | Tee-Object ...` 补上批处理转义，确保 PowerShell 管道与重定向在运行时按原意执行。
+- 验证结果：
+  - 已执行：只读复核 `backend/run.bat`，确认批处理层的 `^|` 与 `2^>^&1 ^|` 已正确落盘。
+  - 备注：建议你本机再次执行 `E:/video_project/proj_ui/project_code/backend/run.bat`，确认窗口内不再出现批处理语法错误。
+
+## 启动脚本换行符修复（LF 转 CRLF）
+时间：2026-04-21 22:10:00
+
+- 变更原因：在 Windows 下执行 `backend/run.bat` 再次出现 `'\.venv"' is not recognized`、`'datetimePORT_INFO' is not recognized`、`'--reload' is not recognized`、`'|' is not recognized`、`'""' is not recognized` 等一串命令无法识别的报错。字节级检查发现 `run.bat` 大小 2385 字节，包含 66 个 LF 换行符但 0 个 CRLF，属于 Unix 风格换行。`cmd.exe` 对批处理文件要求 CRLF，遇到纯 LF 时会把多行命令粘成一条解析，才会把 `%date% %time%` 与 `set "PORT_INFO=..."` 拼成 `datetimePORT_INFO`、把 uvicorn 的 `--reload` 和 PowerShell 的 `|` 当作独立命令。此问题与 21:16:00 修复的 PowerShell 管道转义是两个不同层面：上次是内容层转义，本次是文件格式层换行。
+- 涉及文件：
+  - `backend/run.bat`：换行符由 66 个 LF 全部转为 CRLF，脚本文字内容未改动。
+  - `backend/run.bat.bak`：保留修复前的 LF 版本，作为回退备份。
+- 核心改动：
+  - 以字节模式读取 `run.bat`，先归一化已有换行为 `\n`，再统一替换为 `\r\n`，保持原 UTF-8 无 BOM 编码不变。
+  - 修复后体积 2385 → 2451 字节（66 字节增量即新增的 `\r`），`crlf=66`、`lf_only=0`。
+  - 同步保留 `run.bat.bak` 备份，如本次修复引发新问题可用 `copy /y run.bat.bak run.bat` 一键回退。
+- 验证结果：
+  - 已执行：`python` 字节级校验 `run.bat`，确认 `crlf=66, lf_only=0`，BOM 头 `40 65 63`（`@ec`）即正常的 `@echo off` 开头。
+  - 已执行：`Read` 工具重读前 15 行，每一行行号与预期一致，cmd 可按行识别。
+  - 未执行：未在本会话实际启动 uvicorn，避免占用 8000 端口和干扰开发；请在本机 `backend` 目录下重新执行 `run.bat` 目视确认启动提示恢复正常。
+  - 备注：后续维护此脚本时，请确保编辑器行尾设置为 `CRLF`（VSCode 右下角可切换），不要被跨平台工具改写成 `LF`，否则会再次复现同样错误。
+
+## 启动脚本 PowerShell 转义回退（双引号内误加 `^`）
+时间：2026-04-21 22:40:00
+
+- 变更原因：CRLF 修复后 `run.bat` 在启动 PowerShell 时报 `The ampersand (&) character is not allowed ... AmpersandNotAllowed`，错误定位到 `--port 8000 2^>^&1 ^| Tee ...`。根因是 21:16:00 那次修复误把 `^|` 和 `2^>^&1` 放在 `powershell -Command "..."` 的双引号内部。在 cmd 中，双引号内的 `|`、`&`、`>` 本来就不会被 cmd 解释，**不需要** `^` 转义；加了 `^` 反而作为普通字符原样传递给 PowerShell，PowerShell 不识别 `^` 并把 `^&` 当成保留的 `&` 报错。
+- 涉及文件：
+  - `backend/run.bat`：去掉双引号内部的 3 处 `^`（第 31 行端口探测的 `^|`、第 51 行启动 uvicorn 的 `2^>^&1` 和 `^|`）。
+  - `operations-log.md`
+- 核心改动：
+  - 第 31 行恢复为 `... -ErrorAction SilentlyContinue | Select-Object -First 1`。
+  - 第 51 行恢复为 `... --port 8000 2>&1 | Tee-Object -FilePath '%STARTUP_LOG%' -Append; exit $LASTEXITCODE`。
+  - Edit 工具在 Windows 上写文件会把 CRLF 规范化为 LF，所以修改后再次用 Python 字节级把换行符统一回 CRLF，最终 `crlf=66, lf_only=0, caret_count=0, size=2447`。
+- 验证结果：
+  - 已执行：`Read` 重读第 29-53 行，确认第 31、51 行的 PowerShell 命令去掉了 `^`，其他语句未受影响。
+  - 已执行：`python` 字节级校验 `run.bat`，确认 CRLF 换行、`^` 数量为 0。
+  - 未执行：未在本会话实际启动 uvicorn；请在 `backend` 目录下再次运行 `run.bat` 复验。
+  - 备注：如本次修复仍失败，可用 `copy /y run.bat.bak run.bat` 回退到初始 LF 版本（注意回退后需自行按本条记录重新处理 `^`）。
+
+### 教训总结
+- cmd 双引号 `"..."` 内部：`|`、`&`、`>`、`<` 都是普通字符，PowerShell 管道/重定向可以直接写，不需要 `^` 转义。
+- cmd 双引号外部（裸命令行）：才需要用 `^` 转义 `|`、`&`、`>`、`<`。
+- 这两个层面混用会导致 PowerShell 收到字面 `^`，触发保留字符错误。
+
+## 启动脚本重构：拆掉 PowerShell 嵌套，命令分开写
+时间：2026-04-21 23:05:00
+
+- 变更原因：上一版 `run.bat` 虽然去掉了 `^` 转义错，但 `powershell -Command "& { & 'python.exe' -m uvicorn ... 2>&1 | Tee-Object ... }"` 这种跨 cmd/PowerShell 嵌套本身就是问题源——uvicorn 把正常日志写到 stderr，被 PowerShell 当作 `NativeCommandError` 打印一大片红字（尽管 uvicorn 实际已经起来了）。用户反馈"服务其实起来了，但报错吓人"，并要求把命令拆开写，不要再纠结长命令转义。
+- 涉及文件：
+  - `backend/run.bat`：完整重构，移除所有 PowerShell 调用。
+  - `operations-log.md`
+- 核心改动：
+  - 端口检查改为原生 `for /f "tokens=5" %%a in ('netstat -ano ^| findstr /c:":8000 " ^| findstr "LISTENING"') do set "PORT_PID=%%a"`，不再走 `Get-NetTCPConnection`；这里的 `^|` 在 `for /f 'in (\`...\`)'` 的反引号外，是 cmd 正确的管道转义位置。
+  - uvicorn 启动改为 cmd 直接调用：`"%PYTHON%" -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000`，输出自然进控制台，不再 `Tee-Object` 做 stdout/stderr 合并与落盘。
+  - `startup.log` 仅保留启动时间戳与命令行一行记录作为留痕，不再尝试 tee uvicorn 的实时输出——保留了"失败时能在 `startup_error.log` 看到退出码和时间"的核心需求。
+  - 保留原有虚拟环境双路径探测、端口占用提示、失败 `pause`、退出码透传等基本行为。
+- 验证结果：
+  - 已执行：字节级校验，`size=1913, crlf=65, lf_only=0, caret=2, powershell_refs=0`。2 个 `^` 均位于 `for /f` 反引号外部的 `netstat ^| findstr` 管道上，属于 cmd 正确转义。
+  - 未执行：未在本会话实际启动 uvicorn。请在 `backend` 目录下再次运行 `run.bat` 目视确认：启动过程只有 uvicorn 自己的 `INFO: ...` 行，不再出现 PowerShell 的 `NativeCommandError` / `AmpersandNotAllowed` 红字。
+  - 回退方案：`copy /y run.bat.bak run.bat` 可还原到最初版本（带 PowerShell 嵌套）。
+- 已放弃的能力：uvicorn 运行时日志不再自动写入 `logs/startup.log`。如需留档，运行时可自行 `run.bat > mylog.log 2>&1`，或在后续需求明确后再引入独立日志方案（如直接给 uvicorn 传 `--log-config`）。
