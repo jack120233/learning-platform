@@ -35,30 +35,30 @@ export interface CourseSearchItem extends CourseBaseItem {
 
 // 首页课程列表参数
 export interface HomepageCoursesParams {
-  page?: number
-  page_size?: number
+  limit?: number
 }
 
 // 课程列表参数
 export interface CourseListParams {
-  keyword?: string
   category_id?: number
-  sort_by?: 'latest' | 'popular'
+  is_free?: boolean
   page?: number
   page_size?: number
 }
 
 // 课程搜索参数
 export interface CourseSearchParams {
-  q: string
+  keyword?: string
+  category_id?: number
+  sort_by?: 'published_at' | 'student_count'
   page?: number
   page_size?: number
 }
 
 // 获取首页课程列表
 export function fetchHomepageCourses(params: HomepageCoursesParams = {}) {
-  return request.get<unknown, PaginatedData<HomeCourseItem>>('/courses/homepage', {
-    params: { page: 1, page_size: 20, ...params },
+  return request.get<unknown, HomeCourseItem[]>('/courses/homepage', {
+    params: { limit: 8, ...params },
   })
 }
 
