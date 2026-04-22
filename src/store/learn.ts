@@ -55,6 +55,22 @@ function getSectionId(section: CourseChapter['sections'][number]): number {
   return section.section_id ?? 0
 }
 
+function hasContinueProgress(info: ContinueLearningInfo | null): info is ContinueLearningInfo {
+  if (!info) return false
+
+  // 后端在没有学习进度时也会返回一个字段齐全的空对象，这里收窄为“存在真实上次位置/进度”。
+  return (
+    info.last_resource_id !== null ||
+    info.resource_id !== null ||
+    info.last_section_id !== null ||
+    info.section_id !== null ||
+    info.chapter_id !== null ||
+    info.position > 0 ||
+    info.current_time > 0 ||
+    info.last_learn_at !== null
+  )
+}
+
 // ==================== Store 定义 ====================
 
 export const useLearnStore = defineStore('learn', () => {
@@ -111,8 +127,9 @@ export const useLearnStore = defineStore('learn', () => {
    * 设置继续学习信息
    */
   function setContinueInfo(info: ContinueLearningInfo | null) {
-    continueInfo.value = info
-    hasLearningRecord.value = info !== null
+    const normalizedInfo = hasContinueProgress(info) ? info : null
+    continueInfo.value = normalizedInfo
+    hasLearningRecord.value = normalizedInfo !== null
   }
 
   /**
