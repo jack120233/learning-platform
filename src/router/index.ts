@@ -3,6 +3,7 @@ import { useUserStore } from '@/store/user'
 
 const ADMIN_ROUTE_PERMISSIONS = [
   { path: '/admin/users', permissionCode: 'admin.user' },
+  { path: '/admin/teacher-audits', permissionCode: 'admin.teacher_audit' },
   { path: '/admin/announcements', permissionCode: 'admin.announcement' },
   { path: '/admin/feedbacks', permissionCode: 'admin.feedback' },
   { path: '/admin/messages', permissionCode: 'admin.message' },
@@ -153,6 +154,12 @@ const routes: RouteRecordRaw[] = [
         name: 'AdminUsers',
         component: () => import('@/views/admin/UserManagePage.vue'),
         meta: { title: '用户管理', permissionCode: 'admin.user' },
+      },
+      {
+        path: 'teacher-audits',
+        name: 'AdminTeacherAudits',
+        component: () => import('@/views/admin/TeacherAuditPage.vue'),
+        meta: { title: '讲师审核', permissionCode: 'admin.teacher_audit' },
       },
       {
         path: 'announcements',

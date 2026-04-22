@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { User, Key, Bell, ChatDotRound, Back, Menu, Close, Message, Collection, PriceTag } from '@element-plus/icons-vue'
+import { User, Key, Check, Bell, ChatDotRound, Back, Menu, Close, Message, Collection, PriceTag } from '@element-plus/icons-vue'
 import { useBreakpoint } from '@/composables/useBreakpoint'
 import { useUserStore } from '@/store/user'
 
@@ -19,6 +19,7 @@ const activeMenu = computed(() => route.path)
 // 菜单项配置
 const menuItems = computed(() => ([
   { index: '/admin/users', title: '用户管理', icon: User, permissionCode: 'admin.user' },
+  { index: '/admin/teacher-audits', title: '讲师审核', icon: Check, permissionCode: 'admin.teacher_audit' },
   { index: '/admin/announcements', title: '公告管理', icon: Bell, permissionCode: 'admin.announcement' },
   { index: '/admin/feedbacks', title: '反馈管理', icon: ChatDotRound, permissionCode: 'admin.feedback' },
   { index: '/admin/messages', title: '系统消息', icon: Message, permissionCode: 'admin.message' },

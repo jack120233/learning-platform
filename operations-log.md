@@ -245,3 +245,22 @@
   - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
   - 结果：通过
   - 备注：构建仍提示既有大体积 chunk 警告，本次未扩大处理范围。
+
+## 管理员后台恢复讲师审核入口
+时间：2026-04-21 18:08:39
+
+- 变更原因：老师后台入口要继续隐藏，但管理员后台仍需要讲师审核入口和默认落地能力，方便继续处理老师申请。
+- 涉及文件：
+  - `src/router/index.ts`
+  - `src/views/admin/AdminLayout.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 将 `admin.teacher_audit` 重新加入后台默认落地候选，让管理员访问 `/admin` 时可落到讲师审核页。
+  - 恢复 `/admin/teacher-audits` 子路由，继续复用 `TeacherAuditPage.vue`。
+  - 在 `AdminLayout` 菜单中恢复“讲师审核”入口，并保持菜单继续按权限码过滤展示。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npx vue-tsc --noEmit`
+  - 结果：通过
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
+  - 结果：通过
+  - 备注：构建仍提示既有大体积 chunk 警告，本次未扩大处理范围。
