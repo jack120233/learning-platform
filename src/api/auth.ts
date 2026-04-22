@@ -100,7 +100,9 @@ export interface RefreshTokenResponse {
  * 用户登录
  */
 export function login(data: LoginRequest): Promise<LoginResponse> {
-  return request.post('/auth/login', data)
+  return request.post('/auth/login', data, {
+    skipErrorMessage: true,
+  })
 }
 
 /**

@@ -1,6 +1,18 @@
 import axios, { type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    skipErrorMessage?: boolean
+    _retry?: boolean
+  }
+
+  interface InternalAxiosRequestConfig {
+    skipErrorMessage?: boolean
+    _retry?: boolean
+  }
+}
+
 // API响应结构
 export interface ApiResponse<T = unknown> {
   code: number
@@ -41,6 +53,10 @@ function onTokenRefreshed(token: string) {
   refreshSubscribers = []
 }
 
+function shouldShowErrorMessage(config?: { skipErrorMessage?: boolean }) {
+  return !config?.skipErrorMessage
+}
+
 // 请求拦截器
 service.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
@@ -65,7 +81,9 @@ service.interceptors.response.use(
     }
 
     // 业务错误
-    ElMessage.error(message || '请求失败')
+    if (shouldShowErrorMessage(response.config)) {
+      ElMessage.error(message || '请求失败')
+    }
     return Promise.reject(new Error(message || '请求失败'))
   },
   async (error) => {
@@ -121,7 +139,10 @@ service.interceptors.response.use(
 
     // 其他错误
     const errorMessage = response?.data?.message || '网络错误，请稍后重试'
-    ElMessage.error(errorMessage)
+    error.message = errorMessage
+    if (shouldShowErrorMessage(config)) {
+      ElMessage.error(errorMessage)
+    }
     return Promise.reject(error)
   }
 )
