@@ -132,8 +132,17 @@ export interface LearningProgress {
 export interface SubmitFeedbackRequest {
   feedback_type: 'system' | 'course'
   course_id?: number
+  target_user_id?: number
   content: string
   images?: string[]
+}
+
+/** 老师选择项 */
+export interface TeacherOption {
+  teacher_id: number
+  username: string
+  nickname: string | null
+  avatar: string | null
 }
 
 /** 提交反馈响应 */
@@ -205,6 +214,12 @@ export function submitFeedback(data: SubmitFeedbackRequest): Promise<SubmitFeedb
   return request.post<unknown, SubmitFeedbackResponse>('/feedbacks', data)
 }
 
+export function fetchTeacherOptions(params: { keyword?: string; page_size?: number } = {}): Promise<TeacherOption[]> {
+  return request.get<unknown, TeacherOption[]>('/users/teachers/options', {
+    params: { page_size: 100, ...params },
+  })
+}
+
 /**
  * 上传文件
  */
@@ -212,6 +227,16 @@ export function uploadFile(file: File): Promise<UploadFileResponse> {
   const formData = new FormData()
   formData.append('file', file)
   return request.post<unknown, UploadFileResponse>('/upload/file', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+}
+
+export function uploadFeedbackImage(file: File): Promise<UploadFileResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post<unknown, UploadFileResponse>('/upload/feedback-image', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },

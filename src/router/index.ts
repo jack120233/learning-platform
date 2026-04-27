@@ -137,6 +137,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/teacher/CourseFormPage.vue'),
         meta: { title: '编辑课程' },
       },
+      {
+        path: 'feedbacks',
+        name: 'TeacherFeedbacks',
+        component: () => import('@/views/teacher/FeedbackManagePage.vue'),
+        meta: { title: '课程反馈' },
+      },
     ],
   },
   {

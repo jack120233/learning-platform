@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useUserStore } from '@/store/user'
 import { fetchUnreadCount } from '@/api/profile'
 import UnreadLabelBadge from '@/components/common/UnreadLabelBadge.vue'
 
 const route = useRoute()
-const router = useRouter()
 const userStore = useUserStore()
 
 // 当前激活的菜单项
@@ -90,13 +89,6 @@ watch(() => route.fullPath, () => {
           </el-menu-item>
         </el-menu>
 
-        <!-- 反馈入口 -->
-        <div class="feedback-entry">
-          <el-button type="primary" @click="router.push('/profile/feedbacks')">
-            <el-icon><Edit /></el-icon>
-            提交反馈
-          </el-button>
-        </div>
       </el-aside>
 
       <!-- 右侧内容区 -->
@@ -108,6 +100,7 @@ watch(() => route.fullPath, () => {
         </router-view>
       </el-main>
     </div>
+
   </div>
 </template>
 
@@ -178,14 +171,6 @@ watch(() => route.fullPath, () => {
   margin-left: 2px;
 }
 
-.feedback-entry {
-  padding: 16px 20px;
-  border-top: 1px solid #f0f0f0;
-
-  .el-button {
-    width: 100%;
-  }
-}
 
 .main-content {
   flex: 1;
@@ -247,9 +232,6 @@ watch(() => route.fullPath, () => {
     }
   }
 
-  .feedback-entry {
-    display: none;
-  }
 
   .main-content {
     min-height: auto;

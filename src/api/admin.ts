@@ -290,6 +290,9 @@ export interface AdminFeedbackItem {
   feedback_type: 'system' | 'course'
   course_id: number | null
   course_title: string | null
+  target_user_id: number | null
+  target_username: string | null
+  target_nickname: string | null
   content: string
   images: string[]
   status: 'pending' | 'processed'

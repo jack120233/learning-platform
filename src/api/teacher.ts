@@ -159,6 +159,43 @@ export interface BatchCourseActionResponse {
   message?: string | null
 }
 
+export interface TeacherFeedbackItem {
+  feedback_id: number
+  user_id: number
+  username: string | null
+  feedback_type: 'system' | 'course'
+  course_id: number | null
+  course_title: string | null
+  course_teacher_id: number | null
+  target_user_id: number | null
+  target_username: string | null
+  target_nickname: string | null
+  content: string
+  images: string[]
+  status: 'pending' | 'processed'
+  reply: string | null
+  replied_at: string | null
+  created_at: string
+  processed_at: string | null
+}
+
+export interface TeacherFeedbackDetail extends TeacherFeedbackItem {
+  user_email: string | null
+  user_phone: string | null
+}
+
+export interface TeacherFeedbacksParams {
+  feedback_type?: 'course'
+  status?: 'all' | 'pending' | 'processed'
+  keyword?: string
+  page?: number
+  page_size?: number
+}
+
+export interface ProcessTeacherFeedbackRequest {
+  reply: string
+}
+
 /** 章节表单数据 */
 export interface ChapterFormData {
   title: string
@@ -291,6 +328,30 @@ export function deleteCourse(courseId: number) {
 /** 批量课程操作 */
 export function batchCourseAction(data: BatchCourseActionRequest) {
   return request.post<unknown, BatchCourseActionResponse>('/courses/batch-action', data)
+}
+
+/** 获取课程反馈列表 */
+export function fetchTeacherFeedbacks(params: TeacherFeedbacksParams = {}) {
+  const normalizedStatus = params.status === 'all' ? undefined : params.status
+  return request.get<unknown, PaginatedData<TeacherFeedbackItem>>('/feedbacks', {
+    params: {
+      feedback_type: params.feedback_type ?? 'course',
+      status: normalizedStatus,
+      keyword: params.keyword,
+      page: params.page ?? 1,
+      page_size: params.page_size ?? 10,
+    },
+  })
+}
+
+/** 获取课程反馈详情 */
+export function fetchTeacherFeedbackDetail(feedbackId: number) {
+  return request.get<unknown, TeacherFeedbackDetail>(`/feedbacks/${feedbackId}`)
+}
+
+/** 回复并处理课程反馈 */
+export function processTeacherFeedback(feedbackId: number, data: ProcessTeacherFeedbackRequest) {
+  return request.post<unknown, TeacherFeedbackDetail>(`/feedbacks/${feedbackId}/process`, data)
 }
 
 /** 获取课程章节列表 */

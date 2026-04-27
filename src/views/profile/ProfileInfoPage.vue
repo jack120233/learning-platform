@@ -3,8 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { useCountdown } from '@/composables/useCountdown'
-import { fetchProfile, updateProfile, sendEmailCode } from '@/api/profile'
-import { uploadFile } from '@/api/learning'
+import { fetchProfile, updateProfile, sendEmailCode, uploadAvatar } from '@/api/profile'
 import type { UserProfile, UpdateProfileRequest } from '@/api/profile'
 
 const userStore = useUserStore()
@@ -122,15 +121,15 @@ async function handleUploadAvatar(options: { file: File }) {
     return
   }
 
-  // 校验文件大小（最大 20MB）
-  if (file.size > 20 * 1024 * 1024) {
-    ElMessage.warning('图片最大 20MB')
+  // 校验文件大小（最大 10MB）
+  if (file.size > 10 * 1024 * 1024) {
+    ElMessage.warning('图片最大 10MB')
     return
   }
 
   isUploading.value = true
   try {
-    const result = await uploadFile(file)
+    const result = await uploadAvatar(file)
     // 更新头像
     await updateProfile({ avatar: result.file_url })
     // 更新本地状态

@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Bottom, Delete, Edit, Plus, Search, Upload, VideoPlay } from '@element-plus/icons-vue'
+import { Bottom, ChatDotRound, Delete, Edit, Plus, Search, Upload, VideoPlay } from '@element-plus/icons-vue'
 import { usePagination } from '@/composables/usePagination'
 import { useUserStore } from '@/store/user'
 import {
@@ -128,6 +128,10 @@ function canBatchByAction(action: BatchCourseAction, rows: TeacherCourseItem[]) 
 
 function handleCreate() {
   router.push('/teacher/courses/create')
+}
+
+function handleFeedbacks() {
+  router.push('/teacher/feedbacks')
 }
 
 function handleEdit(courseId: number) {
@@ -325,9 +329,14 @@ onMounted(() => {
   <div class="course-list-page">
     <div class="page-header">
       <h2 class="page-title">{{ pageTitle }}</h2>
-      <el-button v-if="canCreateCourse" type="primary" :icon="Plus" @click="handleCreate">
-        创建课程
-      </el-button>
+      <div class="header-actions">
+        <el-button :icon="ChatDotRound" @click="handleFeedbacks">
+          课程反馈
+        </el-button>
+        <el-button v-if="canCreateCourse" type="primary" :icon="Plus" @click="handleCreate">
+          创建课程
+        </el-button>
+      </div>
     </div>
 
     <div class="filter-bar">
@@ -495,6 +504,12 @@ onMounted(() => {
     color: $text-primary;
     margin: 0;
   }
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .filter-bar {

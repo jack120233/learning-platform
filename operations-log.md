@@ -264,3 +264,184 @@
   - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
   - 结果：通过
   - 备注：构建仍提示既有大体积 chunk 警告，本次未扩大处理范围。
+
+## 2026-04-27 前端开发代理恢复为后端 8000
+
+- 变更原因：后端启动端口恢复为 8000，前端 Vite 开发代理需同步指向同一端口。
+- 涉及文件：`vite.config.ts`。
+- 核心改动：将 `/api` 代理目标从 `http://localhost:8001` 改回 `http://localhost:8000`。
+- 验证结果：已检查 `vite.config.ts` 代理目标为 8000，且未检出残留 8001；未执行前端构建，因为本次仅改开发代理配置。
+
+## 2026-04-27 个人中心头像上传接口切换
+
+- 变更原因：个人中心更换头像误用课程封面/资源上传接口 `/upload/file`，普通学生上传时会收到讲师/管理员权限提示。
+- 涉及文件：
+  - `src/api/profile.ts`
+  - `src/views/profile/ProfileInfoPage.vue`
+  - `docs/前端接口文档.md`
+  - `operations-log.md`
+- 核心改动：
+  - 在个人中心 API 中新增 `uploadAvatar(file)`，请求新的 `/upload/avatar` 专用头像上传接口。
+  - 将 `ProfileInfoPage.vue` 的更换头像逻辑从 `@/api/learning.uploadFile` 切换为 `uploadAvatar`，避免继续走课程封面上传权限。
+  - 将头像文件大小前端校验统一为 10MB，并保留 JPG/PNG/GIF 格式支持。
+  - 更新前端接口文档，补充头像上传接口，并标明 `/upload/file` 仅用于讲师/管理员课程封面和资源资料上传。
+- 验证结果：
+  - 已执行：`npm --prefix "E:/video_project/proj_ui/UI" run build`
+  - 结果：通过。
+  - 已执行：登录后通过浏览器访问 `http://localhost:3000/profile`，点击“更换头像”上传 PNG 测试图片。
+  - 结果：请求链路为 `POST /api/v1/upload/avatar => 200`，随后 `POST /api/v1/users/me => 200`，未再出现课程封面权限错误。
+  - 备注：构建仍提示既有大体积 chunk 警告，本次未扩大处理范围；临时测试图片已删除。
+
+## 2026-04-27 个人中心提交反馈入口修复
+时间：2026-04-27 14:47:14
+
+- 变更原因：个人中心侧栏“提交反馈”按钮只跳转到 `/profile/feedbacks`，用户已在我的反馈页时点击没有明显反应；该入口应直接提交平台/系统问题反馈。
+- 涉及文件：
+  - `src/views/profile/ProfileLayout.vue`
+  - `src/views/profile/MyFeedbacksPage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 将个人中心侧栏“提交反馈”按钮改为打开反馈弹窗，复用现有 `FeedbackForm`。
+  - 反馈弹窗固定 `default-type="system"` 且锁定类型，确保该入口提交平台/系统问题反馈。
+  - 提交成功后关闭弹窗，并在当前位于 `/profile/feedbacks` 时触发列表刷新。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npx vue-tsc --noEmit`
+  - 结果：通过。
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
+  - 结果：通过。
+  - 已执行：浏览器访问 `http://localhost:3000/profile/feedbacks`，点击侧栏“提交反馈”。
+  - 结果：弹窗正常打开，反馈类型固定显示为“系统问题”。
+  - 备注：构建仍提示既有大体积 chunk 警告，本次未扩大处理范围；未提交真实反馈数据。
+
+## 2026-04-27 反馈截图上传与教师布局动态导入修复
+时间：2026-04-27 15:22:10
+
+- 变更原因：个人中心提交反馈弹窗添加图片时复用 `/upload/file`，普通学生会被课程资源上传权限拦截；同时教师端布局动态导入会受 Vite 过期优化依赖影响，报 `Failed to fetch dynamically imported module`。
+- 涉及文件：
+  - `src/api/learning.ts`
+  - `src/components/feedback/FeedbackForm.vue`
+  - `src/views/teacher/TeacherLayout.vue`
+  - `docs/前端接口文档.md`
+  - `operations-log.md`
+- 核心改动：
+  - 新增前端 `uploadFeedbackImage(file)`，请求 `/upload/feedback-image`。
+  - 将反馈表单截图上传从 `/upload/file` 切换到反馈截图专用接口，避免学生提交反馈时命中讲师/管理员资源上传权限。
+  - 将 `TeacherLayout.vue` 中的 `el-container/el-aside/el-main` 替换为普通语义结构，保留原布局效果，避免动态加载时再请求失效的 Element Plus container 预构建样式依赖。
+  - 更新前端接口文档，补充反馈截图上传接口。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npx vue-tsc --noEmit`
+  - 结果：通过。
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
+  - 结果：通过。
+  - 已执行：浏览器直接动态导入 `/src/views/teacher/TeacherLayout.vue?t=...`。
+  - 结果：返回 `{ ok: true, keys: ["default"] }`。
+  - 已执行：浏览器访问 `http://localhost:3000/profile/feedbacks`，打开“提交反馈”弹窗并上传 PNG 测试图片。
+  - 结果：请求链路为 `POST /api/v1/upload/feedback-image => 200`，不再走 `/upload/file`。
+  - 备注：构建仍提示既有大体积 chunk 警告，本次未扩大处理范围；首次上传前后端 8000 未运行导致 502，启动后端后复测通过。
+
+## 2026-04-27 教师课程管理页侧栏精简
+时间：2026-04-27 15:50:05
+
+- 变更原因：`/teacher/courses` 页面 PC 端最左侧“讲师工作台”侧栏只有入口和返回按钮，信息价值较低且占用横向空间。
+- 涉及文件：
+  - `src/views/teacher/TeacherLayout.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 移除教师布局中的侧栏、移动端顶部栏和抽屉菜单，让课程管理页内容区域直接占满可用宽度。
+  - 教师布局仅保留主内容出口，不再额外显示“讲师工作台”导航壳。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npx vue-tsc --noEmit`
+  - 结果：通过。
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
+  - 结果：通过。
+  - 备注：构建仍提示既有大体积 chunk 警告，本次未扩大处理范围。
+
+## 2026-04-27 移动端抽屉消息中心菜单对齐修复
+时间：2026-04-27 16:00:42
+
+- 变更原因：移动端打开主导航抽屉后，第二行“消息中心”因未读角标组件被推到右侧，导致该行样式与其它菜单项不一致。
+- 涉及文件：
+  - `src/components/layout/AppHeader.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 调整移动端抽屉中 `mobile-message-badge` 的对齐方式，取消自动右推，让“消息中心”文字紧跟图标显示，未读角标继续贴在文字右上角。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npx vue-tsc --noEmit`
+  - 结果：通过。
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
+  - 结果：通过。
+  - 备注：构建仍提示既有大体积 chunk 警告，本次未扩大处理范围。
+
+
+## 讲师端课程反馈处理入口补齐
+时间：2026-04-27
+
+- 变更原因：课程反馈后端已按课程讲师路由，前端需要提供讲师查看和回复处理自己课程反馈的入口，避免继续只依赖管理员反馈管理页。
+- 涉及文件：
+  - `src/api/teacher.ts`
+  - `src/router/index.ts`
+  - `src/views/teacher/CourseListPage.vue`
+  - `src/views/teacher/TeacherLayout.vue`
+  - `src/views/teacher/FeedbackManagePage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 讲师 API 增加课程反馈列表、详情、回复处理请求函数和类型。
+  - 新增 `/teacher/feedbacks` 路由，并在课程管理页顶部提供“课程反馈”入口，保留讲师页无侧栏布局。
+  - 新增课程反馈管理页，支持状态筛选、搜索、详情抽屉、截图预览和“老师回复并处理”。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
+  - 结果：通过，仍有既有大体积 chunk 警告。
+
+## 反馈目标老师手动选择链路
+时间：2026-04-27
+
+- 变更原因：课程反馈不应再自动分派给课程负责老师，而应让学生在当前课程上下文中选择反馈目标老师；个人中心没有课程上下文，因此隐藏直接提交入口，仅保留历史反馈查看。
+- 涉及文件：
+  - `src/api/learning.ts`
+  - `src/api/profile.ts`
+  - `src/api/admin.ts`
+  - `src/api/teacher.ts`
+  - `src/components/feedback/FeedbackForm.vue`
+  - `src/views/course/CourseDetailPage.vue`
+  - `src/views/profile/ProfileLayout.vue`
+  - `src/views/profile/MyFeedbacksPage.vue`
+  - `src/views/teacher/FeedbackManagePage.vue`
+  - `src/views/admin/FeedbackManagePage.vue`
+  - `docs/前端接口文档.md`
+  - `operations-log.md`
+- 核心改动：
+  - 反馈表单在课程反馈场景新增“反馈给老师”下拉，默认当前课程老师，可切换其他 active 老师。
+  - 课程详情页向反馈表单传入当前课程名称、课程老师 ID 和老师名称，提交时携带 `course_id` 与 `target_user_id`。
+  - 个人中心移除直接提交反馈弹窗入口，保留“我的反馈”列表和处理回复展示。
+  - 我的反馈、老师反馈管理、管理员反馈管理均补充目标老师字段展示，回复文案从固定管理员口径改为处理回复口径。
+  - 前端接口文档补充 `target_user_id`、`/users/teachers/options` 和老师侧按目标老师处理的约定。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npx vue-tsc --noEmit`
+  - 结果：通过。
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
+  - 结果：通过，仍有既有大体积 chunk 警告。
+  - 已执行：浏览器访问 `http://localhost:3000/profile`。
+  - 结果：个人中心侧栏不再显示“提交反馈”入口，仅保留“我的反馈”。
+  - 已执行：浏览器从首页进入真实课程 `http://localhost:3000/courses/25` 并打开“反馈”标签页。
+  - 结果：反馈类型锁定为“课程问题”，关联课程自动显示当前课程，老师下拉默认“张老师”并可展开。
+  - 已执行：拦截 `POST /api/v1/feedbacks` 做提交 payload 验证。
+  - 结果：请求体包含 `feedback_type: course`、`course_id: 25`、`target_user_id: 2` 和反馈内容；拦截返回模拟成功，未向后端写入真实反馈数据。
+
+## 首页未登录按钮样式优化
+时间：2026-04-27
+
+- 变更原因：首页头部未登录状态下“登录”和“注册”按钮展示不够协调，需要提升按钮层次、间距和移动端抽屉里的视觉一致性。
+- 涉及文件：
+  - `src/components/layout/AppHeader.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 将 PC 端未登录按钮改为胶囊式组合按钮，登录为轻量按钮，注册为渐变主按钮。
+  - 调整按钮高度、圆角、字重、间距、hover/focus 状态和阴影，让两个入口在首页头部更清晰。
+  - 同步优化移动端抽屉底部未登录按钮样式，保持和 PC 端同一视觉口径。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npx vue-tsc --noEmit`
+  - 结果：通过。
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
+  - 结果：通过，仍有既有大体积 chunk 警告。
+  - 已执行：浏览器临时清空登录态访问 `http://localhost:3000/?sort_by=latest&page=1`，验证后恢复原登录态。
+  - 结果：头部显示“登录 / 注册”胶囊式组合按钮，登录按钮与注册渐变主按钮样式均生效。

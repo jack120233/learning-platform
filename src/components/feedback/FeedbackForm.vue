@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, reactive } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { submitFeedback, uploadFile } from '@/api/learning'
+import { fetchTeacherOptions, submitFeedback, uploadFeedbackImage } from '@/api/learning'
+import type { TeacherOption } from '@/api/learning'
 import type { UploadFile } from 'element-plus'
 
 // Props
@@ -16,6 +17,10 @@ interface Props {
   courseId?: number
   /** 关联课程名称 */
   courseName?: string
+  /** 当前课程老师 ID */
+  courseTeacherId?: number
+  /** 当前课程老师名称 */
+  courseTeacherName?: string | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -33,6 +38,7 @@ const emit = defineEmits<{
 // 表单数据
 const form = reactive({
   feedback_type: props.defaultType as 'system' | 'course',
+  target_user_id: props.courseTeacherId,
   content: '',
   images: [] as string[],
 })
@@ -52,6 +58,25 @@ const uploadingCount = ref(0)
 // 是否显示课程选择
 const showCourseSelect = computed(() => form.feedback_type === 'course')
 
+const teacherOptions = ref<TeacherOption[]>([])
+const loadingTeachers = ref(false)
+
+const normalizedTeacherOptions = computed(() => {
+  const options = [...teacherOptions.value]
+  if (
+    props.courseTeacherId
+    && !options.some((teacher) => teacher.teacher_id === props.courseTeacherId)
+  ) {
+    options.unshift({
+      teacher_id: props.courseTeacherId,
+      username: props.courseTeacherName || `老师 ${props.courseTeacherId}`,
+      nickname: props.courseTeacherName || null,
+      avatar: null,
+    })
+  }
+  return options
+})
+
 // 反馈类型选项
 const feedbackTypes = [
   { label: '系统问题', value: 'system' },
@@ -67,12 +92,44 @@ const rules = {
   feedback_type: [
     { required: true, message: '请选择反馈类型', trigger: 'change' },
   ],
+  target_user_id: [
+    { required: true, message: '请选择反馈老师', trigger: 'change' },
+  ],
   content: [
     { required: true, message: '请输入反馈内容', trigger: 'blur' },
     { min: 10, message: '反馈内容至少 10 个字符', trigger: 'blur' },
     { max: 500, message: '反馈内容最多 500 个字符', trigger: 'blur' },
   ],
 }
+
+async function loadTeacherOptions() {
+  if (!showCourseSelect.value) return
+  loadingTeachers.value = true
+  try {
+    teacherOptions.value = await fetchTeacherOptions()
+    if (!form.target_user_id && props.courseTeacherId) {
+      form.target_user_id = props.courseTeacherId
+    }
+  } catch (error) {
+    ElMessage.error('老师列表加载失败')
+  } finally {
+    loadingTeachers.value = false
+  }
+}
+
+watch(() => props.courseTeacherId, (teacherId) => {
+  if (showCourseSelect.value && teacherId && !form.target_user_id) {
+    form.target_user_id = teacherId
+  }
+}, { immediate: true })
+
+watch(showCourseSelect, (visible) => {
+  if (visible) {
+    void loadTeacherOptions()
+  } else {
+    form.target_user_id = undefined
+  }
+}, { immediate: true })
 
 // 图片上传前校验
 function beforeUpload(file: File): boolean {
@@ -104,7 +161,7 @@ async function handleUpload(options: { file: File }) {
 
   uploadingCount.value++
   try {
-    const result = await uploadFile(options.file)
+    const result = await uploadFeedbackImage(options.file)
     form.images.push(result.file_url)
   } catch (error) {
     // 错误已处理
@@ -135,6 +192,7 @@ async function handleSubmit() {
     await submitFeedback({
       feedback_type: form.feedback_type,
       course_id: showCourseSelect.value ? props.courseId : undefined,
+      target_user_id: showCourseSelect.value ? form.target_user_id : undefined,
       content: form.content,
       images: form.images.length > 0 ? form.images : undefined,
     })
@@ -156,6 +214,7 @@ async function handleSubmit() {
 // 重置表单
 function resetForm() {
   form.feedback_type = props.defaultType
+  form.target_user_id = props.defaultType === 'course' ? props.courseTeacherId : undefined
   form.content = ''
   form.images = []
   uploadFiles.value = []
@@ -203,6 +262,26 @@ function handleCancel() {
             <el-icon><Link /></el-icon>
           </template>
         </el-input>
+      </el-form-item>
+
+      <el-form-item v-if="showCourseSelect" label="反馈给老师" prop="target_user_id">
+        <el-select
+          v-model="form.target_user_id"
+          placeholder="请选择要反馈的老师"
+          :loading="loadingTeachers"
+          filterable
+          style="width: 100%"
+        >
+          <el-option
+            v-for="teacher in normalizedTeacherOptions"
+            :key="teacher.teacher_id"
+            :label="teacher.nickname || teacher.username"
+            :value="teacher.teacher_id"
+          >
+            <span>{{ teacher.nickname || teacher.username }}</span>
+            <span v-if="teacher.teacher_id === courseTeacherId" class="teacher-option-tag">当前课程老师</span>
+          </el-option>
+        </el-select>
       </el-form-item>
 
       <!-- 反馈内容 -->
@@ -286,6 +365,12 @@ function handleCancel() {
   border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
+}
+
+.teacher-option-tag {
+  float: right;
+  color: #409eff;
+  font-size: 12px;
 }
 
 .upload-tip {

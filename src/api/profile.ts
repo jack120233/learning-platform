@@ -25,6 +25,15 @@ export interface UpdateProfileRequest {
   avatar?: string
 }
 
+/** 上传头像响应 */
+export interface UploadAvatarResponse {
+  file_url: string
+  url: string
+  file_name: string
+  file_size: number
+  content_type?: string | null
+}
+
 /** 修改密码请求 */
 export interface ChangePasswordRequest {
   old_password: string
@@ -95,6 +104,9 @@ export interface FeedbackItem {
   status: 'pending' | 'processed'
   course_id?: number
   course_title?: string
+  target_user_id?: number | null
+  target_username?: string | null
+  target_nickname?: string | null
   reply?: string | null
   replied_at?: string | null
   created_at: string
@@ -127,6 +139,19 @@ export function fetchMyPermissions(): Promise<string[]> {
  */
 export function updateProfile(data: UpdateProfileRequest): Promise<UserProfile> {
   return request.post<unknown, UserProfile>('/users/me', data)
+}
+
+/**
+ * 上传头像
+ */
+export function uploadAvatar(file: File): Promise<UploadAvatarResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post<unknown, UploadAvatarResponse>('/upload/avatar', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
 }
 
 /**
@@ -256,6 +281,9 @@ interface BackendFeedbackItem {
   replied_at?: string | null
   course_id?: number | null
   course_title?: string | null
+  target_user_id?: number | null
+  target_username?: string | null
+  target_nickname?: string | null
   created_at: string
 }
 
@@ -304,6 +332,9 @@ function mapFeedbackItem(item: BackendFeedbackItem): FeedbackItem {
     status: normalizedStatus,
     course_id: item.course_id ?? undefined,
     course_title: item.course_title ?? undefined,
+    target_user_id: item.target_user_id ?? null,
+    target_username: item.target_username ?? null,
+    target_nickname: item.target_nickname ?? null,
     reply: item.reply ?? null,
     replied_at: item.replied_at ?? null,
     created_at: item.created_at,

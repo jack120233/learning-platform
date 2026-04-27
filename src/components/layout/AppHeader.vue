@@ -157,12 +157,14 @@ watch(() => route.fullPath, () => {
         <div class="user-area">
           <!-- 未登录 -->
           <template v-if="!userStore.isLoggedIn">
-            <el-button type="primary" text @click="router.push('/login')">
-              登录
-            </el-button>
-            <el-button type="primary" @click="router.push('/register')">
-              注册
-            </el-button>
+            <div class="auth-actions">
+              <el-button class="auth-btn auth-btn--login" @click="router.push('/login')">
+                登录
+              </el-button>
+              <el-button class="auth-btn auth-btn--register" type="primary" @click="router.push('/register')">
+                注册
+              </el-button>
+            </div>
           </template>
 
           <!-- 已登录 -->
@@ -248,12 +250,14 @@ watch(() => route.fullPath, () => {
         <div class="drawer-footer">
           <!-- 未登录 -->
           <template v-if="!userStore.isLoggedIn">
-            <el-button type="primary" block @click="handleMobileNavClick('/login')">
-              登录
-            </el-button>
-            <el-button block @click="handleMobileNavClick('/register')">
-              注册
-            </el-button>
+            <div class="drawer-auth-actions">
+              <el-button class="drawer-auth-btn drawer-auth-btn--login" @click="handleMobileNavClick('/login')">
+                登录
+              </el-button>
+              <el-button class="drawer-auth-btn drawer-auth-btn--register" type="primary" @click="handleMobileNavClick('/register')">
+                注册
+              </el-button>
+            </div>
           </template>
 
           <!-- 已登录 -->
@@ -379,6 +383,50 @@ watch(() => route.fullPath, () => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.auth-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  background: #f4f8ff;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+}
+
+.auth-btn {
+  min-width: 68px;
+  height: 34px;
+  margin-left: 0 !important;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.auth-btn--login {
+  border-color: transparent;
+  background: transparent;
+  color: #2563eb;
+
+  &:hover,
+  &:focus {
+    border-color: #bfdbfe;
+    background: #fff;
+    color: #1d4ed8;
+  }
+}
+
+.auth-btn--register {
+  border: none;
+  background: linear-gradient(135deg, #1890ff 0%, #2563eb 100%);
+  box-shadow: 0 8px 18px rgba(24, 144, 255, 0.25);
+
+  &:hover,
+  &:focus {
+    background: linear-gradient(135deg, #40a9ff 0%, #1d4ed8 100%);
+    box-shadow: 0 10px 22px rgba(24, 144, 255, 0.32);
+  }
 }
 
 .user-info {
@@ -521,11 +569,35 @@ watch(() => route.fullPath, () => {
   flex-direction: column;
   gap: 12px;
 
-  // 按钮样式统一
-  .el-button {
+  .drawer-auth-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    background: #f4f8ff;
+    border: 1px solid #dbeafe;
+    border-radius: 14px;
+  }
+
+  .drawer-auth-btn {
     width: 100%;
     height: 40px;
+    margin-left: 0 !important;
+    border-radius: 999px;
     font-size: 14px;
+    font-weight: 600;
+  }
+
+  .drawer-auth-btn--login {
+    border-color: #bfdbfe;
+    background: #fff;
+    color: #2563eb;
+  }
+
+  .drawer-auth-btn--register {
+    border: none;
+    background: linear-gradient(135deg, #1890ff 0%, #2563eb 100%);
+    box-shadow: 0 8px 18px rgba(24, 144, 255, 0.22);
   }
 
   .user-profile {
@@ -574,7 +646,8 @@ watch(() => route.fullPath, () => {
       }
 
       .mobile-message-badge {
-        margin-left: auto;
+        margin-left: 0;
+        font-size: inherit;
       }
     }
   }

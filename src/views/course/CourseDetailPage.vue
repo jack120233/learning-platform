@@ -605,6 +605,9 @@ function openChapterResource(resource: CourseResource) {
                 default-type="course"
                 :type-locked="true"
                 :course-id="courseId"
+                :course-name="course?.title"
+                :course-teacher-id="course?.teacher_id"
+                :course-teacher-name="course?.teacher_name"
               />
             </div>
           </el-tab-pane>

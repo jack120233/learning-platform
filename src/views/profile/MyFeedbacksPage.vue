@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { usePagination } from '@/composables/usePagination'
 import { fetchMyFeedbacks } from '@/api/profile'
 import type { FeedbackItem } from '@/api/profile'
+
+const route = useRoute()
 
 const {
   items: feedbacks,
@@ -41,6 +44,10 @@ function formatTime(time: string) {
 
 // 初始化加载
 onMounted(() => {
+  fetchData()
+})
+
+watch(() => route.query.refresh, () => {
   fetchData()
 })
 </script>
@@ -95,9 +102,14 @@ onMounted(() => {
             关联课程：{{ feedback.course_title }}
           </p>
 
+          <p class="feedback-course" v-if="feedback.target_nickname || feedback.target_username">
+            <el-icon><User /></el-icon>
+            反馈给：{{ feedback.target_nickname || feedback.target_username }}
+          </p>
+
           <div v-if="feedback.reply" class="feedback-reply">
             <div class="feedback-reply__header">
-              <span class="feedback-reply__title">管理员回复</span>
+              <span class="feedback-reply__title">处理回复</span>
               <span v-if="feedback.replied_at" class="feedback-reply__time">
                 {{ formatTime(feedback.replied_at) }}
               </span>
