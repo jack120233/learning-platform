@@ -63,13 +63,15 @@ async def get_feedbacks(
 ) -> ApiResponse[PageData[FeedbackResponse]]:
     """获取反馈列表接口"""
     can_view_all = await has_feedback_admin_permission(db, current_user.role)
+    can_view_course_feedback = current_user.role == "teacher"
 
     feedbacks, total = await feedback_service.get_list(
         db,
-        user_id=None if can_view_all else current_user.id,
+        user_id=None if can_view_all or can_view_course_feedback else current_user.id,
+        teacher_id=current_user.id if can_view_course_feedback and not can_view_all else None,
         feedback_type=feedback_type,
         status=status,
-        keyword=keyword if can_view_all else None,
+        keyword=keyword if can_view_all or can_view_course_feedback else None,
         page=page,
         page_size=page_size,
     )
@@ -101,7 +103,11 @@ async def get_feedback(
         raise NotFoundException("反馈不存在")
 
     can_view_all = await has_feedback_admin_permission(db, current_user.role)
-    if not can_view_all and feedback["user_id"] != current_user.id:
+    can_view_course_feedback = (
+        current_user.role == "teacher"
+        and feedback["target_user_id"] == current_user.id
+    )
+    if not can_view_all and not can_view_course_feedback and feedback["user_id"] != current_user.id:
         raise ForbiddenException("无权查看该反馈")
 
     return ApiResponse.success(data=FeedbackResponse.model_validate(feedback))
@@ -120,13 +126,17 @@ async def process_feedback(
     data: FeedbackProcess | None = None,
 ) -> ApiResponse[FeedbackResponse]:
     """处理反馈接口（管理员）"""
-    await permission_service.ensure_permission(
+    can_process_all = await has_feedback_admin_permission(db, current_user.role)
+    if not can_process_all and current_user.role != "teacher":
+        raise ForbiddenException("无权处理反馈")
+
+    feedback = await feedback_service.process(
         db,
-        current_user.role,
-        "admin.feedback",
-        "无权处理反馈",
+        feedback_id,
+        data,
+        current_user.id,
+        allow_global=can_process_all,
     )
-    feedback = await feedback_service.process(db, feedback_id, data, current_user.id)
     detail = await feedback_service.get_by_id(db, feedback.id)
     return ApiResponse.success(
         data=FeedbackResponse.model_validate(detail),
@@ -155,7 +165,7 @@ async def batch_process_feedbacks(
 
     count = 0
     for feedback_id in data.feedback_ids:
-        await feedback_service.process(db, feedback_id, None, current_user.id)
+        await feedback_service.process(db, feedback_id, None, current_user.id, allow_global=True)
         count += 1
 
     return ApiResponse.success(

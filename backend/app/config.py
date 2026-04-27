@@ -92,6 +92,8 @@ class Settings(BaseSettings):
     upload_dir: str = str(BASE_DIR / "uploads")
     upload_url_prefix: str = "/uploads"
     course_cover_subdir: str = "course-covers"
+    avatar_subdir: str = "avatars"
+    feedback_image_subdir: str = "feedback-images"
     general_upload_subdir: str = "files"
     chunk_upload_tmp_subdir: str = ".chunk-sessions"
     course_cover_max_size: int = 10 * 1024 * 1024

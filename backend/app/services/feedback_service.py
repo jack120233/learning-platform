@@ -8,8 +8,9 @@ from datetime import datetime, timezone
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
-from app.core.exceptions import NotFoundException
+from app.core.exceptions import ForbiddenException, NotFoundException, ValidationException
 from app.models.course import Course
 from app.models.feedback import Feedback
 from app.models.message import Message
@@ -51,10 +52,20 @@ class FeedbackService:
         Returns:
             创建的反馈
         """
+        if data.feedback_type == "course":
+            course = await db.get(Course, data.course_id)
+            if not course:
+                raise ValidationException("关联课程不存在")
+
+            target_user = await db.get(User, data.target_user_id)
+            if not target_user or target_user.role != "teacher" or target_user.status != "active":
+                raise ValidationException("请选择有效的反馈老师")
+
         feedback = Feedback(
             user_id=user_id,
             type=data.feedback_type,
             course_id=data.course_id,
+            target_user_id=data.target_user_id,
             title=data.title,
             content=data.content,
             contact=data.contact,
@@ -68,6 +79,7 @@ class FeedbackService:
         self,
         db: AsyncSession,
         user_id: int | None = None,
+        teacher_id: int | None = None,
         feedback_type: str | None = None,
         status: str | None = None,
         keyword: str | None = None,
@@ -88,6 +100,7 @@ class FeedbackService:
         Returns:
             反馈列表和总数
         """
+        TargetUser = aliased(User)
         base_query = (
             select(
                 Feedback,
@@ -95,15 +108,22 @@ class FeedbackService:
                 User.email.label("user_email"),
                 User.phone.label("user_phone"),
                 Course.title.label("course_title"),
+                Course.teacher_id.label("course_teacher_id"),
+                TargetUser.username.label("target_username"),
+                TargetUser.nickname.label("target_nickname"),
             )
             .join(User, User.id == Feedback.user_id)
             .outerjoin(Course, Course.id == Feedback.course_id)
+            .outerjoin(TargetUser, TargetUser.id == Feedback.target_user_id)
         )
 
         conditions = []
 
         if user_id:
             conditions.append(Feedback.user_id == user_id)
+
+        if teacher_id:
+            conditions.append(Feedback.target_user_id == teacher_id)
 
         if feedback_type == "course":
             conditions.append(or_(Feedback.course_id.is_not(None), Feedback.type == "course"))
@@ -146,8 +166,26 @@ class FeedbackService:
 
         result = await db.execute(query)
         feedbacks = [
-            self.serialize_feedback_row(feedback, username, user_email, user_phone, course_title)
-            for feedback, username, user_email, user_phone, course_title in result.all()
+            self.serialize_feedback_row(
+                feedback,
+                username,
+                user_email,
+                user_phone,
+                course_title,
+                course_teacher_id,
+                target_username,
+                target_nickname,
+            )
+            for (
+                feedback,
+                username,
+                user_email,
+                user_phone,
+                course_title,
+                course_teacher_id,
+                target_username,
+                target_nickname,
+            ) in result.all()
         ]
 
         return feedbacks, total
@@ -158,6 +196,7 @@ class FeedbackService:
         feedback_id: int,
     ) -> dict | None:
         """通过ID获取反馈详情。"""
+        TargetUser = aliased(User)
         query = (
             select(
                 Feedback,
@@ -165,9 +204,13 @@ class FeedbackService:
                 User.email.label("user_email"),
                 User.phone.label("user_phone"),
                 Course.title.label("course_title"),
+                Course.teacher_id.label("course_teacher_id"),
+                TargetUser.username.label("target_username"),
+                TargetUser.nickname.label("target_nickname"),
             )
             .join(User, User.id == Feedback.user_id)
             .outerjoin(Course, Course.id == Feedback.course_id)
+            .outerjoin(TargetUser, TargetUser.id == Feedback.target_user_id)
             .where(Feedback.id == feedback_id)
         )
         result = await db.execute(query)
@@ -175,13 +218,16 @@ class FeedbackService:
         if row is None:
             return None
 
-        feedback, username, user_email, user_phone, course_title = row
+        feedback, username, user_email, user_phone, course_title, course_teacher_id, target_username, target_nickname = row
         return self.serialize_feedback_row(
             feedback,
             username,
             user_email,
             user_phone,
             course_title,
+            course_teacher_id,
+            target_username,
+            target_nickname,
         )
 
     async def process(
@@ -190,6 +236,7 @@ class FeedbackService:
         feedback_id: int,
         data: FeedbackProcess | None,
         reviewer_id: int,
+        allow_global: bool = False,
     ) -> Feedback:
         """处理反馈
 
@@ -209,6 +256,10 @@ class FeedbackService:
         if not feedback:
             raise NotFoundException("反馈不存在")
 
+        if not allow_global:
+            if feedback.target_user_id != reviewer_id:
+                raise ForbiddenException("无权处理该反馈")
+
         feedback.status = "processed"
         if data is not None:
             feedback.reply = data.reply
@@ -225,6 +276,9 @@ class FeedbackService:
         user_email: str | None = None,
         user_phone: str | None = None,
         course_title: str | None = None,
+        course_teacher_id: int | None = None,
+        target_username: str | None = None,
+        target_nickname: str | None = None,
     ) -> dict:
         """将反馈模型与关联信息序列化为前端需要的结构。"""
         feedback_type = self.normalize_feedback_type(feedback.type, feedback.course_id)
@@ -242,6 +296,10 @@ class FeedbackService:
             "type": feedback_type,
             "course_id": feedback.course_id,
             "course_title": course_title,
+            "course_teacher_id": course_teacher_id,
+            "target_user_id": feedback.target_user_id,
+            "target_username": target_username,
+            "target_nickname": target_nickname,
             "title": feedback.title,
             "content": feedback.content,
             "contact": feedback.contact,

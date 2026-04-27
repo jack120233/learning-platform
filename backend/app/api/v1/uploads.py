@@ -28,6 +28,26 @@ async def _ensure_upload_permission(db: DBSession, user_id: CurrentUserId) -> No
         raise ForbiddenException("仅讲师或管理员可上传课程封面")
 
 
+async def _ensure_avatar_upload_permission(db: DBSession, user_id: CurrentUserId) -> None:
+    """校验头像上传权限。"""
+    user = await db.get(User, user_id)
+    if not user:
+        raise NotFoundException("用户不存在")
+
+    if user.status != "active":
+        raise ForbiddenException("当前账号不可上传头像")
+
+
+async def _ensure_feedback_image_upload_permission(db: DBSession, user_id: CurrentUserId) -> None:
+    """校验反馈截图上传权限。"""
+    user = await db.get(User, user_id)
+    if not user:
+        raise NotFoundException("用户不存在")
+
+    if user.status != "active":
+        raise ForbiddenException("当前账号不可上传反馈截图")
+
+
 @router.post(
     "/file",
     response_model=ApiResponse[UploadFileResponse],
@@ -44,6 +64,58 @@ async def upload_file(
     await _ensure_upload_permission(db, user_id)
 
     upload_result = await upload_service.save_file(
+        file=file,
+        base_url=str(request.base_url),
+    )
+
+    return ApiResponse.success(
+        data=UploadFileResponse(**upload_result),
+        message="上传成功",
+    )
+
+
+@router.post(
+    "/avatar",
+    response_model=ApiResponse[UploadFileResponse],
+    summary="上传头像",
+    description="上传当前登录用户的头像，返回统一文件信息",
+)
+async def upload_avatar(
+    request: Request,
+    db: DBSession,
+    user_id: CurrentUserId,
+    file: UploadFile = File(..., description="头像文件"),
+) -> ApiResponse[UploadFileResponse]:
+    """头像上传接口。"""
+    await _ensure_avatar_upload_permission(db, user_id)
+
+    upload_result = await upload_service.save_avatar(
+        file=file,
+        base_url=str(request.base_url),
+    )
+
+    return ApiResponse.success(
+        data=UploadFileResponse(**upload_result),
+        message="上传成功",
+    )
+
+
+@router.post(
+    "/feedback-image",
+    response_model=ApiResponse[UploadFileResponse],
+    summary="上传反馈截图",
+    description="上传当前登录用户提交反馈时使用的截图，返回统一文件信息",
+)
+async def upload_feedback_image(
+    request: Request,
+    db: DBSession,
+    user_id: CurrentUserId,
+    file: UploadFile = File(..., description="反馈截图文件"),
+) -> ApiResponse[UploadFileResponse]:
+    """反馈截图上传接口。"""
+    await _ensure_feedback_image_upload_permission(db, user_id)
+
+    upload_result = await upload_service.save_feedback_image(
         file=file,
         base_url=str(request.base_url),
     )

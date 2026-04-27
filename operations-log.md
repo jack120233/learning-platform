@@ -1,5 +1,26 @@
 # 操作记录
 
+## 反馈截图上传接口补齐
+时间：2026-04-27 15:22:10
+
+- 变更原因：个人中心提交反馈支持上传截图，但前端原先复用 `/api/v1/upload/file`，该接口只允许讲师或管理员上传课程资源，普通学生添加截图会被权限拦截。
+- 涉及文件：
+  - `backend/app/config.py`
+  - `backend/app/api/v1/uploads.py`
+  - `backend/app/services/upload_service.py`
+  - `backend/tests/test_uploads.py`
+  - `docs/api-endpoint-inventory.md`
+  - `operations-log.md`
+- 核心改动：
+  - 新增 `feedback_image_subdir`，将反馈截图保存到 `uploads/feedback-images/`。
+  - 新增 `POST /api/v1/upload/feedback-image`，允许 active 状态的当前登录用户上传反馈截图，不限制学生、讲师或管理员角色。
+  - 上传服务新增反馈截图保存逻辑，复用头像图片格式校验，支持 JPG/PNG/GIF，单文件最大 10MB。
+  - 补充反馈截图上传成功和禁用用户拒绝上传的测试，并更新接口清单统计。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/project_code/backend" && python -m pytest tests/test_uploads.py -k "FeedbackImageUpload or AvatarUpload" -q`
+  - 结果：`5 passed, 9 deselected`，有 2 条既有 `HTTP_422_UNPROCESSABLE_ENTITY` 废弃警告。
+
+
 ## 编码前检查 - 实际接口清单文档
 时间：2026-03-27
 
@@ -453,3 +474,77 @@
   - 未执行：未在本会话实际启动 uvicorn。请在 `backend` 目录下再次运行 `run.bat` 目视确认：启动过程只有 uvicorn 自己的 `INFO: ...` 行，不再出现 PowerShell 的 `NativeCommandError` / `AmpersandNotAllowed` 红字。
   - 回退方案：`copy /y run.bat.bak run.bat` 可还原到最初版本（带 PowerShell 嵌套）。
 - 已放弃的能力：uvicorn 运行时日志不再自动写入 `logs/startup.log`。如需留档，运行时可自行 `run.bat > mylog.log 2>&1`，或在后续需求明确后再引入独立日志方案（如直接给 uvicorn 传 `--log-config`）。
+
+## 2026-04-27 后端启动端口恢复为 8000
+
+- 变更原因：课程封面 URL 指向 8000，当前后端启动脚本仍使用 8001，导致封面资源地址不可访问。
+- 涉及文件：`backend/run.bat`。
+- 核心改动：将端口占用检查、错误提示、启动日志和 uvicorn 启动参数从 8001 恢复为 8000。
+- 验证结果：已检查 `backend/run.bat` 中端口配置均为 8000，且未检出残留 8001；未实际启动后端服务，避免占用本机端口。
+
+## 2026-04-27 个人中心头像上传接口补齐
+
+- 变更原因：个人中心头像上传误走 `/api/v1/upload/file`，该接口按课程封面/资源上传限制为讲师或管理员，导致普通学生更换头像时出现权限错误。
+- 涉及文件：
+  - `backend/app/config.py`
+  - `backend/app/api/v1/uploads.py`
+  - `backend/app/services/upload_service.py`
+  - `backend/tests/test_uploads.py`
+  - `docs/api-endpoint-inventory.md`
+  - `operations-log.md`
+- 核心改动：
+  - 新增 `/api/v1/upload/avatar` 头像上传接口，允许 active 状态的已登录用户上传头像，不再限制角色。
+  - 保留 `/api/v1/upload/file` 的讲师/管理员权限限制，继续用于课程封面、文档和常见音视频资源。
+  - 上传服务新增头像保存能力，落盘到 `uploads/avatars/`，支持 JPG/PNG/GIF，文件大小限制 10MB。
+  - 为头像上传补充学生成功、未登录失败、非 active 用户失败测试，并更新接口清单统计为 81 个业务接口。
+- 验证结果：
+  - 已执行：`python -m pytest "E:/video_project/proj_ui/project_code/backend/tests/test_uploads.py" -v`
+  - 结果：`12 passed, 4 warnings`。
+  - 已执行：登录后通过浏览器访问 `http://localhost:3000/profile`，点击“更换头像”上传 PNG 测试图片。
+  - 结果：请求链路为 `POST /api/v1/upload/avatar => 200`，随后 `POST /api/v1/users/me => 200`，未再出现课程封面权限错误。
+  - 备注：告警为现有 FastAPI `HTTP_422_UNPROCESSABLE_ENTITY` 弃用提示，本次未扩大处理范围；临时测试图片已删除。
+
+
+## 反馈按课程讲师路由与处理权限优化
+时间：2026-04-27
+
+- 变更原因：课程/视频/学习反馈不应只进入管理员反馈管理，需要让负责课程的讲师可见并处理自己课程的反馈，同时保留管理员全局监管。
+- 涉及文件：
+  - `backend/app/api/v1/feedbacks.py`
+  - `backend/app/services/feedback_service.py`
+  - `backend/app/schemas/feedback.py`
+  - `backend/tests/test_feedbacks.py`
+  - `operations-log.md`
+- 核心改动：
+  - 反馈列表支持按 `Course.teacher_id` 过滤，讲师访问 `/api/v1/feedbacks` 时只返回自己课程的反馈。
+  - 反馈详情和处理权限新增课程讲师判断，讲师只能处理自己课程反馈，管理员继续保留全局处理权限。
+  - 反馈响应补充 `course_teacher_id`，便于前后端核对课程归属。
+  - 补充课程讲师可查看/处理、非负责讲师不可查看/处理的后端测试。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/project_code/backend" && python -m pytest tests/test_feedbacks.py -q`
+  - 结果：`12 passed, 7 warnings`，警告为既有 `datetime.utcnow()` 和 `HTTP_422_UNPROCESSABLE_ENTITY` 废弃提示。
+
+## 反馈目标老师字段与处理权限改造
+时间：2026-04-27
+
+- 变更原因：课程反馈需要从“按课程负责老师自动分派”调整为“自动关联当前课程，学生手动选择目标老师”，老师侧查看和处理权限也应跟随学生选择的 `target_user_id`。
+- 涉及文件：
+  - `backend/app/models/feedback.py`
+  - `backend/app/core/db_schema.py`
+  - `backend/app/schemas/feedback.py`
+  - `backend/app/services/feedback_service.py`
+  - `backend/app/api/v1/feedbacks.py`
+  - `backend/app/schemas/user.py`
+  - `backend/app/api/v1/users.py`
+  - `backend/tests/test_feedbacks.py`
+  - `operations-log.md`
+- 核心改动：
+  - `Feedback` 模型新增 `target_user_id`，并在数据库兼容检查中为旧库补列。
+  - 课程反馈创建时要求同时传入 `course_id` 和 `target_user_id`，后端校验课程存在且目标用户是 active 老师。
+  - 反馈列表、详情和处理权限改为按 `Feedback.target_user_id` 判断老师侧可见与可处理范围，管理员或具备 `admin.feedback` 的用户仍保留全局权限。
+  - 反馈响应补充 `target_user_id`、`target_username`、`target_nickname`，同时保留 `course_teacher_id` 作为课程归属信息。
+  - 新增 `GET /api/v1/users/teachers/options`，登录用户可获取 active 老师简要选项，不暴露邮箱和手机号。
+  - 补充测试覆盖目标老师可查看/处理、课程原老师不可越权、无效目标老师被拒绝、老师选项接口和旧库补列。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/project_code/backend" && python -m pytest tests/test_feedbacks.py -q`
+  - 结果：`15 passed, 9 warnings`，警告为既有 `datetime.utcnow()` 和 `HTTP_422_UNPROCESSABLE_ENTITY` 废弃提示。

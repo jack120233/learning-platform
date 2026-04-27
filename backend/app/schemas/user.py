@@ -94,6 +94,15 @@ class UserListResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TeacherOptionResponse(BaseModel):
+    """老师选择项响应。"""
+
+    teacher_id: int = Field(description="老师用户ID")
+    username: str = Field(description="用户名")
+    nickname: str | None = Field(default=None, description="昵称")
+    avatar: str | None = Field(default=None, description="头像URL")
+
+
 class UserStatusUpdate(BaseModel):
     """更新用户状态请求"""
 

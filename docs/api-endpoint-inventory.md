@@ -53,9 +53,9 @@
 ### 3.1 总体统计
 
 - 已挂载业务模块：**12 个**
-- 已挂载业务接口：**80 个**
+- 已挂载业务接口：**81 个**
 - 公共接口：**24 个**
-- 需登录接口：**56 个**
+- 需登录接口：**57 个**
 
 ### 3.2 模块总览表
 
@@ -68,7 +68,7 @@
 | 公告管理 | 3 | 3 | 0 | `backend/app/api/v1/announcements.py` | `backend/tests/test_system.py` |
 | 用户管理 | 11 | 0 | 11 | `backend/app/api/v1/users.py` | `backend/tests/test_users.py` |
 | 课程管理 | 13 | 5 | 8 | `backend/app/api/v1/courses.py` | `backend/tests/test_courses.py` |
-| 文件上传 | 4 | 0 | 4 | `backend/app/api/v1/uploads.py` | `backend/tests/test_uploads.py` |
+| 文件上传 | 6 | 0 | 6 | `backend/app/api/v1/uploads.py` | `backend/tests/test_uploads.py` |
 | 课程内容 | 17 | 2 | 15 | `backend/app/api/v1/content.py` | `backend/tests/test_content.py` |
 | 学习模块 | 6 | 0 | 6 | `backend/app/api/v1/learning.py` | `backend/tests/test_learning.py` |
 | 反馈管理 | 4 | 0 | 4 | `backend/app/api/v1/feedbacks.py` | `backend/tests/test_feedbacks.py` |
@@ -77,7 +77,7 @@
 ### 3.3 统计复核
 
 ```text
-2 + 7 + 4 + 2 + 3 + 11 + 13 + 4 + 17 + 6 + 4 + 7 = 80
+2 + 7 + 4 + 2 + 3 + 11 + 13 + 6 + 17 + 6 + 4 + 7 = 82
 ```
 
 ## 4. 特殊说明
@@ -237,9 +237,11 @@
 | 序号 | 方法 | 路径 | 接口说明 | 登录要求 | 权限备注 | 路径/查询参数 | 请求体字段摘要 | 返回 data 字段摘要 | 处理函数 | 代码位置 | 测试文件 |
 |---:|---|---|---|---|---|---|---|---|---|---|---|
 | 1 | POST | `/api/v1/upload/file` | 上传通用文件 | 需要 Bearer Token | 当前仅允许讲师/管理员调用 | 无 | `multipart/form-data`：`file` | `UploadFileResponse`：`file_name`、`file_url`、`url`、`file_size`、`content_type?` | `upload_file` | `backend/app/api/v1/uploads.py` | `backend/tests/test_uploads.py` |
-| 2 | POST | `/api/v1/upload/init` | 初始化分片上传 | 需要 Bearer Token | 当前仅允许讲师/管理员调用 | 无 | `ChunkUploadInitRequest`：`file_name`、`file_size`、`chunk_size`、`content_type?`、`biz_type?` | `ChunkUploadInitResponse`：`upload_id`、`chunk_size`、`total_chunks` | `init_chunk_upload` | `backend/app/api/v1/uploads.py` | `backend/tests/test_uploads.py` |
-| 3 | POST | `/api/v1/upload/chunk` | 上传分片 | 需要 Bearer Token | 当前仅允许讲师/管理员调用 | 无 | `multipart/form-data`：`upload_id`、`chunk_index`、`chunk` | `ChunkUploadChunkResponse`：`chunk_index` | `upload_chunk` | `backend/app/api/v1/uploads.py` | `backend/tests/test_uploads.py` |
-| 4 | POST | `/api/v1/upload/complete` | 完成分片上传 | 需要 Bearer Token | 当前仅允许讲师/管理员调用 | 无 | `ChunkUploadCompleteRequest`：`upload_id`、`file_name`、`total_chunks` | `UploadFileResponse`：`file_name`、`file_url`、`url`、`file_size`、`content_type?` | `complete_chunk_upload` | `backend/app/api/v1/uploads.py` | `backend/tests/test_uploads.py` |
+| 2 | POST | `/api/v1/upload/avatar` | 上传头像 | 需要 Bearer Token | 允许 active 状态的当前登录用户调用，不限制角色 | 无 | `multipart/form-data`：`file` | `UploadFileResponse`：`file_name`、`file_url`、`url`、`file_size`、`content_type?` | `upload_avatar` | `backend/app/api/v1/uploads.py` | `backend/tests/test_uploads.py` |
+| 3 | POST | `/api/v1/upload/feedback-image` | 上传反馈截图 | 需要 Bearer Token | 允许 active 状态的当前登录用户调用，不限制角色 | 无 | `multipart/form-data`：`file` | `UploadFileResponse`：`file_name`、`file_url`、`url`、`file_size`、`content_type?` | `upload_feedback_image` | `backend/app/api/v1/uploads.py` | `backend/tests/test_uploads.py` |
+| 4 | POST | `/api/v1/upload/init` | 初始化分片上传 | 需要 Bearer Token | 当前仅允许讲师/管理员调用 | 无 | `ChunkUploadInitRequest`：`file_name`、`file_size`、`chunk_size`、`content_type?`、`biz_type?` | `ChunkUploadInitResponse`：`upload_id`、`chunk_size`、`total_chunks` | `init_chunk_upload` | `backend/app/api/v1/uploads.py` | `backend/tests/test_uploads.py` |
+| 5 | POST | `/api/v1/upload/chunk` | 上传分片 | 需要 Bearer Token | 当前仅允许讲师/管理员调用 | 无 | `multipart/form-data`：`upload_id`、`chunk_index`、`chunk` | `ChunkUploadChunkResponse`：`chunk_index` | `upload_chunk` | `backend/app/api/v1/uploads.py` | `backend/tests/test_uploads.py` |
+| 6 | POST | `/api/v1/upload/complete` | 完成分片上传 | 需要 Bearer Token | 当前仅允许讲师/管理员调用 | 无 | `ChunkUploadCompleteRequest`：`upload_id`、`file_name`、`total_chunks` | `UploadFileResponse`：`file_name`、`file_url`、`url`、`file_size`、`content_type?` | `complete_chunk_upload` | `backend/app/api/v1/uploads.py` | `backend/tests/test_uploads.py` |
 
 ### 5.9 学习模块
 
@@ -354,7 +356,7 @@
 ## 7. 结论
 
 - 当前实际已挂载业务模块共 **12 个**。
-- 当前实际已挂载业务接口共 **80 个**。
-- 其中公开接口 **24 个**，需登录接口 **56 个**。
+- 当前实际已挂载业务接口共 **81 个**。
+- 其中公开接口 **24 个**，需登录接口 **57 个**。
 - 多个接口文案包含“管理员权限”“讲师权限”等角色语义，但路由层统一只看到了 `CurrentUserId`，**未见显式 RBAC 依赖**；前后端联调时应以此差异为前提。
 - 若后续代码新增/删除路由，应优先更新本清单，而不是仅更新需求文档或手动测试文档。

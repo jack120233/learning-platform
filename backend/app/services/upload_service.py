@@ -19,6 +19,8 @@ class UploadService:
 
     allowed_image_extensions = {".jpg", ".jpeg", ".png"}
     allowed_image_content_types = {"image/jpeg", "image/jpg", "image/png"}
+    allowed_avatar_extensions = {".jpg", ".jpeg", ".png", ".gif"}
+    allowed_avatar_content_types = {"image/jpeg", "image/jpg", "image/png", "image/gif"}
     allowed_video_extensions = {".mp4", ".mov", ".webm", ".ogg"}
     allowed_audio_extensions = {".mp3", ".wav", ".ogg"}
     allowed_document_extensions = {
@@ -73,18 +75,75 @@ class UploadService:
         base_url: str,
     ) -> dict[str, str | int | None]:
         """保存上传文件并返回访问信息。"""
+        subdir, max_size = self._resolve_storage(
+            Path(file.filename or "").suffix.lower(),
+            file.content_type.lower() if file.content_type else None,
+        )
+        return await self._save_upload_file(file, base_url, subdir, max_size)
+
+    async def save_avatar(
+        self,
+        file: UploadFile,
+        base_url: str,
+    ) -> dict[str, str | int | None]:
+        """保存头像文件并返回访问信息。"""
+        self._validate_avatar_image(file, "仅支持 JPG/PNG/GIF 格式头像")
+
+        return await self._save_upload_file(
+            file,
+            base_url,
+            settings.avatar_subdir,
+            settings.course_cover_max_size,
+        )
+
+    async def save_feedback_image(
+        self,
+        file: UploadFile,
+        base_url: str,
+    ) -> dict[str, str | int | None]:
+        """保存反馈截图并返回访问信息。"""
+        self._validate_feedback_image(file)
+
+        return await self._save_upload_file(
+            file,
+            base_url,
+            settings.feedback_image_subdir,
+            settings.course_cover_max_size,
+        )
+
+    def _validate_avatar_image(self, file: UploadFile, image_error_message: str) -> None:
         filename = file.filename or ""
         extension = Path(filename).suffix.lower()
         content_type = file.content_type.lower() if file.content_type else None
 
-        subdir, max_size = self._resolve_storage(extension, content_type)
+        if extension not in self.allowed_avatar_extensions:
+            if extension in self.known_image_extensions or (
+                content_type and content_type.startswith("image/")
+            ):
+                raise ValidationException(image_error_message)
+            raise ValidationException("不支持的文件类型")
 
+        if content_type and content_type not in self.allowed_avatar_content_types:
+            raise ValidationException(image_error_message)
+
+    def _validate_feedback_image(self, file: UploadFile) -> None:
+        self._validate_avatar_image(file, "仅支持 JPG/PNG/GIF 格式截图")
+
+    async def _save_upload_file(
+        self,
+        file: UploadFile,
+        base_url: str,
+        subdir: str,
+        max_size: int,
+    ) -> dict[str, str | int | None]:
+        filename = file.filename or ""
+        extension = Path(filename).suffix.lower()
         content = await file.read()
         if not content:
             raise ValidationException("上传文件不能为空")
 
         if len(content) > max_size:
-            if subdir == settings.course_cover_subdir:
+            if subdir in {settings.course_cover_subdir, settings.avatar_subdir}:
                 raise ValidationException("文件大小不能超过10MB")
             raise ValidationException("文件大小不能超过100MB")
 

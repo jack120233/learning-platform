@@ -20,6 +20,7 @@ class Feedback(BaseModel):
         user_id: 用户ID
         type: 反馈类型（system/course）
         course_id: 关联课程ID
+        target_user_id: 反馈目标用户ID
         title: 反馈标题
         content: 反馈内容
         contact: 联系方式
@@ -48,6 +49,12 @@ class Feedback(BaseModel):
         nullable=True,
         index=True,
         comment="关联课程ID",
+    )
+    target_user_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment="反馈目标用户ID",
     )
     title: Mapped[str] = mapped_column(
         String(200),

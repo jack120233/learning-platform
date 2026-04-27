@@ -2,6 +2,7 @@
 
 import json
 import shutil
+import uuid
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -10,7 +11,28 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.security import create_access_token
+from app.models.user import User
 from tests.test_courses import create_upload_test_user
+
+
+async def create_avatar_test_user(
+    db_session: AsyncSession,
+    status: str = "active",
+) -> dict[str, str]:
+    unique_suffix = uuid.uuid4().hex[:8]
+    user = User(
+        username=f"avatar_{status}_{unique_suffix}",
+        email=f"avatar_{status}_{unique_suffix}@example.com",
+        password_hash="test-password-hash",
+        nickname="avatar-tester",
+        role="student",
+        status=status,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.refresh(user)
+    return {"Authorization": f"Bearer {create_access_token(user.id)}"}
 
 
 class TestUploadFile:
@@ -112,6 +134,136 @@ class TestUploadFile:
         assert response.status_code == 422
         data = response.json()
         assert data["message"] == "不支持的文件类型"
+
+
+class TestAvatarUpload:
+    """头像上传测试。"""
+
+    @pytest.mark.asyncio
+    async def test_student_can_upload_avatar_gif(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试学生可上传 GIF 头像。"""
+        auth_headers = await create_avatar_test_user(db_session)
+        file_content = b"GIF89a fake content"
+
+        response = await client.post(
+            "/api/v1/upload/avatar",
+            headers=auth_headers,
+            files={"file": ("avatar.gif", file_content, "image/gif")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"] == "上传成功"
+        assert data["data"]["file_name"] == "avatar.gif"
+        assert data["data"]["file_size"] == len(file_content)
+        assert data["data"]["content_type"] == "image/gif"
+        assert data["data"]["url"] == data["data"]["file_url"]
+        assert data["data"]["file_url"].startswith("http://test/uploads/avatars/")
+
+        upload_path = urlparse(data["data"]["file_url"]).path
+        file_path = (
+            Path(settings.upload_dir)
+            / Path(upload_path.lstrip("/")).relative_to("uploads")
+        )
+        assert file_path.exists()
+
+        preview_response = await client.get(upload_path)
+        assert preview_response.status_code == 200
+        assert preview_response.content == file_content
+
+        file_path.unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_upload_avatar_requires_authentication(self, client: AsyncClient):
+        """测试未登录不能上传头像。"""
+        response = await client.post(
+            "/api/v1/upload/avatar",
+            files={"file": ("avatar.png", b"fake-png-content", "image/png")},
+        )
+
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_disabled_user_cannot_upload_avatar(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试非 active 用户不能上传头像。"""
+        auth_headers = await create_avatar_test_user(db_session, status="disabled")
+
+        response = await client.post(
+            "/api/v1/upload/avatar",
+            headers=auth_headers,
+            files={"file": ("avatar.png", b"fake-png-content", "image/png")},
+        )
+
+        assert response.status_code == 403
+        assert response.json()["message"] == "当前账号不可上传头像"
+
+
+class TestFeedbackImageUpload:
+    """反馈截图上传测试。"""
+
+    @pytest.mark.asyncio
+    async def test_student_can_upload_feedback_image(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试学生可上传反馈截图。"""
+        auth_headers = await create_avatar_test_user(db_session)
+        file_content = b"fake-feedback-image"
+
+        response = await client.post(
+            "/api/v1/upload/feedback-image",
+            headers=auth_headers,
+            files={"file": ("feedback.png", file_content, "image/png")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"] == "上传成功"
+        assert data["data"]["file_name"] == "feedback.png"
+        assert data["data"]["file_size"] == len(file_content)
+        assert data["data"]["content_type"] == "image/png"
+        assert data["data"]["url"] == data["data"]["file_url"]
+        assert data["data"]["file_url"].startswith("http://test/uploads/feedback-images/")
+
+        upload_path = urlparse(data["data"]["file_url"]).path
+        file_path = (
+            Path(settings.upload_dir)
+            / Path(upload_path.lstrip("/")).relative_to("uploads")
+        )
+        assert file_path.exists()
+
+        preview_response = await client.get(upload_path)
+        assert preview_response.status_code == 200
+        assert preview_response.content == file_content
+
+        file_path.unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_disabled_user_cannot_upload_feedback_image(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试非 active 用户不能上传反馈截图。"""
+        auth_headers = await create_avatar_test_user(db_session, status="disabled")
+
+        response = await client.post(
+            "/api/v1/upload/feedback-image",
+            headers=auth_headers,
+            files={"file": ("feedback.png", b"fake-png-content", "image/png")},
+        )
+
+        assert response.status_code == 403
+        assert response.json()["message"] == "当前账号不可上传反馈截图"
 
 
 class TestChunkUpload:

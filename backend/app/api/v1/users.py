@@ -20,6 +20,7 @@ from app.schemas.user import (
     TeacherAuditApply,
     TeacherAuditResponse,
     TeacherAuditReview,
+    TeacherOptionResponse,
     UserProfileUpdate,
     UserResponse,
     UserListResponse,
@@ -121,6 +122,40 @@ async def get_learning_records(
             page=page,
             page_size=page_size,
         ),
+    )
+
+
+@router.get(
+    "/teachers/options",
+    response_model=ApiResponse[list[TeacherOptionResponse]],
+    summary="老师选择项",
+    description="获取可作为课程反馈对象的老师列表",
+)
+async def get_teacher_options(
+    db: DBSession,
+    current_user: CurrentUser,
+    keyword: str | None = Query(default=None, description="搜索关键词"),
+    page_size: int = Query(default=100, ge=1, le=100, description="返回数量"),
+) -> ApiResponse[list[TeacherOptionResponse]]:
+    """获取老师选择项接口。"""
+    teachers, _ = await user_service.get_user_list(
+        db,
+        keyword=keyword,
+        role="teacher",
+        status="active",
+        page=1,
+        page_size=page_size,
+    )
+    return ApiResponse.success(
+        data=[
+            TeacherOptionResponse(
+                teacher_id=teacher.id,
+                username=teacher.username,
+                nickname=teacher.nickname,
+                avatar=teacher.avatar,
+            )
+            for teacher in teachers
+        ]
     )
 
 

@@ -28,6 +28,11 @@ class FeedbackCreate(BaseModel):
         ge=1,
         description="关联课程 ID（课程反馈时可传）",
     )
+    target_user_id: int | None = Field(
+        default=None,
+        ge=1,
+        description="反馈目标用户 ID（课程反馈时必传）",
+    )
     title: str | None = Field(
         default=None,
         min_length=1,
@@ -66,8 +71,11 @@ class FeedbackCreate(BaseModel):
     @model_validator(mode="after")
     def _finalize(self):
         """补齐默认标题并校验课程反馈参数。"""
-        if self.feedback_type == "course" and self.course_id is None:
-            raise ValueError("课程反馈必须提供 course_id")
+        if self.feedback_type == "course":
+            if self.course_id is None:
+                raise ValueError("课程反馈必须提供 course_id")
+            if self.target_user_id is None:
+                raise ValueError("课程反馈必须选择反馈老师")
 
         if not self.title:
             self.title = "课程反馈" if self.feedback_type == "course" else "系统反馈"
@@ -103,6 +111,10 @@ class FeedbackResponse(BaseModel):
     type: Literal["system", "course"] = Field(description="反馈类型（兼容旧字段）")
     course_id: int | None = Field(default=None, description="关联课程ID")
     course_title: str | None = Field(default=None, description="关联课程标题")
+    course_teacher_id: int | None = Field(default=None, description="关联课程讲师ID")
+    target_user_id: int | None = Field(default=None, description="反馈目标用户ID")
+    target_username: str | None = Field(default=None, description="反馈目标用户名")
+    target_nickname: str | None = Field(default=None, description="反馈目标用户昵称")
     title: str = Field(description="反馈标题")
     content: str = Field(description="反馈内容")
     contact: str | None = Field(default=None, description="联系方式")
