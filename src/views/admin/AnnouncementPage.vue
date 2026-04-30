@@ -200,9 +200,11 @@ onMounted(() => {
     <!-- 页面标题 -->
     <div class="page-header">
       <h2 class="page-title">公告管理</h2>
-      <el-button type="primary" :icon="Plus" @click="handleCreate">
-        新增公告
-      </el-button>
+      <div class="header-actions soft-action-surface">
+        <el-button class="soft-action-btn soft-action-btn--primary" type="primary" :icon="Plus" @click="handleCreate">
+          新增公告
+        </el-button>
+      </div>
     </div>
 
     <!-- 筛选栏 -->
@@ -224,8 +226,10 @@ onMounted(() => {
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <el-button @click="handleSearch">搜索</el-button>
-        <el-button text @click="handleReset">重置</el-button>
+        <div class="filter-actions soft-action-surface">
+          <el-button class="soft-action-btn soft-action-btn--primary soft-action-btn--small" @click="handleSearch">搜索</el-button>
+          <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" @click="handleReset">重置</el-button>
+        </div>
       </div>
     </div>
 
@@ -322,10 +326,12 @@ onMounted(() => {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showDialog = false">取消</el-button>
-        <el-button type="primary" :loading="isSaving" @click="handleSubmit">
-          保存
-        </el-button>
+        <div class="dialog-action-surface soft-action-surface">
+          <el-button class="soft-action-btn soft-action-btn--secondary" @click="showDialog = false">取消</el-button>
+          <el-button class="soft-action-btn soft-action-btn--primary" type="primary" :loading="isSaving" @click="handleSubmit">
+            保存
+          </el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -366,9 +372,30 @@ onMounted(() => {
   }
 }
 
+.header-actions,
+.filter-actions,
+.dialog-action-surface {
+  width: fit-content;
+}
+
 .pagination {
   margin-top: 24px;
   display: flex;
   justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .announcement-page .page-header,
+  .filter-bar,
+  .filter-bar .search-area {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .header-actions,
+  .filter-actions,
+  .dialog-action-surface {
+    width: 100%;
+  }
 }
 </style>

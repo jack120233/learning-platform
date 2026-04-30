@@ -228,8 +228,10 @@ onMounted(() => {
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <el-button @click="handleSearch">搜索</el-button>
-        <el-button text @click="handleReset">重置</el-button>
+        <div class="filter-actions soft-action-surface">
+          <el-button class="soft-action-btn soft-action-btn--primary soft-action-btn--small" @click="handleSearch">搜索</el-button>
+          <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" @click="handleReset">重置</el-button>
+        </div>
       </div>
     </div>
 
@@ -388,10 +390,12 @@ onMounted(() => {
         </el-form>
       </template>
       <template #footer>
-        <el-button @click="showAuditDialog = false">取消</el-button>
-        <el-button type="primary" :loading="isSubmitting" @click="handleSubmitAudit">
-          确认提交
-        </el-button>
+        <div class="dialog-action-surface soft-action-surface">
+          <el-button class="soft-action-btn soft-action-btn--secondary" @click="showAuditDialog = false">取消</el-button>
+          <el-button class="soft-action-btn soft-action-btn--primary" type="primary" :loading="isSubmitting" @click="handleSubmitAudit">
+            确认提交
+          </el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -434,6 +438,11 @@ onMounted(() => {
   }
 }
 
+.filter-actions,
+.dialog-action-surface {
+  width: fit-content;
+}
+
 .pagination {
   margin-top: 24px;
   display: flex;
@@ -467,6 +476,21 @@ onMounted(() => {
   p {
     margin: 8px 0;
     color: $text-primary;
+  }
+}
+
+@media (max-width: 768px) {
+  .filter-bar {
+    .filter-left,
+    .filter-right {
+      width: 100%;
+      flex-wrap: wrap;
+    }
+  }
+
+  .filter-actions,
+  .dialog-action-surface {
+    width: 100%;
   }
 }
 </style>

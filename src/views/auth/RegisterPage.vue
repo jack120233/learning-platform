@@ -344,6 +344,7 @@ onMounted(() => {
               clearable
             />
             <el-button
+              class="soft-action-btn soft-action-btn--secondary soft-action-btn--small"
               :disabled="isCountdownActive"
               :loading="isSendingCode"
               @click="handleSendEmailCode"
@@ -355,14 +356,16 @@ onMounted(() => {
 
         <!-- 注册按钮 -->
         <el-form-item>
-          <el-button
-            type="primary"
-            :loading="isSubmitting"
-            class="submit-btn"
-            @click="handleSubmit"
-          >
-            {{ isSubmitting ? '注册中...' : '注册' }}
-          </el-button>
+          <div class="auth-submit-surface soft-action-surface">
+            <el-button
+              type="primary"
+              :loading="isSubmitting"
+              class="submit-btn soft-action-btn soft-action-btn--primary"
+              @click="handleSubmit"
+            >
+              {{ isSubmitting ? '注册中...' : '注册' }}
+            </el-button>
+          </div>
         </el-form-item>
       </el-form>
 
@@ -388,9 +391,15 @@ onMounted(() => {
         </p>
       </div>
       <template #footer>
-        <el-button type="primary" @click="handleTeacherDialogClose">
-          我知道了
-        </el-button>
+        <div class="dialog-action-surface soft-action-surface">
+          <el-button
+            type="primary"
+            class="soft-action-btn soft-action-btn--primary"
+            @click="handleTeacherDialogClose"
+          >
+            我知道了
+          </el-button>
+        </div>
       </template>
     </el-dialog>
   </AuthLayout>
@@ -519,6 +528,11 @@ onMounted(() => {
   .el-button {
     width: 120px;
   }
+}
+
+.auth-submit-surface,
+.dialog-action-surface {
+  width: 100%;
 }
 
 .submit-btn {

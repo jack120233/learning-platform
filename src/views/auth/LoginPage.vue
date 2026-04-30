@@ -207,14 +207,16 @@ onMounted(() => {
 
         <!-- 登录按钮 -->
         <el-form-item>
-          <el-button
-            type="primary"
-            :loading="isSubmitting"
-            class="submit-btn"
-            @click="handleLogin"
-          >
-            {{ isSubmitting ? '登录中...' : '登录' }}
-          </el-button>
+          <div class="auth-submit-surface soft-action-surface">
+            <el-button
+              type="primary"
+              :loading="isSubmitting"
+              class="submit-btn soft-action-btn soft-action-btn--primary"
+              @click="handleLogin"
+            >
+              {{ isSubmitting ? '登录中...' : '登录' }}
+            </el-button>
+          </div>
         </el-form-item>
       </el-form>
 
@@ -287,6 +289,10 @@ onMounted(() => {
   &:hover {
     text-decoration: underline;
   }
+}
+
+.auth-submit-surface {
+  width: 100%;
 }
 
 .submit-btn {

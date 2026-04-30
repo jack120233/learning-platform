@@ -59,6 +59,93 @@ img {
   text-overflow: ellipsis;
 }
 
+// Soft Blue 操作面
+.soft-action-surface {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  background: #f4f8ff;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+}
+
+.soft-action-surface--card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #f4f8ff;
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+}
+
+.soft-action-btn {
+  min-width: 68px;
+  height: 34px;
+  margin-left: 0 !important;
+  border-radius: 999px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.3px;
+}
+
+.soft-action-btn--primary {
+  border: none !important;
+  background: linear-gradient(135deg, #1890ff 0%, #2563eb 100%) !important;
+  box-shadow: 0 8px 18px rgba(24, 144, 255, 0.25);
+
+  &:hover,
+  &:focus {
+    background: linear-gradient(135deg, #40a9ff 0%, #1d4ed8 100%) !important;
+    box-shadow: 0 10px 22px rgba(24, 144, 255, 0.32);
+  }
+}
+
+.soft-action-btn--secondary {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: #2563eb !important;
+
+  &:hover,
+  &:focus {
+    border-color: #bfdbfe !important;
+    background: #fff !important;
+    color: #1d4ed8 !important;
+  }
+}
+
+.soft-action-btn--large {
+  min-width: 128px;
+  height: 42px;
+  padding: 0 22px !important;
+}
+
+.soft-action-btn--small {
+  min-width: 64px;
+  height: 30px;
+  padding: 0 14px !important;
+}
+
+.soft-action-note {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .soft-action-surface,
+  .soft-action-surface--card {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+    border-radius: 14px;
+  }
+
+  .soft-action-btn {
+    width: 100%;
+  }
+}
+
 // Element Plus 样式覆盖
 .el-menu {
   border-right: none !important;

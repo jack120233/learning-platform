@@ -445,3 +445,168 @@
   - 结果：通过，仍有既有大体积 chunk 警告。
   - 已执行：浏览器临时清空登录态访问 `http://localhost:3000/?sort_by=latest&page=1`，验证后恢复原登录态。
   - 结果：头部显示“登录 / 注册”胶囊式组合按钮，登录按钮与注册渐变主按钮样式均生效。
+
+## Batch 1 Soft Blue 反馈与课程详情操作区改造
+时间：2026-04-29
+
+- 变更原因：用户认可首页登录/注册的 Soft Blue Action Surfaces 风格，需要按 UI 改进计划先改造反馈与课程详情链路中的主要操作区，统一主次按钮层级和视觉口径。
+- 涉及文件：
+  - `src/assets/styles/main.scss`
+  - `src/views/course/CourseDetailPage.vue`
+  - `src/components/feedback/FeedbackForm.vue`
+  - `src/views/teacher/FeedbackManagePage.vue`
+  - `src/views/admin/FeedbackManagePage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 新增全局 `.soft-action-surface`、`.soft-action-btn`、尺寸和主次按钮修饰类，沉淀浅蓝操作面与蓝色渐变主按钮工具样式。
+  - 将课程详情页顶部学习 CTA、课程资料下载/预览操作区替换为 Soft Blue 胶囊式按钮组。
+  - 将反馈表单提交/取消区域改为 Soft Blue 操作面，兼容内联和弹窗模式。
+  - 将讲师端、管理员端反馈管理页的搜索/重置、详情抽屉处理按钮、处理弹窗 footer 操作区统一到 Soft Blue 风格。
+  - 为小屏补充操作区纵向布局，避免胶囊按钮组在窄屏横向溢出。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
+  - 结果：通过，仍有既有大体积 chunk 警告。
+  - 已执行：浏览器访问 `http://localhost:3000/courses/25` 并打开“反馈”标签页。
+  - 结果：课程详情顶部“开始学习”和反馈表单“提交反馈”均已挂载 Soft Blue 操作面与主按钮样式。
+  - 已执行：浏览器访问 `http://localhost:3000/teacher/feedbacks`。
+  - 结果：讲师端反馈管理页搜索/重置按钮组已挂载 Soft Blue 操作面样式；当前本地无反馈数据，未触发详情抽屉和处理弹窗。
+  - 已执行：浏览器切换管理员账号访问 `http://localhost:3000/admin/feedbacks`。
+  - 结果：管理员端反馈管理页搜索/重置按钮组已挂载 Soft Blue 操作面样式。
+  - 已执行：将浏览器视口调整为 390px 宽检查管理页布局。
+  - 结果：`documentElement.scrollWidth <= innerWidth`，未出现横向溢出。
+
+## Batch 2 Soft Blue 个人中心与认证页改造
+时间：2026-04-29
+
+- 变更原因：继续执行项目 UI 改进计划第二批，让未登录入口页和个人资料页与首页登录/注册、反馈链路的 Soft Blue Action Surfaces 风格保持一致。
+- 涉及文件：
+  - `src/views/auth/LoginPage.vue`
+  - `src/views/auth/RegisterPage.vue`
+  - `src/views/auth/ForgotPasswordPage.vue`
+  - `src/views/profile/ProfileInfoPage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 登录页主提交按钮改为浅蓝操作面 + 渐变蓝主 CTA。
+  - 注册页主提交按钮、邮箱验证码按钮和老师申请提示弹窗确认按钮统一为 Soft Blue 主次层级。
+  - 找回密码页下一步、上一步、确认重置、重新发送验证码和成功页“去登录”统一为 Soft Blue 操作面和胶囊按钮。
+  - 个人资料页头像区域改为浅蓝卡片式操作面，补充头像说明文案，并将“更换头像”“发送验证码”“保存修改”统一到 Soft Blue 风格。
+  - 为个人资料页小屏补充头像区域、邮箱验证码输入组和保存按钮的纵向布局，减少窄屏溢出风险。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
+  - 结果：通过，仍有既有大体积 chunk 警告。
+  - 已执行：静态核对 `LoginPage.vue`、`RegisterPage.vue`、`ForgotPasswordPage.vue`、`ProfileInfoPage.vue` 的目标按钮与操作区。
+  - 结果：目标页面均已挂载 `.soft-action-surface`、`.soft-action-surface--card` 或 `.soft-action-btn` 相关样式类。
+  - 已执行：Playwright 重新启动后访问 `http://localhost:3000/login`。
+  - 结果：登录页主提交按钮已挂载 Soft Blue 操作面，页面无横向溢出。
+  - 已执行：Playwright 访问 `http://localhost:3000/register`。
+  - 结果：注册页主按钮和发送验证码按钮已挂载 Soft Blue 样式，页面无横向溢出。
+  - 已执行：Playwright 访问 `http://localhost:3000/forgot-password`。
+  - 结果：找回密码页下一步、上一步/下一步、上一步/确认重置、去登录操作区均已挂载 Soft Blue 样式，页面无横向溢出。
+  - 已执行：登录学生测试账号后访问 `http://localhost:3000/profile`。
+  - 结果：个人资料页头像卡片、更换头像和保存修改按钮已挂载 Soft Blue 样式。
+  - 已执行：将个人资料页视口调整为 390px 宽检查布局。
+  - 结果：`documentElement.scrollWidth <= innerWidth`，未出现横向溢出。
+
+## Batch 3 Soft Blue 讲师与管理员列表页操作区改造
+时间：2026-04-29
+
+- 变更原因：继续执行项目 UI 改进计划第三批，统一讲师课程列表和管理员列表页中的页面头部、筛选栏、批量操作条与弹窗底部操作区，同时保持表格行内操作紧凑。
+- 涉及文件：
+  - `src/views/teacher/CourseListPage.vue`
+  - `src/views/admin/CategoryManagePage.vue`
+  - `src/views/admin/TagManagePage.vue`
+  - `src/views/admin/AnnouncementPage.vue`
+  - `src/views/admin/UserManagePage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 讲师课程列表页头部“课程反馈 / 创建课程”、筛选栏“搜索 / 重置”和批量操作条统一为 Soft Blue 操作面。
+  - 分类管理、标签管理、公告管理页的新增按钮统一为渐变主 CTA，弹窗 footer 统一为 Soft Blue 主次按钮组。
+  - 标签管理页批量删除条改为浅蓝卡片式操作面，筛选按钮组改为 Soft Blue 风格。
+  - 用户管理页筛选按钮组和讲师审核弹窗 footer 统一为 Soft Blue 风格。
+  - 保留表格行内编辑、删除、启用、禁用等 text button，不扩大表格操作密度。
+  - 为改造页面补充小屏下操作区纵向布局，避免窄屏横向溢出。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
+  - 结果：通过，仍有既有大体积 chunk 警告。
+  - 已执行：登录管理员测试账号后访问 `http://localhost:3000/teacher/courses`。
+  - 结果：课程管理页头部操作区和筛选按钮组已挂载 Soft Blue 样式，页面无横向溢出。
+  - 已执行：访问 `http://localhost:3000/admin/categories`。
+  - 结果：分类管理页新增分类按钮已挂载 Soft Blue 样式，页面无横向溢出。
+  - 已执行：访问 `http://localhost:3000/admin/tags`。
+  - 结果：标签管理页新增标签和搜索/重置按钮组已挂载 Soft Blue 样式，页面无横向溢出。
+  - 已执行：访问 `http://localhost:3000/admin/announcements`。
+  - 结果：公告管理页新增公告和搜索/重置按钮组已挂载 Soft Blue 样式，页面无横向溢出。
+  - 已执行：访问 `http://localhost:3000/admin/users`。
+  - 结果：用户管理页搜索/重置按钮组已挂载 Soft Blue 样式，页面无横向溢出。
+  - 已执行：将用户管理页视口调整为 390px 宽检查布局。
+  - 结果：`documentElement.scrollWidth <= innerWidth`，未出现横向溢出。
+
+## Batch 4 Soft Blue 首页卡片与学习页局部增强
+时间：2026-04-29
+
+- 变更原因：继续执行项目 UI 改进计划第四批，将首页课程卡片和学习页少量 CTA 与前几批 Soft Blue Action Surfaces 风格对齐，同时避免破坏学习页沉浸式布局。
+- 涉及文件：
+  - `src/components/common/CourseCard.vue`
+  - `src/views/home/components/CourseListSection.vue`
+  - `src/views/learn/LearningPage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 首页课程卡片改为浅蓝描边、柔和蓝色投影、封面渐变高光和底部蓝色强调线，hover 时保持轻量上浮反馈。
+  - 课程卡片讲师信息改为浅蓝胶囊标签，并补充 hover 显示的“查看课程”轻 CTA。
+  - 首页课程列表错误重试按钮统一为 Soft Blue 操作面与渐变主按钮。
+  - 学习页仅局部改造资源加载错误“重试”、暂不支持预览“下载文档”和自动跳转“取消”按钮，不调整播放器、目录和沉浸式主体结构。
+  - 为学习页局部 CTA 补充小屏宽度适配，避免窄屏按钮溢出。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
+  - 结果：通过，仍有既有大体积 chunk 警告。
+  - 已执行：浏览器访问 `http://localhost:3000/?sort_by=latest&page=1`。
+  - 结果：首页课程卡片已挂载浅蓝描边、教师胶囊和 hover 入口提示，页面无横向溢出。
+  - 已执行：将首页视口调整为 390px 宽检查布局。
+  - 结果：`documentElement.scrollWidth <= innerWidth`，课程卡片无横向溢出。
+  - 已执行：静态核对 `LearningPage.vue`。
+  - 结果：资源加载错误“重试”、暂不支持预览“下载文档”和自动跳转“取消”按钮均已挂载 Soft Blue 操作面与按钮样式。
+  - 备注：当前本地真实课程进入 `/learn/:courseId` 时因课程无可学习资源或业务数据不足被重定向回首页，未完成学习页真实资源场景浏览器验证；首页轮播图仍存在 `via.placeholder.com` 外链加载失败，属于既有环境问题。
+
+## 首页品牌与筛选字体 Soft Blue 统一
+时间：2026-04-29
+
+- 变更原因：首页头部“职业培训课堂”、Banner 标题、筛选栏“分类 / 排序”和筛选选项仍保留旧字体层级，与已完成的 Soft Blue 按钮和卡片风格不统一，需要补齐同类字体与筛选胶囊样式。
+- 涉及文件：
+  - `src/components/layout/AppHeader.vue`
+  - `src/views/home/components/BannerCarousel.vue`
+  - `src/views/home/components/SearchFilterBar.vue`
+  - `src/views/home/components/CourseListSection.vue`
+  - `src/views/home/components/PaginationBar.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 头部品牌字改为更高字重、深蓝灰文字和蓝色渐变下划线强调，移动端抽屉品牌同步加粗。
+  - 首页筛选栏改为浅蓝卡片面，`分类`、`排序` 标签加粗并提升字距，分类/排序选项改为蓝色胶囊，选中态为渐变主按钮风格。
+  - Banner 标题改为半透明蓝色胶囊标题，提升与 Soft Blue 主风格的一致性。
+  - 首页空/错误状态文字和移动端分页辅助文字改为统一的深蓝灰加粗层级。
+  - 分页容器补充浅蓝描边、柔和投影和圆角，与首页课程卡片、筛选栏保持同一视觉口径。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
+  - 结果：通过，仍有既有大体积 chunk 警告。
+  - 已执行：浏览器访问 `http://localhost:3000/?sort_by=latest&page=1`。
+  - 结果：头部“职业培训课堂”、Banner 标题、`分类 / 排序` 标签和筛选选项均已应用加粗字体层级、蓝色胶囊或渐变选中态，页面无横向溢出。
+  - 已执行：将首页视口调整为 390px 宽检查布局。
+  - 结果：`documentElement.scrollWidth <= innerWidth`，筛选胶囊正常换行，无横向溢出。
+  - 备注：首页轮播图仍存在 `via.placeholder.com` 外链加载失败，属于既有环境问题。
+
+## Soft Blue 收尾移动端溢出修复
+时间：2026-04-30
+
+- 变更原因：执行 `/trellis:finish-work` 浏览器复测时，发现首页在 390px 移动端视口下存在轻微横向溢出，需要补齐收尾修复。
+- 涉及文件：
+  - `src/components/layout/AppHeader.vue`
+  - `src/views/home/components/BannerCarousel.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 在 480px 以下隐藏头部搜索框，避免未登录按钮组与搜索框共同挤压导致头部宽度溢出。
+  - 为首页轮播容器增加 `overflow: hidden`，避免 Element Plus 相邻轮播项参与页面横向滚动宽度计算。
+- 验证结果：
+  - 已执行：`cd "E:/video_project/proj_ui/UI" && npm run build`
+  - 结果：通过，仍有既有大体积 chunk 警告。
+  - 已执行：浏览器访问 `http://127.0.0.1:3002/` 并在 390px 视口核对首页布局。
+  - 结果：`documentElement.scrollWidth <= innerWidth`，未出现横向溢出；Soft Blue 相关元素仍正常挂载。
+  - 备注：首页轮播图仍存在 `via.placeholder.com` 外链加载失败，属于既有环境问题。

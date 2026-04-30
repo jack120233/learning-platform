@@ -156,9 +156,11 @@ onMounted(() => {
   <div class="category-manage-page">
     <div class="page-header">
       <h2 class="page-title">分类管理</h2>
-      <el-button type="primary" :icon="Plus" @click="openCreateDialog">
-        新增分类
-      </el-button>
+      <div class="header-actions soft-action-surface">
+        <el-button class="soft-action-btn soft-action-btn--primary" type="primary" :icon="Plus" @click="openCreateDialog">
+          新增分类
+        </el-button>
+      </div>
     </div>
 
     <el-table :data="categories" v-loading="isLoading" stripe border>
@@ -233,10 +235,12 @@ onMounted(() => {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showDialog = false">取消</el-button>
-        <el-button type="primary" :loading="isSaving" @click="submitForm">
-          保存
-        </el-button>
+        <div class="dialog-action-surface soft-action-surface">
+          <el-button class="soft-action-btn soft-action-btn--secondary" @click="showDialog = false">取消</el-button>
+          <el-button class="soft-action-btn soft-action-btn--primary" type="primary" :loading="isSaving" @click="submitForm">
+            保存
+          </el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -258,6 +262,24 @@ onMounted(() => {
     font-size: 20px;
     font-weight: 600;
     color: $text-primary;
+  }
+}
+
+.header-actions,
+.dialog-action-surface {
+  width: fit-content;
+}
+
+@media (max-width: 768px) {
+  .category-manage-page .page-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .header-actions,
+  .dialog-action-surface {
+    width: 100%;
   }
 }
 </style>

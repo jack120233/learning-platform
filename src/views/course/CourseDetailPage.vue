@@ -425,32 +425,37 @@ function openChapterResource(resource: CourseResource) {
 
           <!-- 操作按钮区 -->
           <div class="action-area">
-            <el-button
-              v-if="showContinueBtn"
-              type="primary"
-              size="large"
-              :icon="VideoPlay"
-              @click="handleStartLearn"
-            >
-              继续学习 · {{ continueInfo?.last_section_title || '上次位置' }}
-            </el-button>
-            <el-button
-              v-else-if="showStartBtn"
-              type="primary"
-              size="large"
-              :icon="VideoPlay"
-              @click="handleStartLearn"
-            >
-              开始学习
-            </el-button>
-            <el-button
-              v-else-if="showLoginPrompt"
-              type="primary"
-              size="large"
-              @click="handleStartLearn"
-            >
-              登录后开始学习
-            </el-button>
+            <div class="soft-action-surface course-hero-actions">
+              <el-button
+                v-if="showContinueBtn"
+                class="soft-action-btn soft-action-btn--primary soft-action-btn--large"
+                type="primary"
+                size="large"
+                :icon="VideoPlay"
+                @click="handleStartLearn"
+              >
+                继续学习 · {{ continueInfo?.last_section_title || '上次位置' }}
+              </el-button>
+              <el-button
+                v-else-if="showStartBtn"
+                class="soft-action-btn soft-action-btn--primary soft-action-btn--large"
+                type="primary"
+                size="large"
+                :icon="VideoPlay"
+                @click="handleStartLearn"
+              >
+                开始学习
+              </el-button>
+              <el-button
+                v-else-if="showLoginPrompt"
+                class="soft-action-btn soft-action-btn--primary soft-action-btn--large"
+                type="primary"
+                size="large"
+                @click="handleStartLearn"
+              >
+                登录后开始学习
+              </el-button>
+            </div>
           </div>
         </div>
       </div>
@@ -575,22 +580,24 @@ function openChapterResource(resource: CourseResource) {
                     {{ formatFileSize(material.file_size) }} · {{ material.download_count }} 次下载
                   </span>
                 </div>
-                <el-button
-                  type="primary"
-                  :icon="Download"
-                  :loading="downloadingMap[material.material_id]"
-                  @click="handleDownload(material)"
-                >
-                  下载
-                </el-button>
-                <el-button
-                  v-if="getMaterialType(material.file_name) !== 'other'"
-                  type="primary"
-                  plain
-                  @click="handlePreview(material)"
-                >
-                  预览
-                </el-button>
+                <div class="soft-action-surface material-actions">
+                  <el-button
+                    class="soft-action-btn soft-action-btn--primary soft-action-btn--small"
+                    type="primary"
+                    :icon="Download"
+                    :loading="downloadingMap[material.material_id]"
+                    @click="handleDownload(material)"
+                  >
+                    下载
+                  </el-button>
+                  <el-button
+                    v-if="getMaterialType(material.file_name) !== 'other'"
+                    class="soft-action-btn soft-action-btn--secondary soft-action-btn--small"
+                    @click="handlePreview(material)"
+                  >
+                    预览
+                  </el-button>
+                </div>
               </div>
             </div>
             <el-empty v-else description="暂无配套资料" />
@@ -868,6 +875,14 @@ function openChapterResource(resource: CourseResource) {
   margin-top: 8px;
 }
 
+.course-hero-actions {
+  width: fit-content;
+}
+
+.material-actions {
+  flex-shrink: 0;
+}
+
 // Tabs Section
 .tabs-section {
   max-width: 1440px;
@@ -1143,6 +1158,11 @@ function openChapterResource(resource: CourseResource) {
 
     &:last-child {
       border-bottom: none;
+    }
+
+    @media (max-width: 768px) {
+      align-items: flex-start;
+      flex-direction: column;
     }
   }
 

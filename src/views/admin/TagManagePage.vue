@@ -189,9 +189,11 @@ onMounted(() => {
   <div class="tag-manage-page">
     <div class="page-header">
       <h2 class="page-title">标签管理</h2>
-      <el-button type="primary" :icon="Plus" @click="openCreateDialog">
-        新增标签
-      </el-button>
+      <div class="header-actions soft-action-surface">
+        <el-button class="soft-action-btn soft-action-btn--primary" type="primary" :icon="Plus" @click="openCreateDialog">
+          新增标签
+        </el-button>
+      </div>
     </div>
 
     <div class="filter-bar">
@@ -202,15 +204,15 @@ onMounted(() => {
         style="width: 240px"
         @keyup.enter="handleSearch"
       />
-      <div class="filter-actions">
-        <el-button @click="handleSearch">搜索</el-button>
-        <el-button text @click="handleReset">重置</el-button>
+      <div class="filter-actions soft-action-surface">
+        <el-button class="soft-action-btn soft-action-btn--primary soft-action-btn--small" @click="handleSearch">搜索</el-button>
+        <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" @click="handleReset">重置</el-button>
       </div>
     </div>
 
-    <div v-if="selectedCount > 0" class="batch-actions">
+    <div v-if="selectedCount > 0" class="batch-actions soft-action-surface--card">
       <span class="selected-count">已选择 {{ selectedCount }} 个标签</span>
-      <el-button type="danger" size="small" :icon="Delete" @click="handleBatchDelete">
+      <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" type="danger" size="small" :icon="Delete" @click="handleBatchDelete">
         批量删除
       </el-button>
     </div>
@@ -268,10 +270,12 @@ onMounted(() => {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showDialog = false">取消</el-button>
-        <el-button type="primary" :loading="isSaving" @click="submitForm">
-          保存
-        </el-button>
+        <div class="dialog-action-surface soft-action-surface">
+          <el-button class="soft-action-btn soft-action-btn--secondary" @click="showDialog = false">取消</el-button>
+          <el-button class="soft-action-btn soft-action-btn--primary" type="primary" :loading="isSaving" @click="submitForm">
+            保存
+          </el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -304,10 +308,10 @@ onMounted(() => {
   gap: 16px;
 }
 
-.filter-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.header-actions,
+.filter-actions,
+.dialog-action-surface {
+  width: fit-content;
 }
 
 .batch-actions {
@@ -344,8 +348,16 @@ onMounted(() => {
     align-items: stretch;
   }
 
-  .filter-actions {
-    justify-content: flex-end;
+  .tag-manage-page .page-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .header-actions,
+  .filter-actions,
+  .dialog-action-surface {
+    width: 100%;
   }
 
   .batch-actions {

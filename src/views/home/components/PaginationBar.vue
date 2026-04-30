@@ -140,9 +140,10 @@ watch([displayPage, totalPages], () => {
   gap: 16px;
   margin-top: 32px;
   padding: 24px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
 }
 
 .pagination-bar :deep(.el-pagination) {
@@ -166,9 +167,10 @@ watch([displayPage, totalPages], () => {
   flex-wrap: wrap;
   gap: 6px 16px;
   width: 100%;
+  color: #475569;
   font-size: 13px;
+  font-weight: 700;
   line-height: 1.5;
-  color: #606266;
 }
 
 .pagination-mobile-jumper {

@@ -212,16 +212,20 @@ onMounted(() => {
 
     <template v-if="profile">
       <!-- 头像区域 -->
-      <div class="avatar-section">
+      <div class="avatar-section soft-action-surface--card">
         <el-avatar :src="profile.avatar" :size="80" class="avatar">
           <el-icon :size="40"><User /></el-icon>
         </el-avatar>
+        <div class="avatar-copy">
+          <div class="avatar-title">个人头像</div>
+          <div class="avatar-tip">支持 JPG/PNG/GIF，最大 10MB</div>
+        </div>
         <el-upload
           :show-file-list="false"
           :http-request="handleUploadAvatar"
           accept=".jpg,.jpeg,.png,.gif"
         >
-          <el-button type="primary" plain :loading="isUploading">
+          <el-button class="soft-action-btn soft-action-btn--primary" type="primary" :loading="isUploading">
             <el-icon><Upload /></el-icon>
             更换头像
           </el-button>
@@ -281,8 +285,7 @@ onMounted(() => {
             />
             <el-button
               v-if="emailChanged"
-              type="primary"
-              plain
+              class="soft-action-btn soft-action-btn--secondary soft-action-btn--small"
               :disabled="isCountdownActive"
               @click="handleSendCode"
             >
@@ -315,9 +318,16 @@ onMounted(() => {
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" :loading="isSaving" @click="handleSave">
-            保存修改
-          </el-button>
+          <div class="profile-save-surface soft-action-surface">
+            <el-button
+              class="soft-action-btn soft-action-btn--primary"
+              type="primary"
+              :loading="isSaving"
+              @click="handleSave"
+            >
+              保存修改
+            </el-button>
+          </div>
         </el-form-item>
       </el-form>
     </template>
@@ -341,17 +351,30 @@ onMounted(() => {
 }
 
 .avatar-section {
-  display: flex;
-  align-items: center;
-  gap: 24px;
   margin-bottom: 32px;
-  padding: 24px;
-  background: #fafafa;
-  border-radius: 8px;
+  justify-content: flex-start;
 }
 
 .avatar {
+  flex-shrink: 0;
   background: #e6f7ff;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
+}
+
+.avatar-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.avatar-title {
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.avatar-tip {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 13px;
 }
 
 .info-section {
@@ -389,9 +412,27 @@ onMounted(() => {
   width: 100%;
 }
 
+.profile-save-surface {
+  width: fit-content;
+}
+
 .form-tip {
   font-size: 12px;
   color: #faad14;
   margin-top: 4px;
+}
+
+@media (max-width: 768px) {
+  .avatar-section {
+    align-items: stretch;
+  }
+
+  .email-input-group {
+    flex-direction: column;
+  }
+
+  .profile-save-surface {
+    width: 100%;
+  }
 }
 </style>

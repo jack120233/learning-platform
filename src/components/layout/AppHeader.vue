@@ -307,8 +307,10 @@ watch(() => route.fullPath, () => {
 
 <style lang="scss" scoped>
 .app-header {
-  background-color: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid rgba(219, 234, 254, 0.8);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(12px);
   position: sticky;
   top: 0;
   z-index: 1000;
@@ -332,9 +334,24 @@ watch(() => route.fullPath, () => {
   flex-shrink: 0;
 
   .logo-text {
-    font-size: 18px;
-    font-weight: 600;
-    color: #333;
+    position: relative;
+    font-size: 19px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0.4px;
+    color: #1e293b;
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -7px;
+      height: 3px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #1890ff 0%, rgba(37, 99, 235, 0) 100%);
+      opacity: 0.7;
+    }
   }
 }
 
@@ -531,9 +548,10 @@ watch(() => route.fullPath, () => {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 16px;
-    font-weight: 600;
-    color: #333;
+    color: #1e293b;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
   }
 }
 
@@ -683,10 +701,16 @@ watch(() => route.fullPath, () => {
 
   .user-info {
     padding: 2px 4px;
-    
+
     .username {
       display: none;
     }
+  }
+}
+
+@media (max-width: 480px) {
+  .search-box {
+    display: none;
   }
 }
 </style>

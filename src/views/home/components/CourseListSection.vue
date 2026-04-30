@@ -39,9 +39,11 @@ const skeletonCount = 8
       <div class="error-state">
         <el-icon :size="64" color="#f5222d"><WarningFilled /></el-icon>
         <p class="error-text">加载失败，请稍后重试</p>
-        <el-button type="primary" @click="$emit('retry')">
-          重新加载
-        </el-button>
+        <div class="error-actions soft-action-surface">
+          <el-button class="soft-action-btn soft-action-btn--primary" type="primary" @click="$emit('retry')">
+            重新加载
+          </el-button>
+        </div>
       </div>
     </template>
 
@@ -109,15 +111,22 @@ const skeletonCount = 8
   align-items: center;
   justify-content: center;
   padding: 80px 20px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+}
+
+.error-actions {
+  width: fit-content;
 }
 
 .error-text,
 .empty-text {
   margin: 16px 0 24px;
+  color: #475569;
   font-size: 16px;
-  color: #666;
+  font-weight: 700;
+  letter-spacing: 0.2px;
 }
 </style>

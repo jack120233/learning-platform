@@ -298,14 +298,16 @@ onMounted(() => {
           />
 
           <el-form-item>
-            <el-button
-              type="primary"
-              :loading="isVerifying"
-              class="submit-btn"
-              @click="handleStep1Next"
-            >
-              {{ isVerifying ? '发送中...' : '下一步' }}
-            </el-button>
+            <div class="auth-submit-surface soft-action-surface">
+              <el-button
+                type="primary"
+                :loading="isVerifying"
+                class="submit-btn soft-action-btn soft-action-btn--primary"
+                @click="handleStep1Next"
+              >
+                {{ isVerifying ? '发送中...' : '下一步' }}
+              </el-button>
+            </div>
           </el-form-item>
         </el-form>
       </div>
@@ -336,6 +338,7 @@ onMounted(() => {
                 clearable
               />
               <el-button
+                class="soft-action-btn soft-action-btn--secondary soft-action-btn--small"
                 :disabled="isCountdownActive"
                 :loading="isSendingCode"
                 @click="handleResendCode"
@@ -356,10 +359,11 @@ onMounted(() => {
           />
 
           <el-form-item>
-            <div class="button-row">
-              <el-button @click="handleStep2Prev">上一步</el-button>
+            <div class="button-row soft-action-surface">
+              <el-button class="soft-action-btn soft-action-btn--secondary" @click="handleStep2Prev">上一步</el-button>
               <el-button
                 type="primary"
+                class="soft-action-btn soft-action-btn--primary"
                 :loading="isVerifyingCode"
                 @click="handleStep2Next"
               >
@@ -410,10 +414,11 @@ onMounted(() => {
           />
 
           <el-form-item>
-            <div class="button-row">
-              <el-button @click="handleStep3Prev">上一步</el-button>
+            <div class="button-row soft-action-surface">
+              <el-button class="soft-action-btn soft-action-btn--secondary" @click="handleStep3Prev">上一步</el-button>
               <el-button
                 type="primary"
+                class="soft-action-btn soft-action-btn--primary"
                 :loading="isResetting"
                 @click="handleResetPassword"
               >
@@ -428,9 +433,16 @@ onMounted(() => {
       <div v-show="currentStep === 3" class="step-content success-content">
         <el-result icon="success" title="密码重置成功" sub-title="请使用新密码登录">
           <template #extra>
-            <el-button type="primary" size="large" @click="handleGoLogin">
-              去登录
-            </el-button>
+            <div class="success-action-surface soft-action-surface">
+              <el-button
+                type="primary"
+                size="large"
+                class="soft-action-btn soft-action-btn--primary soft-action-btn--large"
+                @click="handleGoLogin"
+              >
+                去登录
+              </el-button>
+            </div>
           </template>
         </el-result>
       </div>
@@ -487,13 +499,16 @@ onMounted(() => {
 }
 
 .button-row {
-  display: flex;
-  gap: 12px;
   width: 100%;
 
   .el-button {
     flex: 1;
   }
+}
+
+.auth-submit-surface,
+.success-action-surface {
+  width: 100%;
 }
 
 .submit-btn {

@@ -329,11 +329,11 @@ onMounted(() => {
   <div class="course-list-page">
     <div class="page-header">
       <h2 class="page-title">{{ pageTitle }}</h2>
-      <div class="header-actions">
-        <el-button :icon="ChatDotRound" @click="handleFeedbacks">
+      <div class="header-actions soft-action-surface">
+        <el-button class="soft-action-btn soft-action-btn--secondary" :icon="ChatDotRound" @click="handleFeedbacks">
           课程反馈
         </el-button>
-        <el-button v-if="canCreateCourse" type="primary" :icon="Plus" @click="handleCreate">
+        <el-button v-if="canCreateCourse" class="soft-action-btn soft-action-btn--primary" type="primary" :icon="Plus" @click="handleCreate">
           创建课程
         </el-button>
       </div>
@@ -372,20 +372,22 @@ onMounted(() => {
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <el-button @click="handleSearch">搜索</el-button>
-        <el-button text @click="handleReset">重置</el-button>
+        <div class="filter-actions soft-action-surface">
+          <el-button class="soft-action-btn soft-action-btn--primary soft-action-btn--small" @click="handleSearch">搜索</el-button>
+          <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" @click="handleReset">重置</el-button>
+        </div>
       </div>
     </div>
 
-    <div v-if="selectedCount > 0" class="batch-actions">
+    <div v-if="selectedCount > 0" class="batch-actions soft-action-surface--card">
       <span class="selected-count">已选择 {{ selectedCount }} 门课程</span>
-      <el-button v-if="manageScope === 'mine'" type="success" size="small" :icon="Upload" :disabled="!canBatchPublish" @click="handleBatchAction('publish')">
+      <el-button v-if="manageScope === 'mine'" class="soft-action-btn soft-action-btn--primary soft-action-btn--small" type="success" size="small" :icon="Upload" :disabled="!canBatchPublish" @click="handleBatchAction('publish')">
         批量上架
       </el-button>
-      <el-button type="warning" size="small" :icon="Bottom" :disabled="!canBatchArchive" @click="handleBatchAction('archive')">
+      <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" type="warning" size="small" :icon="Bottom" :disabled="!canBatchArchive" @click="handleBatchAction('archive')">
         批量下架
       </el-button>
-      <el-button v-if="manageScope === 'mine'" type="danger" size="small" :icon="Delete" :disabled="!canBatchDelete" @click="handleBatchAction('delete')">
+      <el-button v-if="manageScope === 'mine'" class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" type="danger" size="small" :icon="Delete" :disabled="!canBatchDelete" @click="handleBatchAction('delete')">
         批量删除
       </el-button>
     </div>
@@ -507,9 +509,7 @@ onMounted(() => {
 }
 
 .header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  width: fit-content;
 }
 
 .filter-bar {
@@ -609,6 +609,11 @@ onMounted(() => {
       width: 100%;
       flex-wrap: wrap;
     }
+  }
+
+  .header-actions,
+  .filter-actions {
+    width: 100%;
   }
 
   .batch-actions {

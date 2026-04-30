@@ -98,6 +98,7 @@ const handleBannerClick = (banner: BannerItem) => {
 <style lang="scss" scoped>
 .banner-carousel {
   margin-bottom: 24px;
+  overflow: hidden;
 
   :deep(.el-carousel__indicators) {
     .el-carousel__indicator {
@@ -145,7 +146,8 @@ const handleBannerClick = (banner: BannerItem) => {
 
     span {
       font-size: 24px;
-      font-weight: 500;
+      font-weight: 800;
+      letter-spacing: 0.4px;
     }
   }
 
@@ -155,13 +157,21 @@ const handleBannerClick = (banner: BannerItem) => {
     left: 0;
     right: 0;
     padding: 40px 24px 24px;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent);
+    background: linear-gradient(to top, rgba(15, 23, 42, 0.72), rgba(37, 99, 235, 0.12), transparent);
 
     .banner-title {
+      width: fit-content;
+      margin: 0;
+      padding: 8px 14px;
       color: #fff;
+      background: rgba(24, 144, 255, 0.24);
+      border: 1px solid rgba(219, 234, 254, 0.42);
+      border-radius: 999px;
       font-size: 28px;
-      font-weight: 600;
-      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-shadow: 0 2px 8px rgba(15, 23, 42, 0.28);
+      backdrop-filter: blur(8px);
     }
   }
 }

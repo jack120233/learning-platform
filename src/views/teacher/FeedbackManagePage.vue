@@ -177,8 +177,10 @@ onMounted(() => {
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <el-button @click="handleSearch">搜索</el-button>
-        <el-button text @click="handleReset">重置</el-button>
+        <div class="soft-action-surface filter-actions">
+          <el-button class="soft-action-btn soft-action-btn--primary soft-action-btn--small" @click="handleSearch">搜索</el-button>
+          <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" @click="handleReset">重置</el-button>
+        </div>
       </div>
     </div>
 
@@ -330,9 +332,16 @@ onMounted(() => {
         </template>
 
         <div class="action-area" v-if="currentFeedback.status === 'pending'">
-          <el-button type="primary" :icon="ChatDotRound" @click="openProcessDialog(currentFeedback)">
-            回复并处理
-          </el-button>
+          <div class="soft-action-surface">
+            <el-button
+              class="soft-action-btn soft-action-btn--primary"
+              type="primary"
+              :icon="ChatDotRound"
+              @click="openProcessDialog(currentFeedback)"
+            >
+              回复并处理
+            </el-button>
+          </div>
         </div>
       </template>
     </el-drawer>
@@ -365,10 +374,17 @@ onMounted(() => {
       </template>
 
       <template #footer>
-        <el-button @click="showProcessDialog = false">取消</el-button>
-        <el-button type="primary" :loading="isSubmitting" @click="handleSubmitProcess">
-          确认处理
-        </el-button>
+        <div class="dialog-action-surface soft-action-surface">
+          <el-button class="soft-action-btn soft-action-btn--secondary" @click="showProcessDialog = false">取消</el-button>
+          <el-button
+            class="soft-action-btn soft-action-btn--primary"
+            type="primary"
+            :loading="isSubmitting"
+            @click="handleSubmitProcess"
+          >
+            确认处理
+          </el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -413,6 +429,11 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.filter-actions,
+.dialog-action-surface {
+  width: fit-content;
 }
 
 .feedback-table {
@@ -544,7 +565,9 @@ onMounted(() => {
     flex-direction: column;
   }
 
-  .filter-right :deep(.el-input) {
+  .filter-right :deep(.el-input),
+  .filter-actions,
+  .dialog-action-surface {
     width: 100% !important;
   }
 }

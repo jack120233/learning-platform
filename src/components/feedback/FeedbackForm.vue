@@ -317,16 +317,23 @@ function handleCancel() {
 
       <!-- 操作按钮 -->
       <el-form-item class="form-actions">
-        <el-button
-          type="primary"
-          :loading="submitting || uploadingCount > 0"
-          @click="handleSubmit"
-        >
-          提交反馈
-        </el-button>
-        <el-button v-if="mode === 'dialog'" @click="handleCancel">
-          取消
-        </el-button>
+        <div class="soft-action-surface feedback-action-surface">
+          <el-button
+            class="soft-action-btn soft-action-btn--primary"
+            type="primary"
+            :loading="submitting || uploadingCount > 0"
+            @click="handleSubmit"
+          >
+            提交反馈
+          </el-button>
+          <el-button
+            v-if="mode === 'dialog'"
+            class="soft-action-btn soft-action-btn--secondary"
+            @click="handleCancel"
+          >
+            取消
+          </el-button>
+        </div>
       </el-form-item>
     </el-form>
   </div>
@@ -382,5 +389,15 @@ function handleCancel() {
 .form-actions {
   margin-bottom: 0;
   margin-top: 8px;
+}
+
+.feedback-action-surface {
+  width: fit-content;
+}
+
+@media (max-width: 768px) {
+  .feedback-action-surface {
+    width: 100%;
+  }
 }
 </style>

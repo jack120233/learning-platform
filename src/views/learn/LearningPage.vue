@@ -836,9 +836,11 @@ onUnmounted(() => {
         <div v-else-if="activeResource.loadState === 'error'" class="content-error">
           <el-result icon="warning" :title="activeResource.errorMessage || '资源加载失败'">
             <template #extra>
-              <el-button type="primary" @click="switchResource(activeResource.sectionId, activeResource.resourceId!, activeResource.chapterId ?? undefined)">
-                重试
-              </el-button>
+              <div class="content-action-surface soft-action-surface">
+                <el-button class="soft-action-btn soft-action-btn--primary" type="primary" @click="switchResource(activeResource.sectionId, activeResource.resourceId!, activeResource.chapterId ?? undefined)">
+                  重试
+                </el-button>
+              </div>
             </template>
           </el-result>
         </div>
@@ -913,7 +915,9 @@ onUnmounted(() => {
               :sub-title="`${activeDocumentFileName || '该文档'} 请下载后查看`"
             >
               <template #extra>
-                <el-button type="primary" @click="handleDocumentDownload">下载文档</el-button>
+                <div class="content-action-surface soft-action-surface">
+                  <el-button class="soft-action-btn soft-action-btn--primary" type="primary" @click="handleDocumentDownload">下载文档</el-button>
+                </div>
               </template>
             </el-result>
           </div>
@@ -940,7 +944,9 @@ onUnmounted(() => {
     >
       <div class="auto-next-content">
         <p>{{ autoNextCountdown }} 秒后自动跳转...</p>
-        <el-button size="small" @click="cancelAutoNext">取消</el-button>
+        <div class="auto-next-action soft-action-surface">
+          <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" size="small" @click="cancelAutoNext">取消</el-button>
+        </div>
       </div>
     </el-notification>
   </div>
@@ -1000,6 +1006,25 @@ onUnmounted(() => {
 
   &:hover {
     color: #fff;
+  }
+}
+
+.content-action-surface,
+.auto-next-action {
+  width: fit-content;
+}
+
+.content-action-surface :deep(.soft-action-btn),
+.auto-next-action :deep(.soft-action-btn) {
+  color: #fff;
+}
+
+.auto-next-action :deep(.soft-action-btn--secondary) {
+  color: #2563eb;
+
+  &:hover,
+  &:focus {
+    color: #1d4ed8;
   }
 }
 
@@ -1439,6 +1464,11 @@ onUnmounted(() => {
     .nav-info {
       font-size: 13px;
     }
+  }
+
+  .content-action-surface,
+  .auto-next-action {
+    width: 100%;
   }
 }
 
