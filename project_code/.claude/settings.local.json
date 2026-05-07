@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__augment-context-engine__codebase-retrieval",
+      "Bash(command:*)",
+      "Bash(auggie:*)",
+      "Bash(cmd.exe:*)",
+      "WebSearch",
+      "Bash(gh release:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl:*)",
+      "Bash(powershell.exe:*)",
+      "Bash(powershell:*)",
+      "Bash(winget:*)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "augment-context-engine"
+  ]
+}
