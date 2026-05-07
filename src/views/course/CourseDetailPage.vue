@@ -63,6 +63,13 @@ const courseId = computed(() => Number(route.params.courseId))
 const hasLearningRecord = computed(() => learnStore.hasLearningRecord)
 const continueInfo = computed(() => learnStore.continueInfo)
 
+// 反馈区：当前选中的老师名称（联动右侧卡片）
+const selectedTeacherName = ref('')
+
+function onFeedbackTeacherChange(name: string) {
+  selectedTeacherName.value = name
+}
+
 // 动态计算简介行宽：字少则窄，字多则宽，封顶 600px
 const summaryMaxWidth = computed(() => {
   const length = course.value?.summary?.length || 0
@@ -605,18 +612,43 @@ function openChapterResource(resource: CourseResource) {
 
           <!-- 反馈 -->
           <el-tab-pane label="反馈" name="feedback">
-            <div class="course-feedback-panel">
-              <FeedbackForm
-                class="course-feedback-form"
-                mode="inline"
-                default-type="course"
-                :type-locked="true"
-                :course-id="courseId"
-                :course-name="course?.title"
-                :course-teacher-id="course?.teacher_id"
-                :course-teacher-name="course?.teacher_name"
-              />
-            </div>
+            <section class="course-feedback-panel">
+              <div class="feedback-main-card">
+                <div class="feedback-panel-header">
+                  <span class="feedback-panel-kicker">课程反馈</span>
+                  <h3>课程内容错误反馈</h3>
+                  <p>请尽量描述出现问题的位置、操作步骤和期望结果，必要时上传截图帮助老师快速定位。</p>
+                </div>
+                <FeedbackForm
+                  class="course-feedback-form"
+                  mode="inline"
+                  default-type="course"
+                  :type-locked="true"
+                  :course-id="courseId"
+                  :course-name="course?.title"
+                  :course-teacher-id="course?.teacher_id"
+                  :course-teacher-name="course?.teacher_name"
+                  @teacher-change="onFeedbackTeacherChange"
+                />
+              </div>
+              <aside class="feedback-side-card">
+                <span class="side-card-label">提交说明</span>
+                <h4>反馈将由教师处理</h4>
+                <div class="feedback-course-summary">
+                  <span>当前课程</span>
+                  <strong>{{ course?.title }}</strong>
+                </div>
+                <div class="feedback-course-summary">
+                  <span>反馈对象</span>
+                  <strong>{{ selectedTeacherName || course?.teacher_name || '课程老师' }}</strong>
+                </div>
+                <ul class="feedback-tips">
+                  <li>请说明问题所属的章节名称或具体资源位置。</li>
+                  <li>建议上传相关截图，便于教师快速定位并排查问题。</li>
+                  <li>提交后，您可前往"个人中心-反馈记录"实时查看办理进展。</li>
+                </ul>
+              </aside>
+            </section>
           </el-tab-pane>
         </el-tabs>
       </div>
@@ -1191,14 +1223,144 @@ function openChapterResource(resource: CourseResource) {
 
 // 反馈区
 .course-feedback-panel {
-  max-width: 720px;
-  padding: 24px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 720px) minmax(280px, 1fr);
+  gap: 24px;
+  padding: 24px 0 28px;
+}
+
+.feedback-main-card,
+.feedback-side-card {
+  border: 1px solid #dbeafe;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+}
+
+.feedback-main-card {
+  padding: 24px;
+}
+
+.feedback-panel-header {
+  margin-bottom: 22px;
+
+  h3 {
+    margin: 8px 0 8px;
+    color: $text-primary;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  p {
+    max-width: 620px;
+    margin: 0;
+    color: $text-secondary;
+    font-size: $font-size-sm;
+    line-height: 1.8;
+  }
+}
+
+.feedback-panel-kicker,
+.side-card-label {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #e8f1ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .course-feedback-form {
   :deep(.feedback-form.inline) {
     padding: 0;
-    background: #fff;
+    background: transparent;
+  }
+}
+
+.feedback-side-card {
+  align-self: start;
+  position: relative;
+  overflow: hidden;
+  padding: 24px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -54px;
+    right: -54px;
+    width: 132px;
+    height: 132px;
+    border-radius: 50%;
+    background: rgba(24, 144, 255, 0.12);
+  }
+
+  h4 {
+    position: relative;
+    margin: 16px 0 20px;
+    color: $text-primary;
+    font-size: 18px;
+    line-height: 1.45;
+  }
+}
+
+.feedback-course-summary {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid #e5efff;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+
+  & + & {
+    margin-top: 12px;
+  }
+
+  span {
+    color: $text-tertiary;
+    font-size: $font-size-xs;
+  }
+
+  strong {
+    color: $text-primary;
+    font-size: $font-size-sm;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+}
+
+.feedback-tips {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    position: relative;
+    padding-left: 18px;
+    color: $text-secondary;
+    font-size: $font-size-sm;
+    line-height: 1.7;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 10px;
+      left: 0;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: $primary-color;
+      box-shadow: 0 0 0 4px rgba(24, 144, 255, 0.12);
+    }
   }
 }
 
@@ -1309,7 +1471,21 @@ function openChapterResource(resource: CourseResource) {
   }
 
   .course-feedback-panel {
+    grid-template-columns: 1fr;
+    gap: 16px;
     padding: 16px 0;
+  }
+
+  .feedback-main-card,
+  .feedback-side-card {
+    padding: 18px;
+    border-radius: 16px;
+  }
+
+  .feedback-panel-header {
+    h3 {
+      font-size: 18px;
+    }
   }
 
   .action-area {

@@ -33,6 +33,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   (e: 'success'): void
   (e: 'cancel'): void
+  (e: 'teacherChange', name: string): void
 }>()
 
 // 表单数据
@@ -75,6 +76,19 @@ const normalizedTeacherOptions = computed(() => {
     })
   }
   return options
+})
+
+// 当前选中的老师名称
+const selectedTeacherName = computed(() => {
+  if (!form.target_user_id) return ''
+  const teacher = normalizedTeacherOptions.value.find(
+    (t) => t.teacher_id === form.target_user_id,
+  )
+  return teacher ? (teacher.nickname || teacher.username) : ''
+})
+
+watch(selectedTeacherName, (name) => {
+  if (name) emit('teacherChange', name)
 })
 
 // 反馈类型选项
@@ -236,9 +250,10 @@ function handleCancel() {
       label-position="top"
     >
       <!-- 反馈类型 -->
-      <el-form-item label="反馈类型" prop="feedback_type">
+      <el-form-item label="反馈类型" prop="feedback_type" :class="{ 'compact-form-item': typeLocked }">
         <div v-if="typeLocked" class="readonly-type-field">
           <span class="readonly-type-label">{{ currentFeedbackTypeLabel }}</span>
+          <span class="readonly-type-hint">已根据当前页面自动选择</span>
         </div>
         <el-select
           v-else
@@ -264,7 +279,7 @@ function handleCancel() {
         </el-input>
       </el-form-item>
 
-      <el-form-item v-if="showCourseSelect" label="反馈给老师" prop="target_user_id">
+      <el-form-item v-if="showCourseSelect" label="反馈对象" prop="target_user_id">
         <el-select
           v-model="form.target_user_id"
           placeholder="请选择要反馈的老师"
@@ -352,26 +367,40 @@ function handleCancel() {
   }
 }
 
+.compact-form-item {
+  margin-bottom: 18px;
+}
+
 .readonly-type-field {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 14px;
-  background: #f4f7fb;
-  border: 1px solid #dbe5f0;
-  border-radius: 10px;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 5px 12px 5px 5px;
+  background: #f4f8ff;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
 }
 
 .readonly-type-label {
   display: inline-flex;
   align-items: center;
-  padding: 4px 12px;
-  background: #e8f1ff;
-  color: #1d4ed8;
+  padding: 6px 14px;
+  background: linear-gradient(135deg, #1890ff 0%, #2563eb 100%);
+  color: #fff;
   border-radius: 999px;
+  box-shadow: 0 8px 18px rgba(24, 144, 255, 0.22);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+}
+
+.readonly-type-hint {
+  color: #5b6b80;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .teacher-option-tag {
@@ -396,6 +425,11 @@ function handleCancel() {
 }
 
 @media (max-width: 768px) {
+  .readonly-type-field {
+    width: 100%;
+    border-radius: 14px;
+  }
+
   .feedback-action-surface {
     width: 100%;
   }
