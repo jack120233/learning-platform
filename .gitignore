@@ -1,0 +1,53 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local AI/tooling workspaces
+.claude/
+.ccpanes/
+.playwright-mcp/
+.trellis/workspace/
+
+# Dependencies and build output
+node_modules/
+dist/
+dist-ssr/
+build/
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache and test output
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs and runtime data
+logs/
+*.log
+uploads/
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Temporary debug artifacts
+*-requests.txt
+*-all-requests.txt
+*-console.txt
+*-page-state.json
+tag-network*.txt
+tags-table-before.json
+tmp_preview_assets/
