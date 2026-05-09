@@ -105,3 +105,36 @@ Improved profile feedback management UX, removed disruptive drawer delete action
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Fix message center deletion gaps
+
+**Date**: 2026-05-09
+**Task**: Fix message center deletion gaps
+**Branch**: `master`
+
+### Summary
+
+Fixed student and teacher message center deletion so removed messages compact immediately, pagination stays valid, and real browser/API validation passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6a89311` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
