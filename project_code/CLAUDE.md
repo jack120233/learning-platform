@@ -155,10 +155,19 @@ python scripts/seed_data.py
 
 ### 测试账号
 
-种子数据导入后可用：
-- 管理员: `admin1` / `Admin123456`
-- 教师: `teacher1` / `Test123456`
-- 学生: `student1` / `Test123456`
+种子数据导入后可用，AI 联调和浏览器测试应直接使用以下账号，不要再要求用户手动输入账号密码：
+
+| 角色 | 用户名 | 密码 | 邮箱 |
+|------|--------|------|------|
+| 管理员 | `admin1` | `Admin123456` | `admin1@example.com` |
+| 教师 | `teacher1` | `Test123456` | `teacher1@example.com` |
+| 教师 | `teacher2` | `Test123456` | `teacher2@example.com` |
+| 教师 | `teacher3` | `Test123456` | `teacher3@example.com` |
+| 教师 | `teacher4` | `Test123456` | `teacher4@example.com` |
+| 教师 | `teacher5` | `Test123456` | `teacher5@example.com` |
+| 教师 | `teacher6` | `Test123456` | `teacher6@example.com` |
+| 学生 | `student1` | `Test123456` | `student1@example.com` |
+| 学生 | `student2` | `Test123456` | `student2@example.com` |
 
 ## 文件写入规范
 

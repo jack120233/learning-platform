@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
@@ -22,7 +23,11 @@ defineOptions({
 })
 
 const userStore = useUserStore()
+const router = useRouter()
 const { isMobile } = useBreakpoint()
+const TeacherMessageCenter = defineAsyncComponent(() => import('@/views/teacher/TeacherMessageCenterPage.vue'))
+const isTeacherMessageCenter = computed(() => userStore.isTeacher && !userStore.isAdmin)
+const isAdminMessageCenter = computed(() => userStore.isAdmin)
 
 // 筛选状态
 const messageType = ref<'all' | 'announcement' | 'notification'>('all')
@@ -30,6 +35,17 @@ const isRead = ref<boolean | undefined>(undefined)
 
 // 获取消息列表
 async function fetchMessagesList(params: MessagesParams) {
+  if (isTeacherMessageCenter.value || isAdminMessageCenter.value) {
+    return {
+      items: [],
+      total: 0,
+      page: params.page ?? 1,
+      page_size: params.page_size ?? 10,
+      total_pages: 1,
+      unread_count: unreadCount.value,
+    }
+  }
+
   const response = await fetchMessages({
     message_type: messageType.value,
     is_read: isRead.value,
@@ -276,6 +292,13 @@ function formatTime(time: string) {
 
 // 初始化加载
 onMounted(async () => {
+  if (isAdminMessageCenter.value) {
+    await router.replace('/admin/messages')
+    return
+  }
+
+  if (isTeacherMessageCenter.value) return
+
   await syncUnreadCount()
   await fetchData()
 })
@@ -287,7 +310,8 @@ watch(messages, (currentMessages) => {
 </script>
 
 <template>
-  <div class="messages-page">
+  <TeacherMessageCenter v-if="isTeacherMessageCenter" />
+  <div v-else class="messages-page">
     <!-- 页面标题 -->
     <div class="page-header">
       <div class="header-left">

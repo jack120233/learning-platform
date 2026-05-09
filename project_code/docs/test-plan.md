@@ -525,10 +525,15 @@ jobs:
 # tests/fixtures/users.py
 
 TEST_USERS = [
-    {"username": "student1", "email": "student1@test.com", "password": "Test123456", "role": "student"},
-    {"username": "student2", "email": "student2@test.com", "password": "Test123456", "role": "student"},
-    {"username": "teacher1", "email": "teacher1@test.com", "password": "Test123456", "role": "teacher"},
-    {"username": "admin1", "email": "admin1@test.com", "password": "Admin123456", "role": "admin"},
+    {"username": "student1", "email": "student1@example.com", "password": "Test123456", "role": "student"},
+    {"username": "student2", "email": "student2@example.com", "password": "Test123456", "role": "student"},
+    {"username": "teacher1", "email": "teacher1@example.com", "password": "Test123456", "role": "teacher"},
+    {"username": "teacher2", "email": "teacher2@example.com", "password": "Test123456", "role": "teacher"},
+    {"username": "teacher3", "email": "teacher3@example.com", "password": "Test123456", "role": "teacher"},
+    {"username": "teacher4", "email": "teacher4@example.com", "password": "Test123456", "role": "teacher"},
+    {"username": "teacher5", "email": "teacher5@example.com", "password": "Test123456", "role": "teacher"},
+    {"username": "teacher6", "email": "teacher6@example.com", "password": "Test123456", "role": "teacher"},
+    {"username": "admin1", "email": "admin1@example.com", "password": "Admin123456", "role": "admin"},
 ]
 ```
 

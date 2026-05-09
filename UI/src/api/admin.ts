@@ -2,6 +2,18 @@ import request, { type PaginatedData } from './index'
 
 // ==================== 用户管理 ====================
 
+interface BackendAdminUserItem {
+  id: number
+  username: string
+  email: string
+  phone?: string | null
+  nickname?: string | null
+  role: 'student' | 'teacher' | 'admin'
+  status: 'active' | 'disabled' | 'pending'
+  created_at: string
+  last_login_at: string | null
+}
+
 /** 管理端用户列表项 */
 export interface AdminUserItem {
   user_id: number
@@ -177,11 +189,10 @@ export interface AdminTagBatchDeleteResult {
 
 /** 系统消息表单数据 */
 export interface AdminMessageFormData {
-  user_id: number
-  type: 'announcement' | 'notification' | 'system' | 'course' | 'interaction'
+  user_id: number | null
+  type: 'announcement' | 'notification' | 'system' | 'course'
   title: string
   content: string
-  link?: string
 }
 
 // ==================== 公告管理 ====================
@@ -286,7 +297,7 @@ interface BackendAnnouncementPayload {
 export interface AdminFeedbackItem {
   feedback_id: number
   user_id: number
-  username: string
+  username: string | null
   feedback_type: 'system' | 'course'
   course_id: number | null
   course_title: string | null
@@ -304,8 +315,8 @@ export interface AdminFeedbackItem {
 
 /** 反馈详情 */
 export interface AdminFeedbackDetail extends AdminFeedbackItem {
-  user_email: string
-  user_phone: string
+  user_email: string | null
+  user_phone: string | null
 }
 
 /** 反馈处理请求 */
@@ -326,11 +337,28 @@ export interface AdminFeedbacksParams {
 
 // ---------- 用户管理 ----------
 
+function mapAdminUserItem(item: BackendAdminUserItem): AdminUserItem {
+  return {
+    user_id: item.id,
+    username: item.username,
+    email: item.email,
+    phone: item.phone || '',
+    nickname: item.nickname || '',
+    role: item.role,
+    status: item.status,
+    created_at: item.created_at,
+    last_login_at: item.last_login_at || '',
+  }
+}
+
 /** 获取用户列表 */
 export function fetchUsers(params: AdminUsersParams = {}) {
-  return request.get<unknown, PaginatedData<AdminUserItem>>('/users', {
+  return request.get<unknown, PaginatedData<BackendAdminUserItem>>('/users', {
     params: { page: 1, page_size: 10, ...params },
-  })
+  }).then((data) => ({
+    ...data,
+    items: data.items.map(mapAdminUserItem),
+  }))
 }
 
 /** 获取用户详情 */

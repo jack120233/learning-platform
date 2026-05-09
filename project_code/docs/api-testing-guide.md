@@ -28,6 +28,22 @@ API文档: http://localhost:8000/docs
 API文档(备): http://localhost:8000/redoc
 ```
 
+### 1.3 测试账号
+
+执行 `python scripts/seed_data.py` 导入种子数据后，可直接使用以下账号进行 API、前端联调和 AI 自动化测试。AI 测试时应直接使用这些账号，不要再要求用户手动输入账号密码。
+
+| 角色 | 用户名 | 密码 | 邮箱 |
+|------|--------|------|------|
+| 管理员 | `admin1` | `Admin123456` | `admin1@example.com` |
+| 教师 | `teacher1` | `Test123456` | `teacher1@example.com` |
+| 教师 | `teacher2` | `Test123456` | `teacher2@example.com` |
+| 教师 | `teacher3` | `Test123456` | `teacher3@example.com` |
+| 教师 | `teacher4` | `Test123456` | `teacher4@example.com` |
+| 教师 | `teacher5` | `Test123456` | `teacher5@example.com` |
+| 教师 | `teacher6` | `Test123456` | `teacher6@example.com` |
+| 学生 | `student1` | `Test123456` | `student1@example.com` |
+| 学生 | `student2` | `Test123456` | `student2@example.com` |
+
 ---
 
 ## 2. 启动服务

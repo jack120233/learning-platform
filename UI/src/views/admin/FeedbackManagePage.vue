@@ -63,6 +63,25 @@ function formatTime(time: string | null | undefined) {
   })
 }
 
+function formatUserIdentity(username: string | null | undefined, userId: number | null | undefined, fallback = '-') {
+  if (username && userId) return `${username}#${userId}`
+  if (username) return username
+  if (userId) return `用户#${userId}`
+  return fallback
+}
+
+function getSubmitterName(feedback: AdminFeedbackItem | AdminFeedbackDetail) {
+  return formatUserIdentity(feedback.username, feedback.user_id)
+}
+
+function getTargetName(feedback: AdminFeedbackItem | AdminFeedbackDetail) {
+  return formatUserIdentity(feedback.target_username, feedback.target_user_id)
+}
+
+function hasTargetIdentity(feedback: AdminFeedbackItem | AdminFeedbackDetail) {
+  return Boolean(feedback.target_username || feedback.target_user_id)
+}
+
 // 详情抽屉
 const showDetailDrawer = ref(false)
 const currentFeedback = ref<AdminFeedbackDetail | null>(null)
@@ -272,7 +291,11 @@ onMounted(() => {
       @row-click="handleRowClick"
     >
       <el-table-column type="selection" width="50" />
-      <el-table-column prop="username" label="用户名" width="100" />
+      <el-table-column label="用户名" width="140">
+        <template #default="{ row }">
+          {{ getSubmitterName(row) }}
+        </template>
+      </el-table-column>
       <el-table-column label="反馈类型" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="typeMap[row.feedback_type]?.type || 'info'" size="small">
@@ -288,7 +311,7 @@ onMounted(() => {
       </el-table-column>
       <el-table-column label="反馈给" width="120">
         <template #default="{ row }">
-          <span v-if="row.target_nickname || row.target_username">{{ row.target_nickname || row.target_username }}</span>
+          <span v-if="hasTargetIdentity(row)">{{ getTargetName(row) }}</span>
           <span v-else class="text-muted">-</span>
         </template>
       </el-table-column>
@@ -382,7 +405,7 @@ onMounted(() => {
         <div class="detail-section">
           <div class="detail-row">
             <span class="detail-label">用户名</span>
-            <span class="detail-value">{{ currentFeedback.username }}</span>
+            <span class="detail-value">{{ getSubmitterName(currentFeedback) }}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">反馈类型</span>
@@ -394,9 +417,9 @@ onMounted(() => {
             <span class="detail-label">关联课程</span>
             <span class="detail-value">{{ currentFeedback.course_title }}</span>
           </div>
-          <div class="detail-row" v-if="currentFeedback.target_nickname || currentFeedback.target_username">
+          <div class="detail-row" v-if="hasTargetIdentity(currentFeedback)">
             <span class="detail-label">反馈给</span>
-            <span class="detail-value">{{ currentFeedback.target_nickname || currentFeedback.target_username }}</span>
+            <span class="detail-value">{{ getTargetName(currentFeedback) }}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">处理状态</span>

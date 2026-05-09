@@ -32,12 +32,22 @@ const handleSearch = () => {
   })
 }
 
+function formatCurrentUserIdentity() {
+  const { username, userId } = userStore.userInfo
+  if (username && userId) return `${username}#${userId}`
+  if (username) return username
+  if (userId) return `用户#${userId}`
+  return '用户'
+}
+
 // 用户下拉菜单
+const messageCenterPath = computed(() => '/profile/messages')
+
 const userDropdownItems = computed(() => {
   const items = [
     { label: '个人中心', path: '/profile', icon: 'User' },
     { label: '我的学习', path: '/profile/records', icon: 'Reading' },
-    { label: '消息中心', path: '/profile/messages', icon: 'Bell' },
+    { label: '消息中心', path: messageCenterPath.value, icon: 'Bell' },
   ]
 
   if (userStore.canAccessTeacherCenter) {
@@ -182,7 +192,7 @@ watch(() => route.fullPath, () => {
                     {{ userStore.unreadMessageCount > 99 ? '99+' : userStore.unreadMessageCount }}
                   </span>
                 </div>
-                <span class="username">{{ userStore.userInfo.nickname || userStore.userInfo.username }}</span>
+                <span class="username">{{ formatCurrentUserIdentity() }}</span>
               </div>
               <template #dropdown>
                 <el-dropdown-menu>
@@ -193,7 +203,7 @@ watch(() => route.fullPath, () => {
                   >
                     <el-icon><component :is="item.icon" /></el-icon>
                     <UnreadLabelBadge
-                      v-if="item.path === '/profile/messages'"
+                      v-if="item.path === messageCenterPath"
                       :label="item.label"
                       :count="userStore.unreadMessageCount"
                       tone="light"
@@ -267,7 +277,7 @@ watch(() => route.fullPath, () => {
                 <el-icon :size="20"><User /></el-icon>
               </el-avatar>
               <div class="user-info-text">
-                <div class="nickname">{{ userStore.userInfo.nickname || userStore.userInfo.username }}</div>
+                <div class="nickname">{{ formatCurrentUserIdentity() }}</div>
                 <div class="role-tag">{{ userStore.isTeacher || userStore.isAdmin ? '讲师' : '学生' }}</div>
               </div>
             </div>
@@ -276,7 +286,7 @@ watch(() => route.fullPath, () => {
                 <el-icon><Reading /></el-icon>
                 <span>我的学习</span>
               </div>
-              <div class="menu-item" @click="handleMobileNavClick('/profile/messages')">
+              <div class="menu-item" @click="handleMobileNavClick(messageCenterPath)">
                 <el-icon><Bell /></el-icon>
                 <UnreadLabelBadge
                   label="消息中心"

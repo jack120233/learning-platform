@@ -235,13 +235,11 @@ class UserService:
         query = select(User)
 
         if keyword:
-            query = query.where(
-                or_(
-                    User.username.ilike(f"%{keyword}%"),
-                    User.email.ilike(f"%{keyword}%"),
-                    User.nickname.ilike(f"%{keyword}%"),
-                )
-            )
+            keyword = keyword.strip()
+            conditions = [User.username.ilike(f"%{keyword}%")]
+            if keyword.isdigit():
+                conditions.append(User.id == int(keyword))
+            query = query.where(or_(*conditions))
         if role:
             query = query.where(User.role == role)
         if status:

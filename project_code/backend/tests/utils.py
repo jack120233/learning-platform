@@ -26,7 +26,7 @@ def random_email() -> str:
     Returns:
         随机邮箱地址
     """
-    return f"{random_string(8)}@test.com"
+    return f"{random_string(8)}@example.com"
 
 
 def random_username() -> str:

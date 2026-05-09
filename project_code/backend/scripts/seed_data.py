@@ -40,7 +40,7 @@ async def seed_users(session) -> list[User]:
         # 管理员
         User(
             username="admin1",
-            email="admin1@test.com",
+            email="admin1@example.com",
             password_hash=hash_password("Admin123456"),
             nickname="管理员",
             role="admin",
@@ -49,16 +49,56 @@ async def seed_users(session) -> list[User]:
         # 教师
         User(
             username="teacher1",
-            email="teacher1@test.com",
+            email="teacher1@example.com",
             password_hash=hash_password("Test123456"),
             nickname="张老师",
+            role="teacher",
+            status="active",
+        ),
+        User(
+            username="teacher2",
+            email="teacher2@example.com",
+            password_hash=hash_password("Test123456"),
+            nickname="李老师",
+            role="teacher",
+            status="active",
+        ),
+        User(
+            username="teacher3",
+            email="teacher3@example.com",
+            password_hash=hash_password("Test123456"),
+            nickname="王老师",
+            role="teacher",
+            status="active",
+        ),
+        User(
+            username="teacher4",
+            email="teacher4@example.com",
+            password_hash=hash_password("Test123456"),
+            nickname="赵老师",
+            role="teacher",
+            status="active",
+        ),
+        User(
+            username="teacher5",
+            email="teacher5@example.com",
+            password_hash=hash_password("Test123456"),
+            nickname="陈老师",
+            role="teacher",
+            status="active",
+        ),
+        User(
+            username="teacher6",
+            email="teacher6@example.com",
+            password_hash=hash_password("Test123456"),
+            nickname="刘老师",
             role="teacher",
             status="active",
         ),
         # 学生
         User(
             username="student1",
-            email="student1@test.com",
+            email="student1@example.com",
             password_hash=hash_password("Test123456"),
             nickname="学生1",
             role="student",
@@ -66,7 +106,7 @@ async def seed_users(session) -> list[User]:
         ),
         User(
             username="student2",
-            email="student2@test.com",
+            email="student2@example.com",
             password_hash=hash_password("Test123456"),
             nickname="学生2",
             role="student",

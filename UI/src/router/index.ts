@@ -4,9 +4,8 @@ import { useUserStore } from '@/store/user'
 const ADMIN_ROUTE_PERMISSIONS = [
   { path: '/admin/users', permissionCode: 'admin.user' },
   { path: '/admin/teacher-audits', permissionCode: 'admin.teacher_audit' },
+  { path: '/admin/messages', permissionCode: 'admin.feedback' },
   { path: '/admin/announcements', permissionCode: 'admin.announcement' },
-  { path: '/admin/feedbacks', permissionCode: 'admin.feedback' },
-  { path: '/admin/messages', permissionCode: 'admin.message' },
   { path: '/admin/categories', permissionCode: 'admin.category' },
   { path: '/admin/tags', permissionCode: 'admin.tag' },
 ]
@@ -143,6 +142,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/teacher/FeedbackManagePage.vue'),
         meta: { title: '课程反馈' },
       },
+      {
+        path: 'messages',
+        name: 'TeacherMessages',
+        redirect: '/profile/messages',
+        meta: { title: '消息中心' },
+      },
     ],
   },
   {
@@ -176,14 +181,13 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'feedbacks',
         name: 'AdminFeedbacks',
-        component: () => import('@/views/admin/FeedbackManagePage.vue'),
-        meta: { title: '反馈管理', permissionCode: 'admin.feedback' },
+        redirect: '/admin/messages',
       },
       {
         path: 'messages',
         name: 'AdminMessages',
         component: () => import('@/views/admin/AdminMessagePage.vue'),
-        meta: { title: '系统消息', permissionCode: 'admin.message' },
+        meta: { title: '消息中心', permissionCode: 'admin.feedback' },
       },
       {
         path: 'categories',

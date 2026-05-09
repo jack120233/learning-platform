@@ -78,13 +78,17 @@ const normalizedTeacherOptions = computed(() => {
   return options
 })
 
+function formatTeacherIdentity(teacher: Pick<TeacherOption, 'username' | 'teacher_id'>) {
+  return teacher.username ? `${teacher.username}#${teacher.teacher_id}` : `老师#${teacher.teacher_id}`
+}
+
 // 当前选中的老师名称
 const selectedTeacherName = computed(() => {
   if (!form.target_user_id) return ''
   const teacher = normalizedTeacherOptions.value.find(
     (t) => t.teacher_id === form.target_user_id,
   )
-  return teacher ? (teacher.nickname || teacher.username) : ''
+  return teacher ? formatTeacherIdentity(teacher) : ''
 })
 
 watch(selectedTeacherName, (name) => {
@@ -290,10 +294,10 @@ function handleCancel() {
           <el-option
             v-for="teacher in normalizedTeacherOptions"
             :key="teacher.teacher_id"
-            :label="teacher.nickname || teacher.username"
+            :label="formatTeacherIdentity(teacher)"
             :value="teacher.teacher_id"
           >
-            <span>{{ teacher.nickname || teacher.username }}</span>
+            <span>{{ formatTeacherIdentity(teacher) }}</span>
             <span v-if="teacher.teacher_id === courseTeacherId" class="teacher-option-tag">当前课程老师</span>
           </el-option>
         </el-select>

@@ -123,6 +123,81 @@ Manual UI checks should cover:
 - PC and mobile layout
 - no obvious console errors
 
+### Mocked validation is inconclusive
+
+Mocked API responses, injected local auth state, or synthetic browser state may be used only as a diagnostic aid. A mocked pass never proves the current task is complete when the feature depends on a real backend/API/router/session contract.
+
+#### 1. Scope / Trigger
+
+- Trigger: Any frontend task whose acceptance criteria depends on a real API response, real login/session state, route guard behavior, permissions, or cross-layer fields.
+- Examples: admin user search, profile data display, message sending, feedback processing, upload flows, pagination, role redirects.
+
+#### 2. Signatures
+
+- Real browser/API validation must exercise the actual endpoint path used by the UI, e.g. `POST /api/v1/auth/login` and `GET /api/v1/users?keyword=<value>` through the same dev proxy/base URL the page uses.
+- If a Playwright/API helper uses `baseURL`, paths must preserve the API prefix:
+
+```ts
+// Correct: cannot accidentally drop /api/v1
+const api = await request.newContext({ baseURL: 'http://127.0.0.1:3000' })
+await api.post('/api/v1/auth/login', { data: loginPayload })
+
+// Wrong: leading slash discards the /api/v1 base path in URL resolution
+const api = await request.newContext({ baseURL: 'http://127.0.0.1:3000/api/v1' })
+await api.post('/auth/login', { data: loginPayload })
+```
+
+#### 3. Contracts
+
+- Mocked result contract: `status = unknown`, not `passed`.
+- Task tracking contract: create or update a current-task subtask named like `Replace mocked validation with real integration validation`.
+- Log contract: record the mocked validation as a limitation/problem, not as completion evidence.
+- Final completion contract: the task may be marked complete only after real validation passes, or the final report explicitly says real validation was not run and why.
+
+#### 4. Validation & Error Matrix
+
+| Condition | Required handling |
+|-----------|-------------------|
+| Mock passes but real API not checked | Task conclusion remains unknown; create a follow-up subtask. |
+| Mock reveals UI behavior only | Record it as diagnostic evidence only. |
+| Real API path returns 404/405 | Inspect OpenAPI/runtime route, proxy path, and request URL construction before changing app code. |
+| Real API returns different fields than frontend types | Fix API mapper/type contract, then rerun real validation. |
+| Real validation cannot run | State the blocker and leave task incomplete or explicitly unverified. |
+
+#### 5. Good/Base/Bad Cases
+
+- Good: Login through the real `/api/v1/auth/login`, call the real backend endpoint, open the real page, and verify rendered fields.
+- Base: Use a mock to isolate UI behavior, then immediately record that real integration remains unresolved.
+- Bad: Report success because mocked Playwright routes returned the expected payload.
+
+#### 6. Tests Required
+
+- Browser/API validation must assert the real request URL includes `/api/v1`.
+- Assert real response field names match frontend API mapper expectations.
+- Assert the UI renders values derived from real response payloads, not only mocked payloads.
+- For role/permission flows, assert the real logged-in account can access the target route.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+Mock /api/v1/users to return { user_id: 1, username: 'admin1' }.
+UI shows admin1#1.
+Mark task complete.
+```
+
+Correct:
+
+```text
+Mock result: UI behavior diagnostic only; task status unknown.
+Create subtask: verify real /api/v1/users contract.
+Call real /api/v1/users and observe it returns { id: 1, username: 'admin1' }.
+Fix fetchUsers mapper from id -> user_id.
+Rerun browser verification against the real backend.
+Only then mark task complete.
+```
+
 If verification cannot be run, state the reason clearly in the final report.
 
 ---

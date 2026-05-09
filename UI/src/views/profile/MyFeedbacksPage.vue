@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { usePagination } from '@/composables/usePagination'
 import { fetchMyFeedbacks } from '@/api/profile'
 import type { FeedbackItem } from '@/api/profile'
+import FeedbackForm from '@/components/feedback/FeedbackForm.vue'
 
 const route = useRoute()
+const showSubmitDialog = ref(false)
 
 const {
   items: feedbacks,
@@ -42,6 +44,27 @@ function formatTime(time: string) {
   })
 }
 
+function formatUserIdentity(username: string | null | undefined, userId: number | null | undefined, fallback = '-') {
+  if (username && userId) return `${username}#${userId}`
+  if (username) return username
+  if (userId) return `用户#${userId}`
+  return fallback
+}
+
+function getTargetName(feedback: FeedbackItem) {
+  return formatUserIdentity(feedback.target_username, feedback.target_user_id)
+}
+
+function hasTargetIdentity(feedback: FeedbackItem) {
+  return Boolean(feedback.target_username || feedback.target_user_id)
+}
+
+function handleSubmitSuccess() {
+  showSubmitDialog.value = false
+  page.value = 1
+  fetchData()
+}
+
 // 初始化加载
 onMounted(() => {
   fetchData()
@@ -56,8 +79,20 @@ watch(() => route.query.refresh, () => {
   <div class="my-feedbacks-page">
     <!-- 页面标题 -->
     <div class="page-header">
-      <h2 class="page-title">我的反馈</h2>
-      <span class="total-count">共 {{ total }} 条反馈</span>
+      <div>
+        <h2 class="page-title">我的反馈</h2>
+        <p class="page-desc">提交平台/系统问题反馈，并查看管理员处理回复。</p>
+      </div>
+      <div class="header-actions">
+        <span class="total-count">共 {{ total }} 条反馈</span>
+        <el-button
+          class="soft-action-btn soft-action-btn--primary soft-action-btn--small"
+          type="primary"
+          @click="showSubmitDialog = true"
+        >
+          提交平台反馈
+        </el-button>
+      </div>
     </div>
 
     <!-- 空状态 -->
@@ -102,9 +137,9 @@ watch(() => route.query.refresh, () => {
             关联课程：{{ feedback.course_title }}
           </p>
 
-          <p class="feedback-course" v-if="feedback.target_nickname || feedback.target_username">
+          <p class="feedback-course" v-if="hasTargetIdentity(feedback)">
             <el-icon><User /></el-icon>
-            反馈给：{{ feedback.target_nickname || feedback.target_username }}
+            反馈给：{{ getTargetName(feedback) }}
           </p>
 
           <div v-if="feedback.reply" class="feedback-reply">
@@ -156,6 +191,21 @@ watch(() => route.query.refresh, () => {
         @current-change="goToPage"
       />
     </template>
+
+    <el-dialog
+      v-model="showSubmitDialog"
+      title="提交平台反馈"
+      width="560px"
+      :close-on-click-modal="false"
+    >
+      <FeedbackForm
+        mode="dialog"
+        default-type="system"
+        type-locked
+        @success="handleSubmitSuccess"
+        @cancel="showSubmitDialog = false"
+      />
+    </el-dialog>
   </div>
 </template>
 
@@ -177,9 +227,28 @@ watch(() => route.query.refresh, () => {
     margin: 0;
   }
 
+  .page-desc {
+    margin: 8px 0 0;
+    color: #666;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px;
+    background: #f4f8ff;
+    border: 1px solid #dbeafe;
+    border-radius: 999px;
+  }
+
   .total-count {
+    padding: 0 8px;
     font-size: 14px;
     color: #666;
+    white-space: nowrap;
   }
 }
 
@@ -321,7 +390,13 @@ watch(() => route.query.refresh, () => {
     .page-header {
       align-items: flex-start;
       flex-direction: column;
-      gap: 8px;
+      gap: 12px;
+    }
+
+    .header-actions {
+      width: 100%;
+      justify-content: space-between;
+      border-radius: 14px;
     }
   }
 

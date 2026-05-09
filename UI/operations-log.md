@@ -631,3 +631,123 @@
   - 2026-05-07 11:12 追加调整：按页面文案要求将主标题改为“课程内容错误反馈”、提交说明标题改为“反馈将由教师处理”、更新三条提交说明文案，并将左侧“反馈给老师”改为“反馈对象”。
   - 2026-05-07 11:12 追加调整：反馈表单新增 `teacherChange` 事件，右侧卡片“反馈对象”会随左侧下拉选择同步更新。
   - 追加验证：已执行 `cd "E:/video_project/proj_ui/UI" && npm run build`，构建通过；已在 `http://localhost:3001/courses/29` 打开反馈标签页，确认文案生效，并将左侧反馈对象从“张老师”切换为“tset1”，右侧卡片同步更新为“tset1”。
+
+## 教师消息中心独立 UI 优化
+时间：2026-05-08 10:29:14
+
+- 变更原因：教师角色不应继续复用学生/个人中心的通用消息中心，需要独立承载学生反馈与管理员平台公告/通知。
+- 涉及文件：
+  - `src/router/index.ts`
+  - `src/components/layout/AppHeader.vue`
+  - `src/views/teacher/TeacherMessageCenterPage.vue`
+  - `src/components.d.ts`
+  - `operations-log.md`
+- 核心改动：
+  - 在教师路由下新增 `/teacher/messages`，保留 `/profile/messages` 给学生和普通个人中心使用。
+  - 顶部 PC 下拉菜单与移动端菜单的“消息中心”改为按教师中心权限跳转，教师进入教师专属消息中心，其他角色仍进入个人消息中心。
+  - 新增教师消息中心页面，使用“学生反馈 / 平台通知”双 Tab；学生反馈复用教师反馈列表、详情、回复处理接口，平台通知复用个人消息列表、详情、已读、全部已读和删除接口。
+  - 页面采用教师端现有 Soft Blue 风格、卡片列表、详情抽屉、回复处理弹窗，并补充 768px 以下响应式布局。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`。
+  - 结果：构建通过；仍有既有大体积 chunk 警告。
+  - 已执行：安装 Playwright Chromium，并用教师账号 `teacher2@example.com / Test123456` 验证 PC 下拉菜单和 390px 移动端菜单均进入 `/teacher/messages`。
+  - 已执行：用学生账号 `student1@example.com / Test123456` 验证 PC 下拉菜单和 390px 移动端菜单仍进入 `/profile/messages`。
+  - 已检查：教师账号接口权限包含 `teacher.course`，路由守卫允许直接访问 `/teacher/messages`。
+
+## 教师反馈详情对话气泡布局优化
+时间：2026-05-08
+
+- 变更原因：教师查看学生反馈详情时需要更清晰地区分学生反馈与教师回复，提升阅读体验并保持现有处理流程不变。
+- 涉及文件：
+  - `src/views/teacher/TeacherMessageCenterPage.vue`
+  - `src/views/teacher/FeedbackManagePage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 将两个教师反馈详情 drawer 的内容区改为左右对话气泡布局，学生反馈固定左侧、教师回复固定右侧。
+  - 学生气泡保留截图预览，截图随学生消息展示；未处理反馈不渲染空的教师气泡。
+  - 教师气泡使用当前登录教师昵称/用户名作为展示名，回复时间优先使用 `replied_at`，缺失时回退 `processed_at`。
+  - 补充 PC 与移动端气泡宽度和换行样式，避免长文本和图片在窄屏下横向溢出。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
+  - 结果：通过，仍有既有大体积 chunk 警告。
+  - 未执行：浏览器手动联调；当前会话仅完成代码与构建级验证，未进一步打开页面核对实际渲染。
+  - 2026-05-08 追加检查修复：将教师反馈详情相关抽屉宽度改为 `min(固定宽度, 92vw)`，并补充气泡和截图的 `box-sizing` / `max-width` 约束，进一步避免窄屏横向溢出。
+
+## 管理员与教师消息中心入口整合
+时间：2026-05-08
+
+- 变更原因：管理员消息中心需要从发送型系统消息页调整为用户反馈处理入口；教师消息入口需要统一到 `/profile/messages`，减少 `/teacher/messages` 与个人中心消息中心并存带来的认知成本。
+- 涉及文件：
+  - `src/router/index.ts`
+  - `src/views/admin/AdminLayout.vue`
+  - `src/views/admin/AdminMessagePage.vue`
+  - `src/views/profile/MessagesPage.vue`
+  - `src/views/profile/MyFeedbacksPage.vue`
+  - `src/api/admin.ts`
+  - `docs/前端接口文档.md`
+  - `operations-log.md`
+- 核心改动：
+  - 将 `/admin/messages` 调整为管理员消息中心主入口，复用现有反馈列表、详情、回复处理、批量处理 API，默认筛选平台反馈，并保留课程反馈筛选能力。
+  - `/admin/feedbacks` 改为兼容重定向到 `/admin/messages`；后台菜单移除独立“反馈管理”，以“消息中心”承接反馈处理。
+  - 管理员消息中心保留可折叠的站内消息发送表单，但主视图不再是公告/通知收件箱。
+  - `/profile/messages` 在老师登录时渲染老师消息中心体验（学生反馈 + 平台通知），学生仍使用原个人消息列表；`/teacher/messages` 改为重定向到 `/profile/messages`。
+  - 管理端反馈类型补宽用户名、邮箱、手机号可空口径，避免前端展示假造角色或身份字段。
+  - 2026-05-08 追加闭环修复：`src/views/profile/MyFeedbacksPage.vue` 新增“提交平台反馈”入口，复用锁定为系统问题的 `FeedbackForm`，学生提交成功后自动刷新我的反馈列表。
+  - 2026-05-08 检查修复：更新 `docs/前端接口文档.md`，同步平台反馈无需 `course_id/target_user_id`、管理员消息中心默认处理系统反馈、处理回复回显到我的反馈页的契约说明。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
+  - 结果：通过；构建仍提示既有大体积 chunk 警告。
+  - 2026-05-08 检查复跑：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
+  - 结果：通过；构建仍提示既有大体积 chunk 警告。
+
+## 管理员消息中心入口与发送表单体验修复
+时间：2026-05-08 19:16:30
+
+- 变更原因：管理员访问个人中心消息页仍停留在通用消息中心，且管理员消息中心窄屏布局和站内信发送表单的收件人选择体验不符合当前使用需求。
+- 涉及文件：
+  - `src/views/profile/MessagesPage.vue`
+  - `src/views/admin/AdminMessagePage.vue`
+  - `src/api/admin.ts`
+  - `operations-log.md`
+- 核心改动：
+  - `/profile/messages` 在管理员角色下使用 `useUserStore()` 与 Vue Router 重定向到 `/admin/messages`，教师仍渲染教师消息中心，学生仍使用个人消息中心。
+  - 管理员消息中心补充页面、卡片、英雄区、筛选区和表格的窄屏宽度约束，减少右侧留白和内容下坠。
+  - 发送站内信收件人改为复用 `fetchUsers` 的远程搜索选择器，展示昵称/用户名、角色和用户 ID，提交时仍发送 `user_id`。
+  - 移除发送表单的“互动消息”类型和跳转链接字段，并从 `AdminMessageFormData` 中移除 `interaction` 与 `link`。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
+  - 结果：通过；仍提示既有大体积 chunk 警告。
+  - 已执行：使用管理员账号 `admin1@example.com / Admin123456` 做浏览器冒烟验证，访问 `/profile/messages` 会进入 `/admin/messages`。
+  - 已检查：`900px` 与 `390px` 视口下页面无横向溢出；发送表单显示“接收用户”选择器，不再出现“接收用户 ID”、“互动消息”和“跳转链接”。
+
+## 管理员收件人搜索与用户身份展示修正
+时间：2026-05-08 19:45:00
+
+- 变更原因：发送站内消息接收用户选择器不应在未输入时展示所有用户，且项目按实名制使用用户名，昵称不参与身份识别；重名用户需要通过用户 ID 区分。
+- 涉及文件：
+  - `src/api/admin.ts`
+  - `src/views/admin/AdminMessagePage.vue`
+  - `src/views/profile/ProfileInfoPage.vue`
+  - `src/views/profile/MyFeedbacksPage.vue`
+  - `src/views/admin/FeedbackManagePage.vue`
+  - `src/views/teacher/FeedbackManagePage.vue`
+  - `src/views/teacher/TeacherMessageCenterPage.vue`
+  - `src/components/feedback/FeedbackForm.vue`
+  - `src/components/layout/AppHeader.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 接收用户远程选择器改为仅在输入用户名或用户 ID 后查询，未输入时不展示全量用户。
+  - `fetchUsers` 将后端用户列表返回的 `id` 映射为前端统一使用的 `user_id`，避免真实接口联调时收件人缺少用户 ID。
+  - 接收用户选项与选中标签统一展示为 `username#user_id`，不再使用昵称。
+  - 个人中心用户名展示改为 `username#user_id`，用于区分重名用户。
+  - 管理员消息中心、我的反馈、管理员反馈管理、教师反馈管理、教师消息中心、反馈表单老师选择器和顶部登录用户展示均改为昵称无关的 `username#user_id` / `username#teacher_id` 口径；缺少用户名但有 ID 时展示 `用户#<id>` 或 `老师#<id>`。
+  - 平台问题兜底仅根据课程和目标用户身份判断，不再依赖 `target_nickname`。
+- 验证结果：
+  - 已执行：针对本节 focused 文件 grep `target_nickname|userInfo.nickname|teacher.nickname|nickname |||currentFeedback.username|row.username ||`。
+  - 结果：无命中，已确认目标文件中不再保留昵称 fallback。
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`。
+  - 结果：通过；仍提示既有大体积 chunk 警告。
+  - 已执行：使用真实后端 `/api/v1/auth/login` 登录管理员账号，并通过真实 `/api/v1/users` 接口验证用户名和用户 ID 搜索。
+  - 结果：登录接口 200；`/api/v1/users?keyword=admin1` 返回真实后端字段 `id`，前端映射后页面展示 `admin1#1`；`/api/v1/users?keyword=1` 可返回 `student1#3`、`teacher1#2`、`admin1#1`。
+  - 已执行：Playwright 在真实前后端联通状态下验证管理员消息中心页面。
+  - 结果：`/profile/messages` 会进入 `/admin/messages`；900px 与 390px 视口无横向溢出；打开“发送站内消息”后空输入不展示全量用户；输入 `admin1` 展示 `admin1#1`；输入 `1` 展示 `student1#3`、`teacher1#2`、`admin1#1`；页面不再显示“互动消息”和“跳转链接”；个人中心显示 `admin1#1` 且不再显示昵称字段。

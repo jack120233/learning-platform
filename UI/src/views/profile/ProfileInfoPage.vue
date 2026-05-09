@@ -17,7 +17,6 @@ const isUploading = ref(false)
 
 // 表单数据
 const form = ref<UpdateProfileRequest>({
-  nickname: '',
   email: '',
   phone: '',
   email_code: '',
@@ -31,15 +30,16 @@ const emailChanged = computed(() => {
   return form.value.email !== originalEmail.value
 })
 
+const displayUsername = computed(() => {
+  if (!profile.value) return ''
+  return `${profile.value.username}#${profile.value.user_id}`
+})
+
 // 表单引用
 const formRef = ref()
 
 // 表单校验规则
 const rules = {
-  nickname: [
-    { max: 20, message: '昵称最长 20 个字符', trigger: 'blur' },
-    { pattern: /^[\u4e00-\u9fa5a-zA-Z0-9_]+$/, message: '昵称只能包含中文、英文、数字和下划线', trigger: 'blur' },
-  ],
   email: [
     { required: true, message: '请输入邮箱', trigger: 'blur' },
     { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' },
@@ -73,7 +73,6 @@ async function loadProfile() {
   try {
     profile.value = await fetchProfile()
     // 填充表单
-    form.value.nickname = profile.value.nickname || profile.value.username
     form.value.email = profile.value.email
     form.value.phone = profile.value.phone || ''
     originalEmail.value = profile.value.email
@@ -163,7 +162,6 @@ async function handleSave() {
   isSaving.value = true
   try {
     const data: UpdateProfileRequest = {
-      nickname: form.value.nickname,
       phone: form.value.phone || undefined,
       avatar: profile.value?.avatar,
     }
@@ -182,7 +180,6 @@ async function handleSave() {
 
     // 更新 userStore
     userStore.setUserInfo({
-      nickname: result.nickname,
       email: result.email,
       avatarUrl: result.avatar,
     })
@@ -236,7 +233,7 @@ onMounted(() => {
       <div class="info-section">
         <div class="info-row">
           <span class="info-label">用户名</span>
-          <span class="info-value">{{ profile.username }}</span>
+          <span class="info-value">{{ displayUsername }}</span>
         </div>
 
         <div class="info-row">
@@ -267,15 +264,6 @@ onMounted(() => {
         label-width="100px"
         class="edit-form"
       >
-        <el-form-item label="昵称" prop="nickname">
-          <el-input
-            v-model="form.nickname"
-            placeholder="请输入昵称"
-            maxlength="20"
-            show-word-limit
-          />
-        </el-form-item>
-
         <el-form-item label="邮箱" prop="email">
           <div class="email-input-group">
             <el-input

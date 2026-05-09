@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { ChatDotRound, Search } from '@element-plus/icons-vue'
 import { usePagination } from '@/composables/usePagination'
+import { useUserStore } from '@/store/user'
 import {
   fetchTeacherFeedbackDetail,
   fetchTeacherFeedbacks,
@@ -12,6 +13,7 @@ import {
   type TeacherFeedbacksParams,
 } from '@/api/teacher'
 
+const userStore = useUserStore()
 const statusFilter = ref<'all' | 'pending' | 'processed'>('all')
 const keyword = ref('')
 
@@ -57,6 +59,26 @@ const processRules: FormRules = {
 }
 
 const pendingCount = computed(() => feedbacks.value.filter((item) => item.status === 'pending').length)
+const teacherDisplayName = computed(() => formatUserIdentity(
+  userStore.userInfo.username,
+  userStore.userInfo.userId,
+  '当前老师'
+))
+
+function formatUserIdentity(username: string | null | undefined, userId: number | null | undefined, fallback = '-') {
+  if (username && userId) return `${username}#${userId}`
+  if (username) return username
+  if (userId) return `用户#${userId}`
+  return fallback
+}
+
+function getStudentName(feedback: TeacherFeedbackItem | TeacherFeedbackDetail) {
+  return formatUserIdentity(feedback.username, feedback.user_id)
+}
+
+function getTargetName(feedback: TeacherFeedbackItem | TeacherFeedbackDetail) {
+  return formatUserIdentity(feedback.target_username, feedback.target_user_id)
+}
 
 function formatTime(time: string | null | undefined) {
   if (!time) return '-'
@@ -194,7 +216,7 @@ onMounted(() => {
     >
       <el-table-column prop="username" label="学生" width="120">
         <template #default="{ row }">
-          {{ row.username || `用户${row.user_id}` }}
+          {{ getStudentName(row) }}
         </template>
       </el-table-column>
       <el-table-column label="关联课程" min-width="160">
@@ -204,7 +226,7 @@ onMounted(() => {
       </el-table-column>
       <el-table-column label="反馈给" width="120">
         <template #default="{ row }">
-          {{ row.target_nickname || row.target_username || '-' }}
+          {{ getTargetName(row) }}
         </template>
       </el-table-column>
       <el-table-column label="反馈内容" min-width="240" show-overflow-tooltip>
@@ -274,7 +296,7 @@ onMounted(() => {
       @current-change="goToPage"
     />
 
-    <el-drawer v-model="showDetailDrawer" title="课程反馈详情" size="500px">
+    <el-drawer v-model="showDetailDrawer" title="课程反馈详情" size="min(500px, 92vw)">
       <div v-if="isLoadingDetail" class="loading-container">
         <el-skeleton :rows="6" animated />
       </div>
@@ -282,7 +304,7 @@ onMounted(() => {
         <div class="detail-section">
           <div class="detail-row">
             <span class="detail-label">学生</span>
-            <span class="detail-value">{{ currentFeedback.username || `用户${currentFeedback.user_id}` }}</span>
+            <span class="detail-value">{{ getStudentName(currentFeedback) }}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">关联课程</span>
@@ -290,7 +312,7 @@ onMounted(() => {
           </div>
           <div class="detail-row">
             <span class="detail-label">反馈给</span>
-            <span class="detail-value">{{ currentFeedback.target_nickname || currentFeedback.target_username || '-' }}</span>
+            <span class="detail-value">{{ getTargetName(currentFeedback) }}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">处理状态</span>
@@ -308,28 +330,39 @@ onMounted(() => {
           </div>
         </div>
 
-        <el-divider>反馈内容</el-divider>
-        <div class="feedback-content">{{ currentFeedback.content }}</div>
-
-        <template v-if="currentFeedback.reply">
-          <el-divider>老师回复</el-divider>
-          <div class="reply-content">{{ currentFeedback.reply }}</div>
-        </template>
-
-        <template v-if="currentFeedback.images?.length">
-          <el-divider>截图</el-divider>
-          <div class="image-list">
-            <el-image
-              v-for="(img, index) in currentFeedback.images"
-              :key="index"
-              :src="img"
-              :preview-src-list="currentFeedback.images"
-              :initial-index="index"
-              fit="cover"
-              class="feedback-image"
-            />
+        <el-divider>反馈对话</el-divider>
+        <div class="feedback-chat">
+          <div class="chat-message chat-message--student">
+            <div class="chat-meta">
+              <span>{{ getStudentName(currentFeedback) }}</span>
+              <span>{{ formatTime(currentFeedback.created_at) }}</span>
+            </div>
+            <div class="chat-bubble chat-bubble--student">
+              <div class="chat-text">{{ currentFeedback.content }}</div>
+              <div v-if="currentFeedback.images?.length" class="chat-images">
+                <el-image
+                  v-for="(img, index) in currentFeedback.images"
+                  :key="index"
+                  :src="img"
+                  :preview-src-list="currentFeedback.images"
+                  :initial-index="index"
+                  fit="cover"
+                  class="feedback-image"
+                />
+              </div>
+            </div>
           </div>
-        </template>
+
+          <div v-if="currentFeedback.reply" class="chat-message chat-message--teacher">
+            <div class="chat-meta">
+              <span>{{ teacherDisplayName }}</span>
+              <span>{{ formatTime(currentFeedback.replied_at || currentFeedback.processed_at) }}</span>
+            </div>
+            <div class="chat-bubble chat-bubble--teacher">
+              <div class="chat-text">{{ currentFeedback.reply }}</div>
+            </div>
+          </div>
+        </div>
 
         <div class="action-area" v-if="currentFeedback.status === 'pending'">
           <div class="soft-action-surface">
@@ -495,25 +528,78 @@ onMounted(() => {
   }
 }
 
-.feedback-content,
-.reply-content {
-  padding: 16px;
-  background: $bg-color;
-  border-radius: $radius-sm;
-  line-height: 1.6;
-  color: $text-primary;
+.feedback-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
-.image-list {
+.chat-message {
+  display: flex;
+  flex-direction: column;
+  max-width: 72%;
+  min-width: 0;
+
+  &--student {
+    align-items: flex-start;
+    align-self: flex-start;
+  }
+
+  &--teacher {
+    align-items: flex-end;
+    align-self: flex-end;
+  }
+}
+
+.chat-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-bottom: 6px;
+  color: $text-tertiary;
+  font-size: 12px;
+}
+
+.chat-message--teacher .chat-meta {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.chat-bubble {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 14px 16px;
+  border-radius: 16px;
+  line-height: 1.7;
+  color: $text-primary;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+
+  &--student {
+    border-top-left-radius: 4px;
+    background: $bg-color;
+  }
+
+  &--teacher {
+    border-top-right-radius: 4px;
+    background: #e8f3ff;
+  }
+}
+
+.chat-images {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 12px;
+}
 
-  .feedback-image {
-    width: 100px;
-    height: 100px;
-    border-radius: $radius-sm;
-  }
+.feedback-image {
+  box-sizing: border-box;
+  width: 100px;
+  max-width: 100%;
+  height: 100px;
+  border-radius: $radius-sm;
 }
 
 .action-area {
@@ -569,6 +655,14 @@ onMounted(() => {
   .filter-actions,
   .dialog-action-surface {
     width: 100% !important;
+  }
+
+  .chat-message {
+    max-width: 86%;
+  }
+
+  .feedback-image {
+    max-width: 100%;
   }
 }
 </style>

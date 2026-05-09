@@ -548,3 +548,109 @@
 - 验证结果：
   - 已执行：`cd "E:/video_project/proj_ui/project_code/backend" && python -m pytest tests/test_feedbacks.py -q`
   - 结果：`15 passed, 9 warnings`，警告为既有 `datetime.utcnow()` 和 `HTTP_422_UNPROCESSABLE_ENTITY` 废弃提示。
+
+## macOS 本地测试邮箱格式修正
+时间：2026-05-07
+
+- 变更原因：测试用户邮箱需要使用更标准的邮箱格式，避免继续使用 `@test.com` 这类不合适的测试域。
+- 涉及文件：
+  - `backend/scripts/seed_data.py`
+  - `backend/tests/utils.py`
+  - `docs/test-plan.md`
+  - `operations-log.md`
+- 核心改动：
+  - 将种子测试账号邮箱统一改为 `admin1@example.com`、`teacher1@example.com`、`student1@example.com`、`student2@example.com`。
+  - 将测试工具生成的随机邮箱后缀改为 `@example.com`。
+  - 同步更新测试计划文档中的测试用户邮箱示例。
+  - 已同步更新本机 MySQL `learning_platform.users` 中现有测试账号邮箱。
+- 验证结果：
+  - 已执行：MySQL 查询确认 4 个测试账号邮箱均为 `example.com` 域。
+  - 已执行：`grep -R "@test\\.com" backend/scripts backend/tests docs/test-plan.md`，结果无残留。
+  - 已执行：`python -m pytest tests/test_auth.py -v`，结果 `19 passed, 1 failed`；失败用例为既有验证码断言 `test_register_invalid_captcha`，与邮箱格式修改无关。
+
+## 测试账号文档化
+时间：2026-05-07
+
+- 变更原因：后续 AI 做 API、前端联调和浏览器测试时需要直接使用固定测试账号，避免反复要求用户手动输入账号密码。
+- 涉及文件：
+  - `../CLAUDE.md`
+  - `CLAUDE.md`
+  - `docs/api-testing-guide.md`
+  - `operations-log.md`
+- 核心改动：
+  - 在根级协作说明中新增“联调测试账号”章节，列出管理员、教师、两个学生账号的用户名、密码和邮箱。
+  - 在后端协作说明的“测试账号”章节补齐 `student2` 和邮箱列，并明确 AI 测试应直接使用这些账号。
+  - 在 API 手动测试指南准备工作中新增测试账号表，方便人工和 AI 测试统一引用。
+- 验证结果：
+  - 已执行：只读核对三处文档已包含 `admin1`、`teacher1`、`student1`、`student2` 的账号、密码和邮箱。
+  - 未执行自动化测试：本次只改文档，不影响运行时代码。
+
+## 新增老师测试账号
+时间：2026-05-07
+
+- 变更原因：联调反馈、课程归属和老师侧权限时需要更多老师账号，便于 AI 自动化测试不同老师之间的可见性和越权场景。
+- 涉及文件：
+  - `backend/scripts/seed_data.py`
+  - `../CLAUDE.md`
+  - `CLAUDE.md`
+  - `docs/api-testing-guide.md`
+  - `docs/test-plan.md`
+  - `operations-log.md`
+- 核心改动：
+  - 在种子数据脚本中新增 `teacher2`、`teacher3`、`teacher4`、`teacher5`、`teacher6` 五个 active 老师账号，统一密码 `Test123456`。
+  - 同步更新根级协作说明、后端协作说明、API 测试指南和测试计划中的测试账号列表。
+  - 已同步写入本机 MySQL `learning_platform.users` 表。
+- 验证结果：
+  - 已执行：MySQL 查询确认 `teacher1` 到 `teacher6` 共 6 个老师账号均为 `active`。
+  - 已执行：调用 `POST /api/v1/auth/login` 验证 `teacher2 / Test123456` 登录成功。
+
+## macOS 开发环境一键启动脚本
+时间：2026-05-07
+
+- 变更原因：macOS 开发时需要同时启动 MySQL、Redis、FastAPI 后端和 Vite 前端，手动分多条命令启动不方便，且不希望设置开机启动。
+- 涉及文件：
+  - `../start-dev-macos.sh`
+  - `../README.md`
+  - `operations-log.md`
+- 核心改动：
+  - 新增根目录 `start-dev-macos.sh`，一键手动启动 MySQL 8.4、Redis、后端和前端。
+  - 脚本不会调用 `brew services start`，不会设置开机启动；如果服务已存在则复用，退出时只停止本脚本启动的服务。
+  - 支持 `./start-dev-macos.sh --status` 查看 3306、6379、8000、3000 当前监听状态。
+  - README 补充 macOS 启动脚本的使用方式、访问地址和日志目录。
+- 验证结果：
+  - 已执行：`bash -n start-dev-macos.sh`，语法检查通过。
+  - 已执行：`./start-dev-macos.sh --status`，确认 MySQL、Redis、Backend、Frontend 状态可读。
+  - 已执行：`curl http://127.0.0.1:8000/api/v1/health`，返回服务运行正常。
+  - 已执行：`curl -I http://127.0.0.1:3000/login`，返回 200。
+  - 已执行：`mysqladmin -u root ping` 和 `redis-cli ping`，分别返回 `mysqld is alive` 与 `PONG`。
+
+## 学生到管理员平台反馈闭环检查
+时间：2026-05-08
+
+- 变更原因：需要确认学生提交 `system` 平台反馈后，管理员可在消息中心查看、回复并处理，学生可在我的反馈页看到回复与状态。
+- 涉及文件：
+  - `backend/tests/test_feedbacks.py`
+  - `operations-log.md`
+- 核心改动：
+  - 新增平台反馈闭环后端测试，覆盖 `system` 反馈提交时不传 `course_id`/`target_user_id`、管理员按 `feedback_type=system` 查到反馈、管理员处理写入 `reply`/`replied_at`/`processed_at`、学生通过 `/users/me/feedbacks` 回显已处理状态和回复。
+  - 复核现有 schema/service 已允许平台反馈缺省课程和目标用户，仅课程反馈强制校验两项字段。
+- 验证结果：
+  - 已执行：`python -m pytest --version`
+  - 结果：失败，当前环境 Python 缺少 `pytest` 模块（`No module named pytest`），未按用户提示重新安装。
+  - 已执行：前端 `npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
+  - 结果：通过；构建仍提示既有大体积 chunk 警告。
+
+## 管理员用户列表支持按用户 ID 搜索
+时间：2026-05-08 19:45:00
+
+- 变更原因：管理员发送站内消息时需要通过用户名或用户 ID 精准定位重名用户，昵称不再作为身份识别字段。
+- 涉及文件：
+  - `backend/app/services/user_service.py`
+  - `operations-log.md`
+- 核心改动：
+  - 管理员用户列表关键词搜索调整为用户名模糊匹配。
+  - 当关键词为纯数字时，同时按 `User.id` 精确匹配，支持在收件人选择中输入用户 ID 查找用户。
+  - 不再把昵称作为管理员用户列表关键词匹配条件。
+- 验证结果：
+  - 已执行：`python3 -m py_compile "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend/app/services/user_service.py"`。
+  - 结果：通过。

@@ -80,6 +80,22 @@ python scripts/seed_data.py
 - 后端配置由 `project_code/backend/app/config.py` 通过 `pydantic-settings` 从环境变量或 `.env` 加载；测试默认使用内存 SQLite，见 `project_code/backend/tests/conftest.py`。
 - 前后端联调统一口径是 `/api/v1`、Bearer Token、角色 `student`/`teacher`/`admin`、响应结构 `{ code, message, data }`。
 
+## 联调测试账号
+
+种子数据导入后可用。AI 做 API、前端联调或浏览器测试时应直接使用这些账号，不要再要求用户手动输入账号密码。
+
+| 角色 | 用户名 | 密码 | 邮箱 |
+|------|--------|------|------|
+| 管理员 | `admin1` | `Admin123456` | `admin1@example.com` |
+| 教师 | `teacher1` | `Test123456` | `teacher1@example.com` |
+| 教师 | `teacher2` | `Test123456` | `teacher2@example.com` |
+| 教师 | `teacher3` | `Test123456` | `teacher3@example.com` |
+| 教师 | `teacher4` | `Test123456` | `teacher4@example.com` |
+| 教师 | `teacher5` | `Test123456` | `teacher5@example.com` |
+| 教师 | `teacher6` | `Test123456` | `teacher6@example.com` |
+| 学生 | `student1` | `Test123456` | `student1@example.com` |
+| 学生 | `student2` | `Test123456` | `student2@example.com` |
+
 ## 强制目录路由规则
 
 ### 前端任务必须优先检查的目录

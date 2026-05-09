@@ -241,6 +241,66 @@ class TestFeedback:
         assert feedback.replied_by == test_admin.id
 
     @pytest.mark.asyncio
+    async def test_system_feedback_admin_reply_student_can_view_reply(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        admin_headers: dict,
+    ):
+        """测试平台反馈无需课程/目标老师，管理员处理后学生可查看回复。"""
+        student_auth = await create_role_user(client, db_session, "student")
+
+        create_response = await client.post(
+            "/api/v1/feedbacks",
+            headers=student_auth["headers"],
+            json={
+                "feedback_type": "system",
+                "content": "平台反馈闭环测试内容，不应要求课程或目标老师。",
+                "images": ["https://example.com/system-feedback.png"],
+            },
+        )
+
+        assert create_response.status_code == 200
+        created = create_response.json()["data"]
+        feedback_id = created["feedback_id"]
+        assert created["feedback_type"] == "system"
+        assert created["course_id"] is None
+        assert created["target_user_id"] is None
+        assert created["status"] == "pending"
+
+        admin_list_response = await client.get(
+            "/api/v1/feedbacks",
+            headers=admin_headers,
+            params={"feedback_type": "system", "page": 1, "page_size": 10},
+        )
+        assert admin_list_response.status_code == 200
+        admin_items = admin_list_response.json()["data"]["items"]
+        assert feedback_id in {item["feedback_id"] for item in admin_items}
+
+        process_response = await client.post(
+            f"/api/v1/feedbacks/{feedback_id}/process",
+            headers=admin_headers,
+            json={"reply": "管理员已收到平台反馈，并完成处理。"},
+        )
+        assert process_response.status_code == 200
+        processed = process_response.json()["data"]
+        assert processed["status"] == "processed"
+        assert processed["reply"] == "管理员已收到平台反馈，并完成处理。"
+        assert processed["replied_at"] is not None
+        assert processed["processed_at"] is not None
+
+        student_feedbacks_response = await client.get(
+            "/api/v1/users/me/feedbacks",
+            headers=student_auth["headers"],
+        )
+        assert student_feedbacks_response.status_code == 200
+        student_items = student_feedbacks_response.json()["data"]["items"]
+        student_item = next(item for item in student_items if item["feedback_id"] == feedback_id)
+        assert student_item["status"] == "processed"
+        assert student_item["reply"] == "管理员已收到平台反馈，并完成处理。"
+        assert student_item["replied_at"] is not None
+
+    @pytest.mark.asyncio
     async def test_teacher_with_feedback_permission_can_view_all_feedbacks(
         self,
         client: AsyncClient,

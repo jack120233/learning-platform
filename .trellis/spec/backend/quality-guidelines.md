@@ -65,6 +65,15 @@ Do not assume role name alone is enough when the project uses permission codes.
 
 Tests use pytest, pytest-asyncio, httpx `AsyncClient`, and in-memory SQLite.
 
+For cross-layer API contracts, mocked frontend responses are not completion evidence. If a frontend/browser check used mocked payloads or injected session state, treat the task result as unknown until the real FastAPI route and response payload are checked. Record the mock as a limitation/problem, create a current-task follow-up subtask for real integration validation, then resolve the API/schema/mapper mismatch before returning to the original task.
+
+Minimum real-contract checks for frontend-facing backend changes:
+
+- confirm the route appears in `/openapi.json` under the expected `/api/v1/...` path
+- call the real endpoint with the same auth and query/body shape the UI uses
+- compare response field names to the frontend API mapper/type, especially legacy `id` vs UI-facing `*_id` fields
+- only mark the task complete after the real endpoint and frontend mapper agree
+
 Use existing fixtures from `tests/conftest.py`:
 
 - `client`
