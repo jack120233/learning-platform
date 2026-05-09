@@ -313,11 +313,6 @@ onMounted(() => {
             </el-tag>
           </span>
         </div>
-
-        <div v-if="profile.original_username" class="info-row">
-          <span class="info-label">原用户名</span>
-          <span class="info-value">{{ profile.original_username }}</span>
-        </div>
       </div>
 
       <!-- 可编辑表单 -->

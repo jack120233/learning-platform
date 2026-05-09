@@ -279,13 +279,14 @@ class TestUserProfile:
         )
         assert second_response.status_code == 200
         payload = second_response.json()["data"]
+        expected_history = f"testuser -> {first_username}"
         assert payload["username"] == second_username
-        assert payload["original_username"] == "testuser"
+        assert payload["original_username"] == expected_history
         assert payload["username_change_remaining"] == 0
 
         await db_session.refresh(test_user)
         assert test_user.username == second_username
-        assert test_user.original_username == "testuser"
+        assert test_user.original_username == expected_history
 
     @pytest.mark.asyncio
     async def test_student_cannot_grant_username_change_opportunity(

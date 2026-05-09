@@ -54,9 +54,26 @@ async def ensure_database_compatibility(conn: AsyncConnection) -> list[str]:
     await ensure_column(
         "users",
         "original_username",
-        lambda _: "ALTER TABLE users ADD COLUMN original_username VARCHAR(50)",
+        lambda dialect: (
+            "ALTER TABLE users ADD COLUMN original_username TEXT"
+            if dialect == "sqlite"
+            else "ALTER TABLE users ADD COLUMN original_username TEXT COMMENT '历史用户名记录'"
+        ),
         "已为 users 表补充 original_username 字段",
     )
+    if await conn.run_sync(has_table, "users"):
+        user_columns = await conn.run_sync(get_columns, "users")
+        original_username_column = next(
+            (column for column in user_columns if column["name"] == "original_username"),
+            None,
+        )
+        if original_username_column and conn.dialect.name == "mysql":
+            column_type = original_username_column["type"]
+            if getattr(column_type, "length", None):
+                await conn.execute(
+                    text("ALTER TABLE users MODIFY COLUMN original_username TEXT COMMENT '历史用户名记录'")
+                )
+                messages.append("已将 users.original_username 调整为历史用户名记录字段")
     await ensure_column(
         "users",
         "username_change_remaining",

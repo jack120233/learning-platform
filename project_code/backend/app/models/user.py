@@ -42,9 +42,9 @@ class User(BaseModel):
         comment="用户名",
     )
     original_username: Mapped[str | None] = mapped_column(
-        String(50),
+        Text,
         nullable=True,
-        comment="首次改名前用户名",
+        comment="历史用户名记录",
     )
     username_change_remaining: Mapped[int] = mapped_column(
         Integer,

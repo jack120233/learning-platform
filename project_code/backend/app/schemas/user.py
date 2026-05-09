@@ -83,7 +83,7 @@ class UserResponse(BaseModel):
 
     id: int = Field(description="用户ID")
     username: str = Field(description="用户名")
-    original_username: str | None = Field(default=None, description="首次改名前用户名")
+    original_username: str | None = Field(default=None, description="历史用户名记录")
     username_change_remaining: int = Field(default=1, ge=0, description="剩余用户名修改次数")
     email: str = Field(description="邮箱")
     phone: str | None = Field(default=None, description="手机号码")
@@ -115,7 +115,7 @@ class UserListResponse(BaseModel):
 
     id: int = Field(description="用户ID")
     username: str = Field(description="用户名")
-    original_username: str | None = Field(default=None, description="首次改名前用户名")
+    original_username: str | None = Field(default=None, description="历史用户名记录")
     username_change_remaining: int = Field(default=1, ge=0, description="剩余用户名修改次数")
     email: str = Field(description="邮箱")
     nickname: str | None = Field(default=None, description="昵称")

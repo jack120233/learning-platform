@@ -36,6 +36,7 @@ from app.schemas.user import (
 
 
 USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9]{2,50}$")
+USERNAME_HISTORY_DELIMITER = " -> "
 
 
 class UserService:
@@ -144,8 +145,14 @@ class UserService:
         if existing and existing.id != user.id:
             raise ConflictException("用户名已被使用")
 
-        if not user.original_username:
-            user.original_username = user.username
+        history = [
+            item.strip()
+            for item in (user.original_username or "").split(USERNAME_HISTORY_DELIMITER)
+            if item.strip()
+        ]
+        if not history or history[-1] != user.username:
+            history.append(user.username)
+        user.original_username = USERNAME_HISTORY_DELIMITER.join(history)
         user.username = normalized_username
         if not has_unlimited_username_changes:
             user.username_change_remaining = max((user.username_change_remaining or 0) - 1, 0)

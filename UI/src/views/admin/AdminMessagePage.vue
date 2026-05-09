@@ -777,24 +777,15 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="drawer-action-area">
+        <div v-if="currentFeedback.status === 'pending'" class="drawer-action-area">
           <div class="soft-action-surface">
             <el-button
-              v-if="currentFeedback.status === 'pending'"
               class="soft-action-btn soft-action-btn--primary"
               type="primary"
               :icon="ChatDotRound"
               @click="openProcessDialog(currentFeedback)"
             >
               回复并处理
-            </el-button>
-            <el-button
-              class="soft-action-btn soft-action-btn--danger"
-              type="danger"
-              :icon="Delete"
-              @click="handleDeleteFeedback(currentFeedback)"
-            >
-              删除反馈
             </el-button>
           </div>
         </div>

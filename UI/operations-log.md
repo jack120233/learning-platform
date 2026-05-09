@@ -904,3 +904,19 @@
   - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
   - 结果：通过；构建仍提示既有大体积 chunk 警告。
   - 备注：本条记录为本轮前端变更留痕；自检后重新执行 `npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`，结果通过；未额外执行浏览器手动联调。
+
+## 个人资料用户名历史与管理员反馈抽屉操作精简
+时间：2026-05-09
+
+- 变更原因：管理员用户反馈详情抽屉中的删除按钮视觉干扰较强，个人资料页不应展示数据库审计用的历史用户名。
+- 涉及文件：
+  - `src/views/admin/AdminMessagePage.vue`
+  - `src/views/profile/ProfileInfoPage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 移除管理员 `/profile/messages` 用户反馈详情抽屉内的“删除反馈”按钮，仅保留待处理反馈的“回复并处理”入口。
+  - 保留管理员反馈列表行内删除和批量删除逻辑不变。
+  - 移除个人资料只读区“原用户名”展示行，前端类型和 API 字段继续兼容后端返回。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
+  - 结果：通过；构建仍提示既有大体积 chunk 警告。

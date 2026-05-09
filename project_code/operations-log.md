@@ -715,3 +715,22 @@
   - 已执行：`/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/.venv/bin/python -m pytest /Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend/tests/test_feedbacks.py -v`
   - 结果：`21 passed, 11 warnings`。
   - 备注：警告为既有 passlib `crypt` 与 FastAPI 422 常量弃用提示，本次未扩大处理范围。
+
+## 用户名历史多次修改追加记录
+时间：2026-05-09
+
+- 变更原因：`users.original_username` 原先只记录首次改名前用户名，用户被开放额外改名机会后再次改名会丢失中间用户名历史。
+- 涉及文件：
+  - `backend/app/models/user.py`
+  - `backend/app/core/db_schema.py`
+  - `backend/app/schemas/user.py`
+  - `backend/app/services/user_service.py`
+  - `backend/tests/test_users.py`
+  - `operations-log.md`
+- 核心改动：
+  - 将 `User.original_username` 从单个 `String(50)` 调整为 `Text` 历史字段，并更新 schema 描述、旧库补列类型和 MySQL 既有短文本字段扩容兼容逻辑。
+  - 用户名变更时使用 ` -> ` 分隔符追加“本次变更前的当前用户名”，当历史最后一项已等于旧用户名时避免重复追加。
+  - 更新老师开放改名机会后的二次改名测试，验证 `testuser -> first` 历史会随第二次改名返回并落库。
+- 验证结果：
+  - 已执行：`PYTHONPATH="/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend" "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/.venv/bin/python" -m pytest "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend/tests/test_users.py" -v`
+  - 结果：`26 passed, 11 warnings`；警告为既有 passlib `crypt` 与 FastAPI 422 常量弃用提示。
