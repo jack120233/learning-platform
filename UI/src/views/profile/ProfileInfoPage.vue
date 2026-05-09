@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { useCountdown } from '@/composables/useCountdown'
 import { fetchProfile, updateProfile, sendEmailCode, uploadAvatar } from '@/api/profile'
 import type { UserProfile, UpdateProfileRequest } from '@/api/profile'
+import UserIdentity from '@/components/common/UserIdentity.vue'
 
 const userStore = useUserStore()
 const { countdown, isActive: isCountdownActive, start: startCountdown } = useCountdown(60)
@@ -17,22 +18,42 @@ const isUploading = ref(false)
 
 // 表单数据
 const form = ref<UpdateProfileRequest>({
+  username: '',
   email: '',
   phone: '',
   email_code: '',
 })
 
-// 原始邮箱（用于检测邮箱是否变化）
+// 原始字段（用于检测是否变化）
+const originalUsername = ref('')
 const originalEmail = ref('')
 
-// 邮箱是否被修改
-const emailChanged = computed(() => {
-  return form.value.email !== originalEmail.value
+// 用户名/邮箱是否被修改
+const usernameChanged = computed(() => {
+  return (form.value.username || '').trim().toLowerCase() !== originalUsername.value
 })
 
-const displayUsername = computed(() => {
-  if (!profile.value) return ''
-  return `${profile.value.username}#${profile.value.user_id}`
+const hasUnlimitedUsernameChanges = computed(() => {
+  return profile.value?.role === 'teacher' || profile.value?.role === 'admin'
+})
+
+const canEditUsername = computed(() => {
+  if (!profile.value) return false
+  return hasUnlimitedUsernameChanges.value || profile.value.can_change_username
+})
+
+const canSubmitUsernameChange = computed(() => {
+  return !usernameChanged.value || canEditUsername.value
+})
+
+const usernameChangeTip = computed(() => {
+  if (!profile.value || hasUnlimitedUsernameChanges.value || !profile.value.can_change_username) return ''
+  if (profile.value.username_change_remaining <= 0) return ''
+  return `剩余 ${profile.value.username_change_remaining} 次修改机会`
+})
+
+const emailChanged = computed(() => {
+  return form.value.email !== originalEmail.value
 })
 
 // 表单引用
@@ -40,6 +61,11 @@ const formRef = ref()
 
 // 表单校验规则
 const rules = {
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 2, max: 50, message: '用户名长度需在 2-50 个字符之间', trigger: 'blur' },
+    { pattern: /^[a-zA-Z0-9]+$/, message: '用户名只能包含字母和数字', trigger: 'blur' },
+  ],
   email: [
     { required: true, message: '请输入邮箱', trigger: 'blur' },
     { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' },
@@ -73,8 +99,10 @@ async function loadProfile() {
   try {
     profile.value = await fetchProfile()
     // 填充表单
+    form.value.username = profile.value.username
     form.value.email = profile.value.email
     form.value.phone = profile.value.phone || ''
+    originalUsername.value = profile.value.username.toLowerCase()
     originalEmail.value = profile.value.email
   } catch (error) {
     ElMessage.error('加载个人信息失败')
@@ -153,10 +181,36 @@ async function handleSave() {
     return
   }
 
+  if (usernameChanged.value && !canEditUsername.value) {
+    ElMessage.warning('用户名修改机会已用完')
+    return
+  }
+
   // 检查邮箱是否修改且未输入验证码
   if (emailChanged.value && !form.value.email_code) {
     ElMessage.warning('修改邮箱需要验证码')
     return
+  }
+
+  if (usernameChanged.value) {
+    try {
+      await ElMessageBox.confirm(
+        hasUnlimitedUsernameChanges.value
+          ? '用户名修改后将立即生效，请确认新用户名准确无误。'
+          : '用户名修改后会消耗一次修改机会，请确认新用户名准确无误。',
+        '确认修改用户名',
+        {
+          confirmButtonText: '确认修改',
+          cancelButtonText: '取消',
+          type: 'warning',
+        }
+      )
+    } catch (error) {
+      if (error !== 'cancel' && error !== 'close') {
+        ElMessage.error('确认操作失败')
+      }
+      return
+    }
   }
 
   isSaving.value = true
@@ -164,6 +218,10 @@ async function handleSave() {
     const data: UpdateProfileRequest = {
       phone: form.value.phone || undefined,
       avatar: profile.value?.avatar,
+    }
+
+    if (usernameChanged.value) {
+      data.username = form.value.username?.trim().toLowerCase()
     }
 
     // 如果邮箱修改了，需要带上验证码
@@ -176,10 +234,13 @@ async function handleSave() {
 
     // 更新本地状态
     profile.value = result
+    form.value.username = result.username
+    originalUsername.value = result.username.toLowerCase()
     originalEmail.value = result.email
 
     // 更新 userStore
     userStore.setUserInfo({
+      username: result.username,
       email: result.email,
       avatarUrl: result.avatar,
     })
@@ -232,8 +293,15 @@ onMounted(() => {
       <!-- 只读信息展示 -->
       <div class="info-section">
         <div class="info-row">
-          <span class="info-label">用户名</span>
-          <span class="info-value">{{ displayUsername }}</span>
+          <span class="info-label">当前用户名</span>
+          <span class="info-value">
+            <UserIdentity :username="profile.username" :user-id="profile.user_id" fallback="用户" />
+          </span>
+        </div>
+
+        <div v-if="profile.original_username" class="info-row">
+          <span class="info-label">原用户名</span>
+          <span class="info-value">{{ profile.original_username }}</span>
         </div>
 
         <div class="info-row">
@@ -248,10 +316,6 @@ onMounted(() => {
           </el-tag>
         </div>
 
-        <div class="info-row">
-          <span class="info-label">注册时间</span>
-          <span class="info-value">{{ profile.created_at }}</span>
-        </div>
       </div>
 
       <!-- 可编辑表单 -->
@@ -264,6 +328,18 @@ onMounted(() => {
         label-width="100px"
         class="edit-form"
       >
+        <el-form-item label="用户名" prop="username">
+          <el-input
+            v-model="form.username"
+            placeholder="请输入用户名"
+            maxlength="50"
+            :disabled="!canEditUsername"
+          />
+          <div v-if="usernameChangeTip" class="form-tip">
+            {{ usernameChangeTip }}
+          </div>
+        </el-form-item>
+
         <el-form-item label="邮箱" prop="email">
           <div class="email-input-group">
             <el-input
@@ -311,6 +387,7 @@ onMounted(() => {
               class="soft-action-btn soft-action-btn--primary"
               type="primary"
               :loading="isSaving"
+              :disabled="!canSubmitUsernameChange"
               @click="handleSave"
             >
               保存修改

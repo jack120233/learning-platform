@@ -240,7 +240,6 @@ onMounted(() => {
       <el-table-column prop="username" label="用户名" min-width="120" />
       <el-table-column prop="email" label="邮箱" min-width="180" />
       <el-table-column prop="phone" label="手机号" width="130" />
-      <el-table-column prop="nickname" label="昵称" min-width="100" />
       <el-table-column label="角色" width="90" align="center">
         <template #default="{ row }">
           <el-tag :type="roleMap[row.role]?.type || 'info'" size="small">
@@ -330,10 +329,6 @@ onMounted(() => {
           <div class="detail-row">
             <span class="detail-label">手机号</span>
             <span class="detail-value">{{ currentUser.phone || '-' }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">昵称</span>
-            <span class="detail-value">{{ currentUser.nickname || '-' }}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">角色</span>

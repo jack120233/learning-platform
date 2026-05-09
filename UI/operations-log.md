@@ -751,3 +751,132 @@
   - 结果：登录接口 200；`/api/v1/users?keyword=admin1` 返回真实后端字段 `id`，前端映射后页面展示 `admin1#1`；`/api/v1/users?keyword=1` 可返回 `student1#3`、`teacher1#2`、`admin1#1`。
   - 已执行：Playwright 在真实前后端联通状态下验证管理员消息中心页面。
   - 结果：`/profile/messages` 会进入 `/admin/messages`；900px 与 390px 视口无横向溢出；打开“发送站内消息”后空输入不展示全量用户；输入 `admin1` 展示 `admin1#1`；输入 `1` 展示 `student1#3`、`teacher1#2`、`admin1#1`；页面不再显示“互动消息”和“跳转链接”；个人中心显示 `admin1#1` 且不再显示昵称字段。
+
+## 教师消息中心平台通知批量删除
+时间：2026-05-09
+
+- 变更原因：老师消息中心“平台通知”缺少批量管理能力，需要与学生消息中心批量选择、当前页全选、取消管理和确认删除交互保持一致。
+- 涉及文件：
+  - `src/views/teacher/TeacherMessageCenterPage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 平台通知 Tab 新增批量管理状态、卡片勾选、当前页全选/取消全选、取消管理和无选择禁用/提示。
+  - 批量删除复用现有单条 `deleteMessage` 接口并发删除，使用 `Promise.allSettled` 处理部分失败并提示删除结果。
+  - 删除成功后刷新平台通知列表、分页和全局未读数；当前打开详情被删除时自动关闭详情抽屉。
+  - 保留平台通知单条查看、单条删除、全部已读流程，并补充移动端下批量工具条和卡片选择布局。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
+  - 结果：通过；仍提示既有大体积 chunk 警告。
+
+## 管理员个人消息路由与反馈入口收口
+时间：2026-05-09
+
+- 变更原因：管理员不应继续使用管理后台独立“消息中心”入口，需要统一到个人中心消息页，并避免管理员进入个人反馈页；同时保留学生个人消息批量删除能力。
+- 涉及文件：
+  - `src/router/index.ts`
+  - `src/views/admin/AdminLayout.vue`
+  - `src/views/profile/ProfileLayout.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 从管理后台侧栏移除“系统消息”菜单，`/admin/messages` 改为重定向到 `/profile/messages`。
+  - `/profile/messages` 保持普通认证页，不再对管理员做后台消息页跳转，管理员可直接使用个人中心消息中心。
+  - 个人中心菜单对管理员隐藏“我的反馈”，管理员直接访问 `/profile/feedbacks` 时重定向到 `/profile/messages`。
+  - 静态核对 `MessagesPage.vue` 现有批量管理、当前页全选、二次确认、并发单删、刷新列表/分页和未读数更新逻辑，未改动学生消息批量删除实现。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
+  - 结果：通过；仍提示既有大体积 chunk 警告。
+
+## 管理端用户反馈详情抽屉样式对齐
+时间：2026-05-09
+
+- 变更原因：管理员“用户反馈详情”抽屉仍是旧的信息行与分段块展示，需要与老师侧反馈详情保持更一致的详情/对话式处理体验。
+- 涉及文件：
+  - `src/views/admin/FeedbackManagePage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 将管理端反馈详情抽屉标题调整为“用户反馈详情”，并改为浅蓝详情头、元信息卡片和对话流布局。
+  - 在详情中集中展示提交人、反馈对象、处理状态、提交时间、反馈内容、截图和处理回复。
+  - 保留原有“回复并处理”入口、处理弹窗和反馈数据刷新流程，补充长文本换行、图片预览和移动端单列布局。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
+  - 结果：通过；仍提示既有大体积 chunk 警告。
+
+## Trellis 前端自检修正：管理员个人消息路由
+时间：2026-05-09
+
+- 变更原因：自检发现个人中心消息页仍保留管理员跳转 `/admin/messages` 的旧逻辑，导致管理员无法直接使用 `/profile/messages`。
+- 涉及文件：
+  - `src/views/profile/MessagesPage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 移除管理员进入 `/profile/messages` 时替换到 `/admin/messages` 的页面内跳转。
+  - 移除管理员消息页取空列表的特殊分支，保留教师账号复用教师消息中心的分支；管理员现在使用普通个人消息列表与批量管理逻辑。
+  - 将管理员反馈详情抽屉宽度从固定 `540px` 调整为 `min(540px, 92vw)`，避免移动端横向溢出。
+  - 补充教师平台通知单条/批量删除确认框关闭处理，避免点击关闭按钮时误提示删除失败。
+  - 静态复查 `/admin/messages` 仅保留路由层重定向到 `/profile/messages`，未再发现反向跳转。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
+  - 结果：通过；仍提示既有大体积 chunk 警告。
+
+## 统一用户身份展示组件与个人资料 ID 归一化
+时间：2026-05-09
+
+- 变更原因：全站多处 `用户名#id` 直接拼接显示较突兀，且个人资料接口后端返回 `id` 时前端 `user_id` 为空会出现 `#undefined`。
+- 涉及文件：
+  - `src/api/profile.ts`
+  - `src/utils/format.ts`
+  - `src/components/common/UserIdentity.vue`
+  - `src/views/profile/ProfileInfoPage.vue`
+  - `src/components/layout/AppHeader.vue`
+  - `src/views/admin/FeedbackManagePage.vue`
+  - `src/views/admin/AdminMessagePage.vue`
+  - `src/views/profile/MyFeedbacksPage.vue`
+  - `src/views/teacher/FeedbackManagePage.vue`
+  - `src/views/teacher/TeacherMessageCenterPage.vue`
+  - `src/components/feedback/FeedbackForm.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 新增 `UserIdentity` 组件，将用户名作为主文本，用户 ID 作为浅蓝弱化徽标展示；补充 `formatUserIdentity` 字符串辅助函数用于 Element Plus 选项 label。
+  - `fetchProfile()` 和 `updateProfile()` 统一将后端 `id` / `user_id` 映射为前端 `UserProfile.user_id`，个人资料页不再直接拼接 `username#user_id`。
+  - 替换头部、个人资料、我的反馈、管理端反馈/消息、教师反馈/消息和反馈表单老师选择器中的主要身份展示，继续使用用户名 + 用户 ID 消歧，不使用昵称 fallback。
+  - 缺少 ID 时仅展示用户名或 fallback，缺少用户名但有 ID 时展示 fallback + 弱化 ID 徽标，避免出现 `undefined`。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`。
+  - 结果：通过；仍提示既有大体积 chunk 警告。
+
+## 一次性用户名修改与老师开放改名机会入口
+时间：2026-05-09
+
+- 变更原因：用户需要在个人信息页自助修改用户名一次，并在提交前二次确认；老师需要有完整前端入口为指定用户开放一次额外改名机会。
+- 涉及文件：
+  - `src/api/profile.ts`
+  - `src/api/teacher.ts`
+  - `src/views/profile/ProfileInfoPage.vue`
+  - `src/views/teacher/TeacherMessageCenterPage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 个人资料 API 类型与映射补充 `original_username`、`username_change_remaining`、`can_change_username`，资料更新请求支持提交 `username`。
+  - 个人信息页新增用户名编辑、原用户名和剩余改名机会展示；用户名变更提交前使用 `ElMessageBox.confirm` 二次确认，成功后同步更新 Pinia 用户 Store。
+  - 老师 API 新增用户搜索和开放改名机会调用，统一映射后端 `id/user_id` 与改名状态字段。
+  - 教师消息中心新增“改名机会”Tab，老师可搜索用户名/用户 ID、选择目标用户并开放一次改名机会，保留二次确认和状态回显。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`。
+  - 结果：通过；仍提示既有大体积 chunk 警告。
+
+## 管理员个人消息中心整合与改名提示修正
+时间：2026-05-09
+
+- 变更原因：管理员访问 `/profile/messages` 仍显示旧个人消息列表，且管理员个人资料仍可能展示改名剩余次数提示；需要将新版管理员消息中心整合到个人中心消息页，并让管理员/老师免次数规则在前端表现一致。
+- 涉及文件：
+  - `src/views/profile/MessagesPage.vue`
+  - `src/views/profile/ProfileInfoPage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - `/profile/messages` 对管理员角色直接渲染新版 `AdminMessagePage`，老师继续渲染老师消息中心，普通用户保留原个人消息列表。
+  - 个人资料页将老师和管理员统一视为不受改名次数限制，隐藏剩余次数提示，并调整二次确认文案避免提示会消耗次数。
+- 验证结果：
+  - 已执行：`cd "UI" && npx vue-tsc -b`
+  - 结果：通过
+  - 已执行：`cd "UI" && npm run build`
+  - 结果：通过
+  - 备注：构建仍提示既有大体积 chunk 警告，不影响本次功能正确性；浏览器烟测待执行。

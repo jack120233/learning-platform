@@ -117,7 +117,7 @@ class FeedbackService:
             .outerjoin(TargetUser, TargetUser.id == Feedback.target_user_id)
         )
 
-        conditions = []
+        conditions = [Feedback.is_deleted == False]
 
         if user_id:
             conditions.append(Feedback.user_id == user_id)
@@ -211,7 +211,7 @@ class FeedbackService:
             .join(User, User.id == Feedback.user_id)
             .outerjoin(Course, Course.id == Feedback.course_id)
             .outerjoin(TargetUser, TargetUser.id == Feedback.target_user_id)
-            .where(Feedback.id == feedback_id)
+            .where(Feedback.id == feedback_id, Feedback.is_deleted == False)
         )
         result = await db.execute(query)
         row = result.first()
@@ -253,7 +253,7 @@ class FeedbackService:
             NotFoundException: 反馈不存在
         """
         feedback = await db.get(Feedback, feedback_id)
-        if not feedback:
+        if not feedback or feedback.is_deleted:
             raise NotFoundException("反馈不存在")
 
         if not allow_global:
@@ -266,6 +266,27 @@ class FeedbackService:
         feedback.replied_at = datetime.now(timezone.utc)
         feedback.replied_by = reviewer_id
 
+        await db.flush()
+        return feedback
+
+    async def soft_delete(
+        self,
+        db: AsyncSession,
+        feedback_id: int,
+        operator_id: int,
+        allow_global: bool = False,
+    ) -> Feedback:
+        """软删除反馈。"""
+        feedback = await db.get(Feedback, feedback_id)
+        if not feedback or feedback.is_deleted:
+            raise NotFoundException("反馈不存在")
+
+        if not allow_global:
+            if feedback.target_user_id != operator_id:
+                raise ForbiddenException("无权删除该反馈")
+
+        feedback.is_deleted = True
+        feedback.deleted_at = datetime.now(timezone.utc)
         await db.flush()
         return feedback
 

@@ -4,6 +4,7 @@
 """
 
 import json
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
@@ -32,6 +33,9 @@ from app.schemas.user import (
     UserProfileUpdate,
     UserStatusUpdate,
 )
+
+
+USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9]{2,50}$")
 
 
 class UserService:
@@ -89,13 +93,62 @@ class UserService:
             if existing:
                 raise ConflictException("手机号已被使用")
 
-        # 更新属性
         update_data = data.model_dump(exclude_unset=True)
+        username = update_data.pop("username", None)
+        if username is not None and username != user.username:
+            await self._change_username(db, user, username)
+
+        # 更新属性
         for key, value in update_data.items():
             setattr(user, key, value)
 
         await db.flush()
         return user
+
+    async def grant_username_change(
+        self,
+        db: AsyncSession,
+        target_user_id: int,
+        operator: User,
+    ) -> User:
+        """为指定用户增加一次用户名修改机会。"""
+        if operator.role not in {"teacher", "admin"}:
+            raise ForbiddenException("仅老师或管理员可开放改名机会")
+
+        target_user = await db.get(User, target_user_id)
+        if not target_user:
+            raise NotFoundException("用户不存在")
+        if target_user.role == "admin" and operator.role != "admin":
+            raise ForbiddenException("老师不能为管理员开放改名机会")
+
+        target_user.username_change_remaining = max(target_user.username_change_remaining or 0, 0) + 1
+        await db.flush()
+        await db.refresh(target_user)
+        return target_user
+
+    async def _change_username(
+        self,
+        db: AsyncSession,
+        user: User,
+        username: str,
+    ) -> None:
+        """校验并修改当前用户用户名。"""
+        normalized_username = username.strip().lower()
+        if not USERNAME_PATTERN.fullmatch(normalized_username):
+            raise ValidationException("用户名只能包含 2-50 位字母和数字")
+        has_unlimited_username_changes = user.role in {"teacher", "admin"}
+        if not has_unlimited_username_changes and (user.username_change_remaining or 0) <= 0:
+            raise ValidationException("用户名修改次数已用完")
+
+        existing = await self._get_user_by_username(db, normalized_username)
+        if existing and existing.id != user.id:
+            raise ConflictException("用户名已被使用")
+
+        if not user.original_username:
+            user.original_username = user.username
+        user.username = normalized_username
+        if not has_unlimited_username_changes:
+            user.username_change_remaining = max((user.username_change_remaining or 0) - 1, 0)
 
     async def change_password(
         self,
@@ -329,6 +382,17 @@ class UserService:
             raise ForbiddenException("不能删除管理员账户")
 
         await db.delete(user)
+
+    async def _get_user_by_username(
+        self,
+        db: AsyncSession,
+        username: str,
+    ) -> User | None:
+        """通过用户名获取用户。"""
+        result = await db.execute(
+            select(User).where(User.username == username)
+        )
+        return result.scalar_one_or_none()
 
     async def _get_user_by_phone(
         self,

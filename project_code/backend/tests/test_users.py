@@ -113,6 +113,213 @@ class TestUserProfile:
         assert response.status_code == 401
 
     @pytest.mark.asyncio
+    async def test_update_profile_username_first_change_success(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        test_user: User,
+    ):
+        """测试首次自助修改用户名成功并记录原用户名。"""
+        new_username = f"renamed{uuid.uuid4().hex[:8]}"
+
+        response = await client.post(
+            "/api/v1/users/me",
+            headers=auth_headers,
+            json={"username": new_username},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()["data"]
+        assert payload["username"] == new_username
+        assert payload["original_username"] == "testuser"
+        assert payload["username_change_remaining"] == 0
+        assert payload["can_change_username"] is False
+        assert payload["user_id"] == test_user.id
+
+        await db_session.refresh(test_user)
+        assert test_user.username == new_username
+        assert test_user.original_username == "testuser"
+        assert test_user.username_change_remaining == 0
+
+    @pytest.mark.asyncio
+    async def test_teacher_username_change_not_limited_by_remaining_count(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_teacher: User,
+        teacher_headers: dict,
+    ):
+        """测试老师自助改名不受剩余次数限制且不消耗次数。"""
+        test_teacher.username_change_remaining = 0
+        await db_session.flush()
+
+        new_username = f"teachername{uuid.uuid4().hex[:8]}"
+        response = await client.post(
+            "/api/v1/users/me",
+            headers=teacher_headers,
+            json={"username": new_username},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()["data"]
+        assert payload["username"] == new_username
+        assert payload["username_change_remaining"] == 0
+        assert payload["can_change_username"] is True
+
+        await db_session.refresh(test_teacher)
+        assert test_teacher.username == new_username
+        assert test_teacher.username_change_remaining == 0
+
+    @pytest.mark.asyncio
+    async def test_admin_username_change_not_limited_by_remaining_count(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_admin: User,
+        admin_headers: dict,
+    ):
+        """测试管理员自助改名不受剩余次数限制且不消耗次数。"""
+        test_admin.username_change_remaining = 0
+        await db_session.flush()
+
+        new_username = f"adminname{uuid.uuid4().hex[:8]}"
+        response = await client.post(
+            "/api/v1/users/me",
+            headers=admin_headers,
+            json={"username": new_username},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()["data"]
+        assert payload["username"] == new_username
+        assert payload["username_change_remaining"] == 0
+        assert payload["can_change_username"] is True
+
+        await db_session.refresh(test_admin)
+        assert test_admin.username == new_username
+        assert test_admin.username_change_remaining == 0
+
+    @pytest.mark.asyncio
+    async def test_update_profile_username_second_change_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+    ):
+        """测试第二次自助修改用户名被拒绝。"""
+        first_username = f"first{uuid.uuid4().hex[:8]}"
+        second_username = f"second{uuid.uuid4().hex[:8]}"
+
+        first_response = await client.post(
+            "/api/v1/users/me",
+            headers=auth_headers,
+            json={"username": first_username},
+        )
+        assert first_response.status_code == 200
+
+        response = await client.post(
+            "/api/v1/users/me",
+            headers=auth_headers,
+            json={"username": second_username},
+        )
+
+        assert response.status_code == 422
+        assert response.json()["message"] == "用户名修改次数已用完"
+
+    @pytest.mark.asyncio
+    async def test_update_profile_username_duplicate_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        test_teacher: User,
+    ):
+        """测试用户名冲突被拒绝。"""
+        response = await client.post(
+            "/api/v1/users/me",
+            headers=auth_headers,
+            json={"username": test_teacher.username},
+        )
+
+        assert response.status_code == 409
+        assert response.json()["message"] == "用户名已被使用"
+
+    @pytest.mark.asyncio
+    async def test_teacher_grants_username_change_opportunity(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        auth_headers: dict,
+        teacher_headers: dict,
+        test_user: User,
+    ):
+        """测试老师可为学生开放一次改名机会。"""
+        first_username = f"grantfirst{uuid.uuid4().hex[:8]}"
+        second_username = f"grantsecond{uuid.uuid4().hex[:8]}"
+
+        first_response = await client.post(
+            "/api/v1/users/me",
+            headers=auth_headers,
+            json={"username": first_username},
+        )
+        assert first_response.status_code == 200
+
+        grant_response = await client.post(
+            f"/api/v1/users/{test_user.id}/username-change-opportunity",
+            headers=teacher_headers,
+        )
+        assert grant_response.status_code == 200
+        grant_payload = grant_response.json()["data"]
+        assert grant_payload["username_change_remaining"] == 1
+        assert grant_payload["can_change_username"] is True
+
+        second_response = await client.post(
+            "/api/v1/users/me",
+            headers=auth_headers,
+            json={"username": second_username},
+        )
+        assert second_response.status_code == 200
+        payload = second_response.json()["data"]
+        assert payload["username"] == second_username
+        assert payload["original_username"] == "testuser"
+        assert payload["username_change_remaining"] == 0
+
+        await db_session.refresh(test_user)
+        assert test_user.username == second_username
+        assert test_user.original_username == "testuser"
+
+    @pytest.mark.asyncio
+    async def test_student_cannot_grant_username_change_opportunity(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        test_teacher: User,
+    ):
+        """测试学生不能开放改名机会。"""
+        response = await client.post(
+            f"/api/v1/users/{test_teacher.id}/username-change-opportunity",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 403
+        assert response.json()["message"] == "仅老师或管理员可开放改名机会"
+
+    @pytest.mark.asyncio
+    async def test_teacher_cannot_grant_admin_username_change_opportunity(
+        self,
+        client: AsyncClient,
+        teacher_headers: dict,
+        test_admin: User,
+    ):
+        """测试老师不能为管理员开放改名机会。"""
+        response = await client.post(
+            f"/api/v1/users/{test_admin.id}/username-change-opportunity",
+            headers=teacher_headers,
+        )
+
+        assert response.status_code == 403
+        assert response.json()["message"] == "老师不能为管理员开放改名机会"
+
+    @pytest.mark.asyncio
     async def test_update_profile(
         self,
         client: AsyncClient,
@@ -626,23 +833,28 @@ class TestUserList:
         assert response.json()["message"] == "无权查看用户列表"
 
     @pytest.mark.asyncio
-    async def test_teacher_with_admin_user_permission_still_cannot_get_user_list(
+    async def test_teacher_can_search_user_list_for_username_change_grant(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
+        test_user: User,
     ):
-        """测试讲师即使残留用户管理权限也不能获取用户列表。"""
+        """测试讲师可搜索用户用于开放改名机会入口。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
-        db_session.add(RolePermission(role="teacher", permission_id=31))
-        await db_session.flush()
 
         response = await client.get(
             "/api/v1/users",
             headers=teacher_auth["headers"],
+            params={"keyword": test_user.username},
         )
 
-        assert response.status_code == 403
-        assert response.json()["message"] == "仅管理员可查看用户列表"
+        assert response.status_code == 200
+        payload = response.json()["data"]
+        assert payload["total"] >= 1
+        item = next(item for item in payload["items"] if item["id"] == test_user.id)
+        assert item["user_id"] == test_user.id
+        assert item["username"] == test_user.username
+        assert item["can_change_username"] is True
 
 
 class TestTeacherAudit:

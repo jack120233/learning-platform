@@ -6,6 +6,7 @@ import { useUserStore } from '@/store/user'
 import { useBreakpoint } from '@/composables/useBreakpoint'
 import { fetchUnreadCount } from '@/api/profile'
 import UnreadLabelBadge from '@/components/common/UnreadLabelBadge.vue'
+import UserIdentity from '@/components/common/UserIdentity.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -30,14 +31,6 @@ const handleSearch = () => {
     path: '/',
     query: { keyword: searchKeyword.value.trim() },
   })
-}
-
-function formatCurrentUserIdentity() {
-  const { username, userId } = userStore.userInfo
-  if (username && userId) return `${username}#${userId}`
-  if (username) return username
-  if (userId) return `用户#${userId}`
-  return '用户'
 }
 
 // 用户下拉菜单
@@ -192,7 +185,13 @@ watch(() => route.fullPath, () => {
                     {{ userStore.unreadMessageCount > 99 ? '99+' : userStore.unreadMessageCount }}
                   </span>
                 </div>
-                <span class="username">{{ formatCurrentUserIdentity() }}</span>
+                <UserIdentity
+                  class="username"
+                  :username="userStore.userInfo.username"
+                  :user-id="userStore.userInfo.userId"
+                  fallback="用户"
+                  compact
+                />
               </div>
               <template #dropdown>
                 <el-dropdown-menu>
@@ -277,7 +276,12 @@ watch(() => route.fullPath, () => {
                 <el-icon :size="20"><User /></el-icon>
               </el-avatar>
               <div class="user-info-text">
-                <div class="nickname">{{ formatCurrentUserIdentity() }}</div>
+                <UserIdentity
+                  class="nickname"
+                  :username="userStore.userInfo.username"
+                  :user-id="userStore.userInfo.userId"
+                  fallback="用户"
+                />
                 <div class="role-tag">{{ userStore.isTeacher || userStore.isAdmin ? '讲师' : '学生' }}</div>
               </div>
             </div>
@@ -471,12 +475,9 @@ watch(() => route.fullPath, () => {
   }
 
   .username {
-    font-size: 14px;
+    max-width: 150px;
     color: #333;
-    max-width: 100px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 14px;
   }
   .user-avatar-wrap {
     position: relative;
@@ -639,6 +640,7 @@ watch(() => route.fullPath, () => {
 
     .user-info-text {
       .nickname {
+        max-width: 180px;
         font-size: 15px;
         font-weight: 500;
         color: #333;

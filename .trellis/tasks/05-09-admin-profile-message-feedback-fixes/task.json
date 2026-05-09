@@ -1,0 +1,60 @@
+{
+  "id": "admin-profile-message-feedback-fixes",
+  "name": "admin-profile-message-feedback-fixes",
+  "title": "brainstorm: admin profile message feedback fixes",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Jacob",
+  "assignee": "Jacob",
+  "createdAt": "2026-05-09",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "brainstorm"
+    },
+    {
+      "phase": 2,
+      "action": "research"
+    },
+    {
+      "phase": 3,
+      "action": "implement"
+    },
+    {
+      "phase": 4,
+      "action": "check"
+    },
+    {
+      "phase": 5,
+      "action": "update-spec"
+    },
+    {
+      "phase": 6,
+      "action": "record-session"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "05-09-admin-profile-message-routing",
+    "05-09-unified-user-identity-display",
+    "05-09-one-time-username-change",
+    "05-09-admin-feedback-detail-styling",
+    "05-09-teacher-message-batch-delete",
+    "05-09-student-message-batch-delete"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

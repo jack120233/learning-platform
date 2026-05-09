@@ -75,6 +75,7 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     UnreadLabelBadge: typeof import('./components/common/UnreadLabelBadge.vue')['default']
+    UserIdentity: typeof import('./components/common/UserIdentity.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

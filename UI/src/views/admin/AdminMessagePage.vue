@@ -17,6 +17,8 @@ import {
   type AdminMessageFormData,
   type AdminUserItem,
 } from '@/api/admin'
+import UserIdentity from '@/components/common/UserIdentity.vue'
+import { formatUserIdentity } from '@/utils/format'
 
 const userStore = useUserStore()
 
@@ -77,23 +79,8 @@ function formatTime(time: string | null | undefined) {
   })
 }
 
-function formatUserIdentity(username: string | null | undefined, userId: number | null | undefined, fallback = '-') {
-  if (username && userId) return `${username}#${userId}`
-  if (username) return username
-  if (userId) return `用户#${userId}`
-  return fallback
-}
-
-function getSubmitterName(feedback: AdminFeedbackItem | AdminFeedbackDetail) {
-  return formatUserIdentity(feedback.username, feedback.user_id)
-}
-
 function hasTargetIdentity(feedback: AdminFeedbackItem | AdminFeedbackDetail) {
   return Boolean(feedback.target_username || feedback.target_user_id)
-}
-
-function getTargetName(feedback: AdminFeedbackItem | AdminFeedbackDetail) {
-  return formatUserIdentity(feedback.target_username, feedback.target_user_id)
 }
 
 async function loadSummaryStats() {
@@ -270,12 +257,8 @@ const messageRules: FormRules = {
   content: [{ required: true, message: '请输入消息内容', trigger: 'blur' }],
 }
 
-function formatRecipientIdentity(user: AdminUserItem) {
-  return formatUserIdentity(user.username, user.user_id)
-}
-
 function formatRecipientOption(user: AdminUserItem) {
-  return `${formatRecipientIdentity(user)}（${user.role}）`
+  return `${formatUserIdentity(user.username, user.user_id)}（${user.role}）`
 }
 
 async function searchRecipients(keyword = '') {
@@ -440,7 +423,9 @@ onMounted(() => {
         <el-table-column label="提交用户" min-width="140">
           <template #default="{ row }">
             <div class="submitter-cell">
-              <strong>{{ getSubmitterName(row) }}</strong>
+              <strong>
+                <UserIdentity :username="row.username" :user-id="row.user_id" fallback="用户" compact />
+              </strong>
             </div>
           </template>
         </el-table-column>
@@ -455,7 +440,10 @@ onMounted(() => {
           <template #default="{ row }">
             <div class="relation-cell">
               <span v-if="row.course_title">课程：{{ row.course_title }}</span>
-              <span v-if="hasTargetIdentity(row)">反馈给：{{ getTargetName(row) }}</span>
+              <span v-if="hasTargetIdentity(row)" class="relation-identity">
+                <span>反馈给：</span>
+                <UserIdentity :username="row.target_username" :user-id="row.target_user_id" fallback="用户" compact />
+              </span>
               <span v-if="!row.course_title && !hasTargetIdentity(row)" class="text-muted">平台问题</span>
             </div>
           </template>
@@ -560,7 +548,9 @@ onMounted(() => {
               :value="user.user_id"
             >
               <div class="recipient-option">
-                <strong>{{ formatRecipientIdentity(user) }}</strong>
+                <strong>
+                  <UserIdentity :username="user.username" :user-id="user.user_id" fallback="用户" compact />
+                </strong>
                 <span>{{ user.role }}</span>
               </div>
             </el-option>
@@ -611,7 +601,9 @@ onMounted(() => {
         <div class="detail-section">
           <div class="detail-row">
             <span class="detail-label">提交用户</span>
-            <span class="detail-value">{{ getSubmitterName(currentFeedback) }}（ID：{{ currentFeedback.user_id }}）</span>
+            <span class="detail-value">
+              <UserIdentity :username="currentFeedback.username" :user-id="currentFeedback.user_id" fallback="用户" />
+            </span>
           </div>
           <div class="detail-row" v-if="currentFeedback.user_email">
             <span class="detail-label">邮箱</span>
@@ -633,7 +625,13 @@ onMounted(() => {
           </div>
           <div class="detail-row" v-if="hasTargetIdentity(currentFeedback)">
             <span class="detail-label">反馈给</span>
-            <span class="detail-value">{{ getTargetName(currentFeedback) }}</span>
+            <span class="detail-value">
+              <UserIdentity
+                :username="currentFeedback.target_username"
+                :user-id="currentFeedback.target_user_id"
+                fallback="用户"
+              />
+            </span>
           </div>
           <div class="detail-row">
             <span class="detail-label">处理状态</span>
@@ -929,6 +927,14 @@ onMounted(() => {
     color: $text-secondary;
     font-size: 13px;
   }
+}
+
+.relation-identity {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
 }
 
 .text-muted {

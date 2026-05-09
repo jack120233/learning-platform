@@ -29,7 +29,12 @@ class MessageService:
         page_size: int = 10,
     ) -> tuple[list[Message], int]:
         """获取消息列表"""
-        query = select(Message).where(Message.user_id == user_id)
+        query = select(Message).where(
+            and_(
+                Message.user_id == user_id,
+                Message.is_deleted == False,
+            )
+        )
 
         if type and type != "all":
             query = query.where(self._build_type_filter(type))
@@ -60,6 +65,7 @@ class MessageService:
                 and_(
                     Message.id == message_id,
                     Message.user_id == user_id,
+                    Message.is_deleted == False,
                 )
             )
         )
@@ -94,6 +100,7 @@ class MessageService:
                 and_(
                     Message.user_id == user_id,
                     Message.is_read == False,
+                    Message.is_deleted == False,
                 )
             )
         )
@@ -117,7 +124,9 @@ class MessageService:
         if not message:
             raise NotFoundException("消息不存在")
 
-        await db.delete(message)
+        message.is_deleted = True
+        message.deleted_at = datetime.now(timezone.utc)
+        await db.flush()
 
     async def get_unread_count(
         self,

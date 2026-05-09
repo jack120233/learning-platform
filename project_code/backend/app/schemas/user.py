@@ -6,7 +6,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, computed_field, field_validator
 
 
 # ==================== 用户信息模型 ====================
@@ -14,6 +14,12 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 class UserProfileUpdate(BaseModel):
     """更新个人信息请求"""
 
+    username: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=50,
+        description="用户名",
+    )
     nickname: str | None = Field(
         default=None,
         min_length=1,
@@ -35,6 +41,17 @@ class UserProfileUpdate(BaseModel):
         max_length=20,
         description="手机号码",
     )
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str | None) -> str | None:
+        """验证用户名格式，与注册规则保持一致。"""
+        if v is None:
+            return v
+        normalized = v.strip().lower()
+        if not normalized.isalnum():
+            raise ValueError("用户名只能包含字母和数字")
+        return normalized
 
 
 class ChangePasswordRequest(BaseModel):
@@ -66,6 +83,8 @@ class UserResponse(BaseModel):
 
     id: int = Field(description="用户ID")
     username: str = Field(description="用户名")
+    original_username: str | None = Field(default=None, description="首次改名前用户名")
+    username_change_remaining: int = Field(default=1, ge=0, description="剩余用户名修改次数")
     email: str = Field(description="邮箱")
     phone: str | None = Field(default=None, description="手机号码")
     nickname: str | None = Field(default=None, description="昵称")
@@ -76,20 +95,46 @@ class UserResponse(BaseModel):
     created_at: datetime = Field(description="注册时间")
     last_login_at: datetime | None = Field(default=None, description="最后登录时间")
 
+    @computed_field
+    @property
+    def user_id(self) -> int:
+        """前端统一用户 ID 字段。"""
+        return self.id
+
+    @computed_field
+    @property
+    def can_change_username(self) -> bool:
+        """是否还能自助修改用户名。"""
+        return self.role in {"teacher", "admin"} or self.username_change_remaining > 0
+
     model_config = {"from_attributes": True}
 
 
 class UserListResponse(BaseModel):
-    """用户列表响应（管理员视图）"""
+    """用户列表响应（管理员/老师选择视图）"""
 
     id: int = Field(description="用户ID")
     username: str = Field(description="用户名")
+    original_username: str | None = Field(default=None, description="首次改名前用户名")
+    username_change_remaining: int = Field(default=1, ge=0, description="剩余用户名修改次数")
     email: str = Field(description="邮箱")
     nickname: str | None = Field(default=None, description="昵称")
     role: str = Field(description="角色")
     status: str = Field(description="状态")
     created_at: datetime = Field(description="注册时间")
     last_login_at: datetime | None = Field(default=None, description="最后登录时间")
+
+    @computed_field
+    @property
+    def user_id(self) -> int:
+        """前端统一用户 ID 字段。"""
+        return self.id
+
+    @computed_field
+    @property
+    def can_change_username(self) -> bool:
+        """是否还能自助修改用户名。"""
+        return self.role in {"teacher", "admin"} or self.username_change_remaining > 0
 
     model_config = {"from_attributes": True}
 

@@ -2,10 +2,30 @@ import request, { type PaginatedData } from './index'
 
 // ==================== 类型定义 ====================
 
+interface BackendUserProfile {
+  id?: number
+  user_id?: number
+  username: string
+  original_username?: string | null
+  username_change_remaining?: number | null
+  can_change_username?: boolean | null
+  email: string
+  phone?: string | null
+  nickname?: string | null
+  avatar?: string | null
+  role: 'student' | 'teacher' | 'admin'
+  status: 'active' | 'disabled' | 'pending'
+  created_at: string
+  last_login_at?: string | null
+}
+
 /** 用户详细信息 */
 export interface UserProfile {
-  user_id: number
+  user_id: number | null
   username: string
+  original_username: string | null
+  username_change_remaining: number
+  can_change_username: boolean
   email: string
   phone: string
   nickname: string
@@ -18,6 +38,7 @@ export interface UserProfile {
 
 /** 更新个人信息请求 */
 export interface UpdateProfileRequest {
+  username?: string
   nickname?: string
   email?: string
   phone?: string
@@ -124,7 +145,8 @@ export interface MyFeedbacksParams {
  * 获取个人信息
  */
 export function fetchProfile(): Promise<UserProfile> {
-  return request.get<unknown, UserProfile>('/users/me')
+  return request.get<unknown, BackendUserProfile>('/users/me')
+    .then(mapUserProfile)
 }
 
 /**
@@ -138,7 +160,8 @@ export function fetchMyPermissions(): Promise<string[]> {
  * 更新个人信息
  */
 export function updateProfile(data: UpdateProfileRequest): Promise<UserProfile> {
-  return request.post<unknown, UserProfile>('/users/me', data)
+  return request.post<unknown, BackendUserProfile>('/users/me', data)
+    .then(mapUserProfile)
 }
 
 /**
@@ -294,6 +317,26 @@ interface BackendUnreadCountResponse {
   system?: number
   course?: number
   interaction?: number
+}
+
+function mapUserProfile(profile: BackendUserProfile): UserProfile {
+  const remaining = Math.max(profile.username_change_remaining ?? 1, 0)
+
+  return {
+    user_id: profile.user_id ?? profile.id ?? null,
+    username: profile.username,
+    original_username: profile.original_username ?? null,
+    username_change_remaining: remaining,
+    can_change_username: profile.can_change_username ?? remaining > 0,
+    email: profile.email,
+    phone: profile.phone ?? '',
+    nickname: profile.nickname ?? '',
+    avatar: profile.avatar ?? '',
+    role: profile.role,
+    status: profile.status,
+    created_at: profile.created_at,
+    last_login_at: profile.last_login_at ?? '',
+  }
 }
 
 function mapMessageType(type: string): MessageItem['message_type'] {

@@ -4,6 +4,8 @@ import { ElMessage } from 'element-plus'
 import { fetchTeacherOptions, submitFeedback, uploadFeedbackImage } from '@/api/learning'
 import type { TeacherOption } from '@/api/learning'
 import type { UploadFile } from 'element-plus'
+import UserIdentity from '@/components/common/UserIdentity.vue'
+import { formatUserIdentity } from '@/utils/format'
 
 // Props
 interface Props {
@@ -79,7 +81,7 @@ const normalizedTeacherOptions = computed(() => {
 })
 
 function formatTeacherIdentity(teacher: Pick<TeacherOption, 'username' | 'teacher_id'>) {
-  return teacher.username ? `${teacher.username}#${teacher.teacher_id}` : `老师#${teacher.teacher_id}`
+  return formatUserIdentity(teacher.username, teacher.teacher_id, '老师')
 }
 
 // 当前选中的老师名称
@@ -297,7 +299,7 @@ function handleCancel() {
             :label="formatTeacherIdentity(teacher)"
             :value="teacher.teacher_id"
           >
-            <span>{{ formatTeacherIdentity(teacher) }}</span>
+            <UserIdentity :username="teacher.username" :user-id="teacher.teacher_id" fallback="老师" compact />
             <span v-if="teacher.teacher_id === courseTeacherId" class="teacher-option-tag">当前课程老师</span>
           </el-option>
         </el-select>

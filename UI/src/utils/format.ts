@@ -97,3 +97,21 @@ export function formatRelativeTime(dateStr: string): string {
     return '刚刚'
   }
 }
+
+/**
+ * 格式化用户身份文本。用于 Element Plus option label 等只能接收字符串的场景；
+ * 可视区域优先使用 UserIdentity 组件，让 ID 作为弱化标识展示。
+ */
+export function formatUserIdentity(
+  username: string | null | undefined,
+  userId: number | string | null | undefined,
+  fallback = '用户',
+): string {
+  const name = username?.trim()
+  const hasUserId = userId !== null && userId !== undefined && userId !== ''
+
+  if (name && hasUserId) return `${name}#${userId}`
+  if (name) return name
+  if (hasUserId) return `${fallback}#${userId}`
+  return fallback
+}

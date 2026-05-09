@@ -144,6 +144,31 @@ async def process_feedback(
     )
 
 
+@router.delete(
+    "/{feedback_id:int}",
+    response_model=ApiResponse[None],
+    summary="删除反馈",
+    description="软删除指定反馈",
+)
+async def delete_feedback(
+    feedback_id: int,
+    db: DBSession,
+    current_user: CurrentUser,
+) -> ApiResponse[None]:
+    """软删除反馈接口。"""
+    can_delete_all = current_user.role == "admin" and await has_feedback_admin_permission(db, current_user.role)
+    if not can_delete_all and current_user.role != "teacher":
+        raise ForbiddenException("无权删除反馈")
+
+    await feedback_service.soft_delete(
+        db,
+        feedback_id,
+        current_user.id,
+        allow_global=can_delete_all,
+    )
+    return ApiResponse.success(message="删除成功")
+
+
 @router.post(
     "/batch-process",
     response_model=ApiResponse[dict],

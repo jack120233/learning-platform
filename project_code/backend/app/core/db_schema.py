@@ -51,6 +51,23 @@ async def ensure_database_compatibility(conn: AsyncConnection) -> list[str]:
         "已为 courses 表补充 summary 字段",
     )
 
+    await ensure_column(
+        "users",
+        "original_username",
+        lambda _: "ALTER TABLE users ADD COLUMN original_username VARCHAR(50)",
+        "已为 users 表补充 original_username 字段",
+    )
+    await ensure_column(
+        "users",
+        "username_change_remaining",
+        lambda dialect: (
+            "ALTER TABLE users ADD COLUMN username_change_remaining INTEGER NOT NULL DEFAULT 1"
+            if dialect == "sqlite"
+            else "ALTER TABLE users ADD COLUMN username_change_remaining INTEGER NOT NULL DEFAULT 1 COMMENT '剩余用户名修改次数'"
+        ),
+        "已为 users 表补充 username_change_remaining 字段",
+    )
+
     if await conn.run_sync(has_table, "resources"):
         resource_columns = await conn.run_sync(get_columns, "resources")
         section_column = next(
@@ -142,6 +159,38 @@ async def ensure_database_compatibility(conn: AsyncConnection) -> list[str]:
         "target_user_id",
         lambda _: "ALTER TABLE feedbacks ADD COLUMN target_user_id INTEGER",
         "已为 feedbacks 表补充 target_user_id 字段",
+    )
+    await ensure_column(
+        "feedbacks",
+        "is_deleted",
+        lambda dialect: (
+            "ALTER TABLE feedbacks ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT 0"
+            if dialect == "sqlite"
+            else "ALTER TABLE feedbacks ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否软删除'"
+        ),
+        "已为 feedbacks 表补充 is_deleted 字段",
+    )
+    await ensure_column(
+        "feedbacks",
+        "deleted_at",
+        lambda _: "ALTER TABLE feedbacks ADD COLUMN deleted_at DATETIME",
+        "已为 feedbacks 表补充 deleted_at 字段",
+    )
+    await ensure_column(
+        "messages",
+        "is_deleted",
+        lambda dialect: (
+            "ALTER TABLE messages ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT 0"
+            if dialect == "sqlite"
+            else "ALTER TABLE messages ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否软删除'"
+        ),
+        "已为 messages 表补充 is_deleted 字段",
+    )
+    await ensure_column(
+        "messages",
+        "deleted_at",
+        lambda _: "ALTER TABLE messages ADD COLUMN deleted_at DATETIME",
+        "已为 messages 表补充 deleted_at 字段",
     )
 
     if await conn.run_sync(has_table, "permissions") and await conn.run_sync(has_table, "role_permissions"):

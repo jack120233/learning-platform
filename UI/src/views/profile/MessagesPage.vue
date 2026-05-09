@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
@@ -23,9 +22,9 @@ defineOptions({
 })
 
 const userStore = useUserStore()
-const router = useRouter()
 const { isMobile } = useBreakpoint()
 const TeacherMessageCenter = defineAsyncComponent(() => import('@/views/teacher/TeacherMessageCenterPage.vue'))
+const AdminMessageCenter = defineAsyncComponent(() => import('@/views/admin/AdminMessagePage.vue'))
 const isTeacherMessageCenter = computed(() => userStore.isTeacher && !userStore.isAdmin)
 const isAdminMessageCenter = computed(() => userStore.isAdmin)
 
@@ -292,12 +291,7 @@ function formatTime(time: string) {
 
 // 初始化加载
 onMounted(async () => {
-  if (isAdminMessageCenter.value) {
-    await router.replace('/admin/messages')
-    return
-  }
-
-  if (isTeacherMessageCenter.value) return
+  if (isTeacherMessageCenter.value || isAdminMessageCenter.value) return
 
   await syncUnreadCount()
   await fetchData()
@@ -311,6 +305,7 @@ watch(messages, (currentMessages) => {
 
 <template>
   <TeacherMessageCenter v-if="isTeacherMessageCenter" />
+  <AdminMessageCenter v-else-if="isAdminMessageCenter" />
   <div v-else class="messages-page">
     <!-- 页面标题 -->
     <div class="page-header">

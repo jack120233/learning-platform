@@ -12,6 +12,7 @@ import {
   type TeacherFeedbackItem,
   type TeacherFeedbacksParams,
 } from '@/api/teacher'
+import UserIdentity from '@/components/common/UserIdentity.vue'
 
 const userStore = useUserStore()
 const statusFilter = ref<'all' | 'pending' | 'processed'>('all')
@@ -59,26 +60,6 @@ const processRules: FormRules = {
 }
 
 const pendingCount = computed(() => feedbacks.value.filter((item) => item.status === 'pending').length)
-const teacherDisplayName = computed(() => formatUserIdentity(
-  userStore.userInfo.username,
-  userStore.userInfo.userId,
-  '当前老师'
-))
-
-function formatUserIdentity(username: string | null | undefined, userId: number | null | undefined, fallback = '-') {
-  if (username && userId) return `${username}#${userId}`
-  if (username) return username
-  if (userId) return `用户#${userId}`
-  return fallback
-}
-
-function getStudentName(feedback: TeacherFeedbackItem | TeacherFeedbackDetail) {
-  return formatUserIdentity(feedback.username, feedback.user_id)
-}
-
-function getTargetName(feedback: TeacherFeedbackItem | TeacherFeedbackDetail) {
-  return formatUserIdentity(feedback.target_username, feedback.target_user_id)
-}
 
 function formatTime(time: string | null | undefined) {
   if (!time) return '-'
@@ -216,7 +197,7 @@ onMounted(() => {
     >
       <el-table-column prop="username" label="学生" width="120">
         <template #default="{ row }">
-          {{ getStudentName(row) }}
+          <UserIdentity :username="row.username" :user-id="row.user_id" fallback="用户" compact />
         </template>
       </el-table-column>
       <el-table-column label="关联课程" min-width="160">
@@ -226,7 +207,7 @@ onMounted(() => {
       </el-table-column>
       <el-table-column label="反馈给" width="120">
         <template #default="{ row }">
-          {{ getTargetName(row) }}
+          <UserIdentity :username="row.target_username" :user-id="row.target_user_id" fallback="用户" compact />
         </template>
       </el-table-column>
       <el-table-column label="反馈内容" min-width="240" show-overflow-tooltip>
@@ -304,7 +285,9 @@ onMounted(() => {
         <div class="detail-section">
           <div class="detail-row">
             <span class="detail-label">学生</span>
-            <span class="detail-value">{{ getStudentName(currentFeedback) }}</span>
+            <span class="detail-value">
+              <UserIdentity :username="currentFeedback.username" :user-id="currentFeedback.user_id" fallback="用户" />
+            </span>
           </div>
           <div class="detail-row">
             <span class="detail-label">关联课程</span>
@@ -312,7 +295,9 @@ onMounted(() => {
           </div>
           <div class="detail-row">
             <span class="detail-label">反馈给</span>
-            <span class="detail-value">{{ getTargetName(currentFeedback) }}</span>
+            <span class="detail-value">
+              <UserIdentity :username="currentFeedback.target_username" :user-id="currentFeedback.target_user_id" fallback="用户" />
+            </span>
           </div>
           <div class="detail-row">
             <span class="detail-label">处理状态</span>
@@ -334,7 +319,7 @@ onMounted(() => {
         <div class="feedback-chat">
           <div class="chat-message chat-message--student">
             <div class="chat-meta">
-              <span>{{ getStudentName(currentFeedback) }}</span>
+              <UserIdentity :username="currentFeedback.username" :user-id="currentFeedback.user_id" fallback="用户" compact />
               <span>{{ formatTime(currentFeedback.created_at) }}</span>
             </div>
             <div class="chat-bubble chat-bubble--student">
@@ -355,7 +340,12 @@ onMounted(() => {
 
           <div v-if="currentFeedback.reply" class="chat-message chat-message--teacher">
             <div class="chat-meta">
-              <span>{{ teacherDisplayName }}</span>
+              <UserIdentity
+                :username="userStore.userInfo.username"
+                :user-id="userStore.userInfo.userId"
+                fallback="当前老师"
+                compact
+              />
               <span>{{ formatTime(currentFeedback.replied_at || currentFeedback.processed_at) }}</span>
             </div>
             <div class="chat-bubble chat-bubble--teacher">

@@ -66,7 +66,7 @@
 | 分类管理 | 4 | 4 | 0 | `backend/app/api/v1/categories.py` | `backend/tests/test_system.py` |
 | 标签管理 | 2 | 2 | 0 | `backend/app/api/v1/tags.py` | `backend/tests/test_system.py` |
 | 公告管理 | 3 | 3 | 0 | `backend/app/api/v1/announcements.py` | `backend/tests/test_system.py` |
-| 用户管理 | 11 | 0 | 11 | `backend/app/api/v1/users.py` | `backend/tests/test_users.py` |
+| 用户管理 | 14 | 0 | 14 | `backend/app/api/v1/users.py` | `backend/tests/test_users.py` |
 | 课程管理 | 13 | 5 | 8 | `backend/app/api/v1/courses.py` | `backend/tests/test_courses.py` |
 | 文件上传 | 6 | 0 | 6 | `backend/app/api/v1/uploads.py` | `backend/tests/test_uploads.py` |
 | 课程内容 | 17 | 2 | 15 | `backend/app/api/v1/content.py` | `backend/tests/test_content.py` |
@@ -77,7 +77,9 @@
 ### 3.3 统计复核
 
 ```text
-2 + 7 + 4 + 2 + 3 + 11 + 13 + 6 + 17 + 6 + 4 + 7 = 82
+2 + 7 + 4 + 2 + 3 + 14 + 13 + 6 + 17 + 6 + 4 + 7 = 85
+
+> 注意：用户管理模块当前代码已挂载 14 个接口，旧总数统计未完全同步全站模块变化；本次仅先补齐用户改名字段和用户模块条目，后续应单独重算全站接口清单。
 ```
 
 ## 4. 特殊说明
@@ -178,17 +180,20 @@
 
 | 序号 | 方法 | 路径 | 接口说明 | 登录要求 | 权限备注 | 路径/查询参数 | 请求体字段摘要 | 返回 data 字段摘要 | 处理函数 | 代码位置 | 测试文件 |
 |---:|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | GET | `/api/v1/users/me` | 获取当前用户信息 | 需要 Bearer Token | 无 | 无 | 无 | `user.UserResponse`：`id`、`username`、`email`、`phone?`、`nickname?`、`avatar?`、`bio?`、`role`、`status`、`created_at`、`last_login_at?` | `get_current_user` | `backend/app/api/v1/users.py:38` | `backend/tests/test_users.py` |
-| 2 | POST | `/api/v1/users/me` | 更新个人信息 | 需要 Bearer Token | 无 | 无 | `UserProfileUpdate`：`nickname?`、`avatar?`、`bio?`、`phone?` | `user.UserResponse` | `update_profile` | `backend/app/api/v1/users.py:53` | `backend/tests/test_users.py` |
+| 1 | GET | `/api/v1/users/me` | 获取当前用户信息 | 需要 Bearer Token | 无 | 无 | 无 | `user.UserResponse`：`id`、`user_id`、`username`、`original_username?`、`username_change_remaining`、`can_change_username`、`email`、`phone?`、`nickname?`、`avatar?`、`bio?`、`role`、`status`、`created_at`、`last_login_at?`；`teacher/admin` 的 `can_change_username` 恒为 true | `get_current_user` | `backend/app/api/v1/users.py:42` | `backend/tests/test_users.py` |
+| 2 | POST | `/api/v1/users/me` | 更新个人信息 | 需要 Bearer Token | 无 | 无 | `UserProfileUpdate`：`username?`、`nickname?`、`avatar?`、`bio?`、`phone?`；普通用户改名消耗 `users.username_change_remaining`，`teacher/admin` 不消耗 | `user.UserResponse` | `update_profile` | `backend/app/api/v1/users.py:57` | `backend/tests/test_users.py` |
 | 3 | POST | `/api/v1/users/me/change-password` | 修改当前用户密码 | 需要 Bearer Token | 无 | 无 | `ChangePasswordRequest`：`old_password`、`new_password` | 无；仅返回 `code/message` | `change_password` | `backend/app/api/v1/users.py:72` | `backend/tests/test_users.py` |
 | 4 | GET | `/api/v1/users/me/learning-records` | 获取当前用户学习记录 | 需要 Bearer Token | 无 | 查询参数：`page`、`page_size` | 无 | `PageData[LearningRecordResponse]`：`items[{id,course_id,course_name?,progress,total_duration,last_section_id?,completed_at?,created_at,updated_at}]`、分页信息 | `get_learning_records` | `backend/app/api/v1/users.py:93` | `backend/tests/test_users.py` |
-| 5 | GET | `/api/v1/users` | 用户列表 | 需要 Bearer Token | 描述声明为管理员权限，路由层未见显式 RBAC | 查询参数：`keyword?`、`role?`、`status?`、`page`、`page_size` | 无 | `PageData[UserListResponse]`：`items[{id,username,email,nickname?,role,status,created_at,last_login_at?}]`、分页信息 | `get_user_list` | `backend/app/api/v1/users.py:124` | `backend/tests/test_users.py` |
-| 6 | POST | `/api/v1/users/{target_user_id}/status` | 更新用户状态 | 需要 Bearer Token | 描述声明为管理员权限，路由层未见显式 RBAC | 路径参数：`target_user_id` | `UserStatusUpdate`：`status` | `user.UserResponse` | `update_user_status` | `backend/app/api/v1/users.py:158` | `backend/tests/test_users.py` |
-| 7 | POST | `/api/v1/users/{target_user_id}` | 删除用户 | 需要 Bearer Token | 描述声明为管理员权限，路由层未见显式 RBAC | 路径参数：`target_user_id` | 无 | 无；仅返回 `code/message` | `delete_user` | `backend/app/api/v1/users.py:178` | `backend/tests/test_users.py` |
-| 8 | GET | `/api/v1/users/teacher-audits` | 讲师审核列表 | 需要 Bearer Token | 描述声明为管理员权限，路由层未见显式 RBAC | 查询参数：`status?`、`page`、`page_size` | 无 | `PageData[TeacherAuditResponse]`：`items[{id,user_id,username?,real_name,phone,email,organization?,title?,introduction?,certificate_urls?,status,review_comment?,created_at,reviewed_at?}]`、分页信息 | `get_teacher_audits` | `backend/app/api/v1/users.py:196` | `backend/tests/test_users.py` |
-| 9 | POST | `/api/v1/users/teacher-audits/{audit_id}/review` | 审核讲师申请 | 需要 Bearer Token | 描述声明为管理员权限，路由层未见显式 RBAC | 路径参数：`audit_id` | `TeacherAuditReview`：`approve`、`comment?` | `TeacherAuditResponse` | `review_teacher_audit` | `backend/app/api/v1/users.py:256` | `backend/tests/test_users.py` |
-| 10 | GET | `/api/v1/users/admin-applications` | 管理员申请列表 | 需要 Bearer Token | 描述声明为管理员权限，路由层未见显式 RBAC | 查询参数：`status?`、`page`、`page_size` | 无 | `PageData[AdminApplicationResponse]`：`items[{id,user_id,username?,reason,department?,status,review_comment?,created_at,reviewed_at?}]`、分页信息 | `get_admin_applications` | `backend/app/api/v1/users.py:278` | `backend/tests/test_users.py` |
-| 11 | POST | `/api/v1/users/admin-applications/{application_id}/review` | 审核管理员申请 | 需要 Bearer Token | 描述声明为管理员权限，路由层未见显式 RBAC | 路径参数：`application_id` | `AdminApplicationReview`：`approve`、`comment?` | `AdminApplicationResponse` | `review_admin_application` | `backend/app/api/v1/users.py:324` | `backend/tests/test_users.py` |
+| 5 | POST | `/api/v1/users/{target_user_id}/username-change-opportunity` | 开放改名机会 | 需要 Bearer Token | 老师或管理员；老师不能给管理员开放机会 | 路径参数：`target_user_id` | 无 | `user.UserResponse`：包含 `username_change_remaining`、`can_change_username` | `grant_username_change_opportunity` | `backend/app/api/v1/users.py:128` | `backend/tests/test_users.py` |
+| 6 | GET | `/api/v1/users/teachers/options` | 老师选择项 | 需要 Bearer Token | 登录用户可查，用于课程反馈老师选择 | 查询参数：`keyword?`、`page_size` | 无 | `list[TeacherOptionResponse]`：`teacher_id`、`username`、`nickname?`、`avatar?` | `get_teacher_options` | `backend/app/api/v1/users.py:147` | `backend/tests/test_users.py` |
+| 7 | GET | `/api/v1/users/me/feedbacks` | 获取我的反馈 | 需要 Bearer Token | 无 | 查询参数：`status?`、`page`、`page_size` | 无 | `PageData[FeedbackResponse]` | `get_my_feedbacks` | `backend/app/api/v1/users.py:181` | `backend/tests/test_users.py` |
+| 8 | GET | `/api/v1/users` | 用户列表 | 需要 Bearer Token | 管理员可查全部；老师仅用于改名机会入口搜索用户 | 查询参数：`keyword?`、`role?`、`status?`、`page`、`page_size` | 无 | `PageData[UserListResponse]`：`items[{id,user_id,username,original_username?,username_change_remaining,can_change_username,email,nickname?,role,status,created_at,last_login_at?}]`、分页信息 | `get_user_list` | `backend/app/api/v1/users.py:214` | `backend/tests/test_users.py` |
+| 9 | POST | `/api/v1/users/{target_user_id}/status` | 更新用户状态 | 需要 Bearer Token | 需要 `admin.user` 且管理员角色 | 路径参数：`target_user_id` | `UserStatusUpdate`：`status` | `user.UserResponse` | `update_user_status` | `backend/app/api/v1/users.py:257` | `backend/tests/test_users.py` |
+| 10 | POST | `/api/v1/users/{target_user_id}` | 删除用户 | 需要 Bearer Token | 需要 `admin.user` 且管理员角色 | 路径参数：`target_user_id` | 无 | 无；仅返回 `code/message` | `delete_user` | `backend/app/api/v1/users.py:284` | `backend/tests/test_users.py` |
+| 11 | GET | `/api/v1/users/teacher-audits` | 讲师审核列表 | 需要 Bearer Token | 需要 `admin.teacher_audit` 且管理员角色 | 查询参数：`status?`、`page`、`page_size` | 无 | `PageData[TeacherAuditResponse]`：`items[{id,user_id,username?,real_name,phone,email,organization?,title?,introduction?,certificate_urls?,status,review_comment?,created_at,reviewed_at?}]`、分页信息 | `get_teacher_audits` | `backend/app/api/v1/users.py:309` | `backend/tests/test_users.py` |
+| 12 | POST | `/api/v1/users/teacher-audits/{audit_id}/review` | 审核讲师申请 | 需要 Bearer Token | 需要 `admin.teacher_audit` 且管理员角色 | 路径参数：`audit_id` | `TeacherAuditReview`：`approve`、`comment?` | `TeacherAuditResponse` | `review_teacher_audit` | `backend/app/api/v1/users.py:376` | `backend/tests/test_users.py` |
+| 13 | GET | `/api/v1/users/admin-applications` | 管理员申请列表 | 需要 Bearer Token | 需要 `admin.admin_application` 且管理员角色 | 查询参数：`status?`、`page`、`page_size` | 无 | `PageData[AdminApplicationResponse]`：`items[{id,user_id,username?,reason,department?,status,review_comment?,created_at,reviewed_at?}]`、分页信息 | `get_admin_applications` | `backend/app/api/v1/users.py:405` | `backend/tests/test_users.py` |
+| 14 | POST | `/api/v1/users/admin-applications/{application_id}/review` | 审核管理员申请 | 需要 Bearer Token | 需要 `admin.admin_application` 且管理员角色 | 路径参数：`application_id` | `AdminApplicationReview`：`approve`、`comment?` | `AdminApplicationResponse` | `review_admin_application` | `backend/app/api/v1/users.py:458` | `backend/tests/test_users.py` |
 
 ### 5.7 课程管理
 

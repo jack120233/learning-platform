@@ -71,6 +71,18 @@ class Message(BaseModel):
         nullable=True,
         comment="发送者ID",
     )
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        index=True,
+        comment="是否软删除",
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="软删除时间",
+    )
 
     def __repr__(self) -> str:
         return f"<Message(id={self.id}, user_id={self.user_id}, type={self.type})>"

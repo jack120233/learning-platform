@@ -12,7 +12,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.core.db_schema import ensure_database_compatibility
-from app.core.security import hash_password
+from app.core.security import create_access_token, hash_password
 from app.models.permission import RolePermission
 from app.models.user import User
 
@@ -41,12 +41,7 @@ async def create_role_user(
     db_session.add(user)
     await db_session.flush()
 
-    response = await client.post(
-        "/api/v1/auth/login",
-        json={"username": username, "password": password},
-    )
-    assert response.status_code == 200
-    token = response.json()["data"]["access_token"]
+    token = create_access_token(user.id)
     return {
         "user_id": user.id,
         "username": username,
@@ -67,37 +62,9 @@ class TestFeedback:
         test_teacher: User,
     ):
         """测试提交课程反馈，兼容前端请求结构。"""
-        from app.models.captcha import CaptchaRecord
-        from tests.test_auth import unique_key, utcnow
-
-        key = unique_key("feedback")
-        captcha = CaptchaRecord(
-            captcha_key=key,
-            captcha_text="test",
-            image_base64="test",
-            expires_at=utcnow() + timedelta(minutes=5),
-        )
-        db_session.add(captcha)
-        await db_session.flush()
-
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            json={
-                "username": "testuser",
-                "password": "Test123456",
-                "captcha_key": key,
-                "captcha_text": "test",
-            },
-        )
-
-        if login_response.status_code != 200:
-            pytest.skip("登录失败")
-
-        token = login_response.json()["data"]["access_token"]
-
         response = await client.post(
             "/api/v1/feedbacks",
-            headers={"Authorization": f"Bearer {token}"},
+            headers={"Authorization": f"Bearer {create_access_token(test_user.id)}"},
             json={
                 "feedback_type": "course",
                 "course_id": test_course.id,
@@ -245,10 +212,11 @@ class TestFeedback:
         self,
         client: AsyncClient,
         db_session: AsyncSession,
-        admin_headers: dict,
+        test_admin: User,
     ):
         """测试平台反馈无需课程/目标老师，管理员处理后学生可查看回复。"""
         student_auth = await create_role_user(client, db_session, "student")
+        admin_headers = {"Authorization": f"Bearer {create_access_token(test_admin.id)}"}
 
         create_response = await client.post(
             "/api/v1/feedbacks",
@@ -441,6 +409,90 @@ class TestFeedback:
 
         await db_session.refresh(feedback)
         assert feedback.replied_by == test_course.teacher_id
+
+    @pytest.mark.asyncio
+    async def test_teacher_soft_delete_hides_own_feedback_from_list_and_detail(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_course,
+    ):
+        """测试讲师软删除学生反馈后列表和详情隐藏但数据库行保留。"""
+        from app.models.feedback import Feedback
+
+        student_auth = await create_role_user(client, db_session, "student")
+        teacher_headers = {"Authorization": f"Bearer {create_access_token(test_course.teacher_id)}"}
+        feedback = Feedback(
+            user_id=student_auth["user_id"],
+            type="course",
+            course_id=test_course.id,
+            target_user_id=test_course.teacher_id,
+            title="待删除课程反馈",
+            content="老师消息中心删除反馈测试",
+            status="pending",
+        )
+        db_session.add(feedback)
+        await db_session.flush()
+
+        delete_response = await client.delete(
+            f"/api/v1/feedbacks/{feedback.id}",
+            headers=teacher_headers,
+        )
+        assert delete_response.status_code == 200
+
+        await db_session.refresh(feedback)
+        assert feedback.is_deleted is True
+        assert feedback.deleted_at is not None
+
+        list_response = await client.get(
+            "/api/v1/feedbacks",
+            headers=teacher_headers,
+            params={"feedback_type": "course"},
+        )
+        assert list_response.status_code == 200
+        feedback_ids = {item["feedback_id"] for item in list_response.json()["data"]["items"]}
+        assert feedback.id not in feedback_ids
+
+        detail_response = await client.get(
+            f"/api/v1/feedbacks/{feedback.id}",
+            headers=teacher_headers,
+        )
+        assert detail_response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_teacher_cannot_delete_other_teacher_feedback(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_course,
+    ):
+        """测试讲师不能删除不指向自己的学生反馈。"""
+        from app.models.feedback import Feedback
+
+        other_teacher_auth = await create_role_user(client, db_session, "teacher")
+        student_auth = await create_role_user(client, db_session, "student")
+        feedback = Feedback(
+            user_id=student_auth["user_id"],
+            type="course",
+            course_id=test_course.id,
+            target_user_id=test_course.teacher_id,
+            title="其他老师反馈",
+            content="不能被其他老师删除",
+            status="pending",
+        )
+        db_session.add(feedback)
+        await db_session.flush()
+
+        response = await client.delete(
+            f"/api/v1/feedbacks/{feedback.id}",
+            headers=other_teacher_auth["headers"],
+        )
+
+        assert response.status_code == 403
+        assert response.json()["message"] == "无权删除该反馈"
+
+        await db_session.refresh(feedback)
+        assert feedback.is_deleted is False
 
     @pytest.mark.asyncio
     async def test_course_feedback_can_target_other_active_teacher(
@@ -645,8 +697,12 @@ async def test_ensure_database_compatibility_adds_feedback_fields():
 
         assert "已为 feedbacks 表补充 course_id 字段" in messages
         assert "已为 feedbacks 表补充 target_user_id 字段" in messages
+        assert "已为 feedbacks 表补充 is_deleted 字段" in messages
+        assert "已为 feedbacks 表补充 deleted_at 字段" in messages
         assert any(column["name"] == "course_id" for column in columns)
         assert any(column["name"] == "target_user_id" for column in columns)
+        assert any(column["name"] == "is_deleted" for column in columns)
+        assert any(column["name"] == "deleted_at" for column in columns)
     finally:
         await engine.dispose()
 
@@ -662,40 +718,56 @@ class TestMessage:
         test_user: User,
     ):
         """测试获取消息列表"""
-        from app.models.captcha import CaptchaRecord
-        from tests.test_auth import unique_key, utcnow
-
-        key = unique_key("messages")
-        captcha = CaptchaRecord(
-            captcha_key=key,
-            captcha_text="test",
-            image_base64="test",
-            expires_at=utcnow() + timedelta(minutes=5),
-        )
-        db_session.add(captcha)
-        await db_session.flush()
-
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            json={
-                "username": "testuser",
-                "password": "Test123456",
-                "captcha_key": key,
-                "captcha_text": "test",
-            },
-        )
-
-        if login_response.status_code != 200:
-            pytest.skip("登录失败")
-
-        token = login_response.json()["data"]["access_token"]
-
         response = await client.get(
             "/api/v1/messages",
-            headers={"Authorization": f"Bearer {token}"},
+            headers={"Authorization": f"Bearer {create_access_token(test_user.id)}"},
         )
 
         assert response.status_code in [200, 400, 401]
+
+    @pytest.mark.asyncio
+    async def test_delete_message_soft_deletes_and_hides_from_list(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+    ):
+        """测试消息删除为数据库软删除，并从列表和详情隐藏。"""
+        from app.models.message import Message
+
+        message = Message(
+            user_id=test_user.id,
+            type="notification",
+            title="待删除通知",
+            content="软删除消息测试",
+        )
+        db_session.add(message)
+        await db_session.flush()
+        headers = {"Authorization": f"Bearer {create_access_token(test_user.id)}"}
+
+        delete_response = await client.delete(
+            f"/api/v1/messages/{message.id}",
+            headers=headers,
+        )
+        assert delete_response.status_code == 200
+
+        await db_session.refresh(message)
+        assert message.is_deleted is True
+        assert message.deleted_at is not None
+
+        list_response = await client.get(
+            "/api/v1/messages",
+            headers=headers,
+        )
+        assert list_response.status_code == 200
+        message_ids = {item["id"] for item in list_response.json()["data"]["items"]}
+        assert message.id not in message_ids
+
+        detail_response = await client.get(
+            f"/api/v1/messages/{message.id}",
+            headers=headers,
+        )
+        assert detail_response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_get_unread_count(
@@ -705,37 +777,9 @@ class TestMessage:
         test_user: User,
     ):
         """测试获取未读消息数量"""
-        from app.models.captcha import CaptchaRecord
-        from tests.test_auth import unique_key, utcnow
-
-        key = unique_key("unread")
-        captcha = CaptchaRecord(
-            captcha_key=key,
-            captcha_text="test",
-            image_base64="test",
-            expires_at=utcnow() + timedelta(minutes=5),
-        )
-        db_session.add(captcha)
-        await db_session.flush()
-
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            json={
-                "username": "testuser",
-                "password": "Test123456",
-                "captcha_key": key,
-                "captcha_text": "test",
-            },
-        )
-
-        if login_response.status_code != 200:
-            pytest.skip("登录失败")
-
-        token = login_response.json()["data"]["access_token"]
-
         response = await client.get(
             "/api/v1/messages/unread-count",
-            headers={"Authorization": f"Bearer {token}"},
+            headers={"Authorization": f"Bearer {create_access_token(test_user.id)}"},
         )
 
         assert response.status_code == 200
@@ -748,37 +792,9 @@ class TestMessage:
         test_user: User,
     ):
         """测试批量标记已读"""
-        from app.models.captcha import CaptchaRecord
-        from tests.test_auth import unique_key, utcnow
-
-        key = unique_key("mark_read")
-        captcha = CaptchaRecord(
-            captcha_key=key,
-            captcha_text="test",
-            image_base64="test",
-            expires_at=utcnow() + timedelta(minutes=5),
-        )
-        db_session.add(captcha)
-        await db_session.flush()
-
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            json={
-                "username": "testuser",
-                "password": "Test123456",
-                "captcha_key": key,
-                "captcha_text": "test",
-            },
-        )
-
-        if login_response.status_code != 200:
-            pytest.skip("登录失败")
-
-        token = login_response.json()["data"]["access_token"]
-
         response = await client.post(
             "/api/v1/messages/mark-all-read",
-            headers={"Authorization": f"Bearer {token}"},
+            headers={"Authorization": f"Bearer {create_access_token(test_user.id)}"},
         )
 
         assert response.status_code in [200, 400, 401]

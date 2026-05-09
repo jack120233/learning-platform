@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Bell, ChatDotRound, Delete, Search } from '@element-plus/icons-vue'
+import { Bell, ChatDotRound, Delete, RefreshRight, Search } from '@element-plus/icons-vue'
 import { usePagination } from '@/composables/usePagination'
 import { useUserStore } from '@/store/user'
 import {
@@ -16,16 +16,22 @@ import {
   type MessagesParams,
 } from '@/api/profile'
 import {
+  batchDeleteTeacherFeedbacks,
+  deleteTeacherFeedback,
   fetchTeacherFeedbackDetail,
   fetchTeacherFeedbacks,
+  fetchTeacherUsers,
+  grantUsernameChangeOpportunity,
   processTeacherFeedback,
   type TeacherFeedbackDetail,
   type TeacherFeedbackItem,
   type TeacherFeedbacksParams,
+  type TeacherUserSearchItem,
 } from '@/api/teacher'
+import UserIdentity from '@/components/common/UserIdentity.vue'
 
 const userStore = useUserStore()
-const activeTab = ref<'feedbacks' | 'notices'>('feedbacks')
+const activeTab = ref<'feedbacks' | 'notices' | 'usernameGrant'>('feedbacks')
 
 const feedbackStatus = ref<'all' | 'pending' | 'processed'>('all')
 const feedbackKeyword = ref('')
@@ -34,6 +40,15 @@ const pendingFeedbackTotal = ref(0)
 const noticeType = ref<'all' | 'announcement' | 'notification'>('all')
 const noticeReadStatus = ref<'all' | 'unread' | 'read'>('all')
 const unreadNoticeTotal = ref(0)
+
+const userSearchKeyword = ref('')
+const selectedGrantUser = ref<TeacherUserSearchItem | null>(null)
+const isGrantingUsernameChange = ref(false)
+const grantUserRoleMap: Record<TeacherUserSearchItem['role'], string> = {
+  student: '学生',
+  teacher: '老师',
+  admin: '管理员',
+}
 
 async function fetchFeedbackList(params: TeacherFeedbacksParams) {
   return fetchTeacherFeedbacks({
@@ -75,6 +90,26 @@ const {
   goToPage: goToNoticePage,
 } = usePagination<MessageItem, MessagesParams>(fetchNoticeList, 8)
 
+async function fetchGrantUserList(params: { page?: number; page_size?: number }) {
+  return fetchTeacherUsers({
+    keyword: userSearchKeyword.value.trim() || undefined,
+    page: params.page,
+    page_size: params.page_size,
+  })
+}
+
+const {
+  items: grantUsers,
+  total: grantUserTotal,
+  page: grantUserPage,
+  pageSize: grantUserPageSize,
+  totalPages: grantUserTotalPages,
+  isLoading: isLoadingGrantUsers,
+  isEmpty: isGrantUserEmpty,
+  fetchData: fetchGrantUserData,
+  goToPage: goToGrantUserPage,
+} = usePagination<TeacherUserSearchItem, { page?: number; page_size?: number }>(fetchGrantUserList, 8)
+
 const feedbackStatusMap: Record<TeacherFeedbackItem['status'], { text: string; type: 'warning' | 'success' }> = {
   pending: { text: '待处理', type: 'warning' },
   processed: { text: '已处理', type: 'success' },
@@ -88,6 +123,8 @@ const noticeTypeMap: Record<MessageItem['message_type'], { text: string; type: '
 const showFeedbackDrawer = ref(false)
 const currentFeedback = ref<TeacherFeedbackDetail | null>(null)
 const isLoadingFeedbackDetail = ref(false)
+const feedbackBatchMode = ref(false)
+const selectedFeedbackIds = ref<number[]>([])
 
 const showProcessDialog = ref(false)
 const processTarget = ref<TeacherFeedbackItem | TeacherFeedbackDetail | null>(null)
@@ -99,6 +136,8 @@ const showNoticeDrawer = ref(false)
 const currentNotice = ref<MessageDetail | null>(null)
 const isLoadingNoticeDetail = ref(false)
 const isMarkingAllRead = ref(false)
+const noticeBatchMode = ref(false)
+const selectedNoticeIds = ref<number[]>([])
 
 const processRules: FormRules = {
   reply: [
@@ -109,18 +148,16 @@ const processRules: FormRules = {
 
 const feedbackStatsText = computed(() => `${pendingFeedbackTotal.value} 条待处理`)
 const noticeStatsText = computed(() => `${unreadNoticeTotal.value} 条未读`)
-const teacherDisplayName = computed(() => formatUserIdentity(
-  userStore.userInfo.username,
-  userStore.userInfo.userId,
-  '当前老师'
-))
-
-function formatUserIdentity(username: string | null | undefined, userId: number | null | undefined, fallback = '-') {
-  if (username && userId) return `${username}#${userId}`
-  if (username) return username
-  if (userId) return `用户#${userId}`
-  return fallback
-}
+const selectedNoticeCount = computed(() => selectedNoticeIds.value.length)
+const selectedFeedbackCount = computed(() => selectedFeedbackIds.value.length)
+const allFeedbacksSelectedOnPage = computed(() => {
+  return feedbacks.value.length > 0
+    && feedbacks.value.every((feedback) => selectedFeedbackIds.value.includes(feedback.feedback_id))
+})
+const allNoticesSelectedOnPage = computed(() => {
+  return notices.value.length > 0
+    && notices.value.every((notice) => selectedNoticeIds.value.includes(notice.message_id))
+})
 
 function formatTime(time: string | null | undefined) {
   if (!time) return '-'
@@ -131,14 +168,6 @@ function formatTime(time: string | null | undefined) {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-function getStudentName(feedback: TeacherFeedbackItem | TeacherFeedbackDetail) {
-  return formatUserIdentity(feedback.username, feedback.user_id)
-}
-
-function getTargetName(feedback: TeacherFeedbackItem | TeacherFeedbackDetail) {
-  return formatUserIdentity(feedback.target_username, feedback.target_user_id, '当前讲师')
 }
 
 async function syncUnreadCount() {
@@ -164,9 +193,23 @@ async function refreshFeedbacks(resetPage = false) {
   await loadStats()
 }
 
+async function refreshFeedbacksAfterMutation() {
+  await refreshFeedbacks()
+  if (feedbacks.value.length === 0 && feedbackPage.value > 1) {
+    await goToFeedbackPage(feedbackPage.value - 1)
+  }
+}
+
 async function refreshNotices(resetPage = false) {
   await fetchNoticeData(resetPage)
   await syncUnreadCount()
+}
+
+async function refreshNoticesAfterMutation() {
+  await refreshNotices()
+  if (notices.value.length === 0 && noticePage.value > 1) {
+    await goToNoticePage(noticePage.value - 1)
+  }
 }
 
 function handleFeedbackSearch() {
@@ -176,11 +219,147 @@ function handleFeedbackSearch() {
 function handleFeedbackReset() {
   feedbackStatus.value = 'all'
   feedbackKeyword.value = ''
+  exitFeedbackBatchMode()
+  void refreshFeedbacks(true)
+}
+
+function handleFeedbackFilterChange() {
+  exitFeedbackBatchMode()
   void refreshFeedbacks(true)
 }
 
 function handleNoticeFilterChange() {
+  exitNoticeBatchMode()
   void refreshNotices(true)
+}
+
+function handleGrantUserSearch() {
+  selectedGrantUser.value = null
+  void fetchGrantUserData(true)
+}
+
+function handleGrantUserReset() {
+  userSearchKeyword.value = ''
+  selectedGrantUser.value = null
+  void fetchGrantUserData(true)
+}
+
+function selectGrantUser(user: TeacherUserSearchItem) {
+  selectedGrantUser.value = user
+}
+
+async function handleGrantUsernameChange() {
+  if (!selectedGrantUser.value) {
+    ElMessage.warning('请先选择要开放改名机会的用户')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定为用户 ${selectedGrantUser.value.username} 增加一次用户名修改机会吗？`,
+      '开放改名机会',
+      {
+        confirmButtonText: '确认开放',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error('确认操作失败')
+    }
+    return
+  }
+
+  isGrantingUsernameChange.value = true
+  try {
+    const updatedUser = await grantUsernameChangeOpportunity(selectedGrantUser.value.user_id)
+    ElMessage.success('已开放一次改名机会')
+    selectedGrantUser.value = updatedUser
+    grantUsers.value = grantUsers.value.map((user) => (
+      user.user_id === updatedUser.user_id ? updatedUser : user
+    ))
+  } catch {
+    ElMessage.error('开放改名机会失败')
+  } finally {
+    isGrantingUsernameChange.value = false
+  }
+}
+
+function isFeedbackSelected(feedbackId: number) {
+  return selectedFeedbackIds.value.includes(feedbackId)
+}
+
+function toggleFeedbackSelection(feedbackId: number) {
+  if (isFeedbackSelected(feedbackId)) {
+    selectedFeedbackIds.value = selectedFeedbackIds.value.filter((id) => id !== feedbackId)
+    return
+  }
+  selectedFeedbackIds.value = [...selectedFeedbackIds.value, feedbackId]
+}
+
+function enterFeedbackBatchMode() {
+  feedbackBatchMode.value = true
+  selectedFeedbackIds.value = []
+}
+
+function exitFeedbackBatchMode() {
+  feedbackBatchMode.value = false
+  selectedFeedbackIds.value = []
+}
+
+function handleToggleSelectAllFeedbacks() {
+  if (allFeedbacksSelectedOnPage.value) {
+    selectedFeedbackIds.value = []
+    return
+  }
+  selectedFeedbackIds.value = feedbacks.value.map((feedback) => feedback.feedback_id)
+}
+
+function handleFeedbackCardClick(feedback: TeacherFeedbackItem) {
+  if (feedbackBatchMode.value) {
+    toggleFeedbackSelection(feedback.feedback_id)
+    return
+  }
+  void handleViewFeedback(feedback)
+}
+
+function isNoticeSelected(messageId: number) {
+  return selectedNoticeIds.value.includes(messageId)
+}
+
+function toggleNoticeSelection(messageId: number) {
+  if (isNoticeSelected(messageId)) {
+    selectedNoticeIds.value = selectedNoticeIds.value.filter((id) => id !== messageId)
+    return
+  }
+  selectedNoticeIds.value = [...selectedNoticeIds.value, messageId]
+}
+
+function enterNoticeBatchMode() {
+  noticeBatchMode.value = true
+  selectedNoticeIds.value = []
+}
+
+function exitNoticeBatchMode() {
+  noticeBatchMode.value = false
+  selectedNoticeIds.value = []
+}
+
+function handleToggleSelectAllNotices() {
+  if (allNoticesSelectedOnPage.value) {
+    selectedNoticeIds.value = []
+    return
+  }
+  selectedNoticeIds.value = notices.value.map((notice) => notice.message_id)
+}
+
+function handleNoticeCardClick(notice: MessageItem) {
+  if (noticeBatchMode.value) {
+    toggleNoticeSelection(notice.message_id)
+    return
+  }
+  void handleViewNotice(notice)
 }
 
 async function handleViewFeedback(feedback: TeacherFeedbackItem) {
@@ -236,7 +415,65 @@ async function handleSubmitProcess() {
   }
 }
 
+async function handleDeleteFeedback(feedback: TeacherFeedbackItem | TeacherFeedbackDetail) {
+  try {
+    await ElMessageBox.confirm('确定要删除这条学生反馈吗？删除后将从列表中隐藏。', '删除反馈', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+    await deleteTeacherFeedback(feedback.feedback_id)
+    ElMessage.success('反馈已删除')
+    selectedFeedbackIds.value = selectedFeedbackIds.value.filter((id) => id !== feedback.feedback_id)
+    if (currentFeedback.value?.feedback_id === feedback.feedback_id) {
+      showFeedbackDrawer.value = false
+      currentFeedback.value = null
+    }
+    await refreshFeedbacksAfterMutation()
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
+async function handleBatchDeleteFeedbacks() {
+  if (selectedFeedbackCount.value === 0) {
+    ElMessage.warning('请先选择要删除的学生反馈')
+    return
+  }
+
+  const selectedFeedbacks = feedbacks.value.filter((feedback) => isFeedbackSelected(feedback.feedback_id))
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除已选择的 ${selectedFeedbacks.length} 条学生反馈吗？`,
+      '批量删除确认',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+
+    const result = await batchDeleteTeacherFeedbacks(selectedFeedbacks.map((feedback) => feedback.feedback_id))
+    ElMessage.success(`已删除 ${result.count} 条学生反馈`)
+    if (currentFeedback.value && selectedFeedbackIds.value.includes(currentFeedback.value.feedback_id)) {
+      showFeedbackDrawer.value = false
+      currentFeedback.value = null
+    }
+    selectedFeedbackIds.value = []
+    await refreshFeedbacksAfterMutation()
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error('批量删除失败')
+    }
+  }
+}
+
 async function handleViewNotice(notice: MessageItem) {
+  if (noticeBatchMode.value) return
+
   showNoticeDrawer.value = true
   isLoadingNoticeDetail.value = true
   currentNotice.value = null
@@ -283,10 +520,64 @@ async function handleDeleteNotice(notice: MessageItem) {
       showNoticeDrawer.value = false
       currentNotice.value = null
     }
-    await refreshNotices()
+    await refreshNoticesAfterMutation()
   } catch (error) {
-    if (error !== 'cancel') {
+    if (error !== 'cancel' && error !== 'close') {
       ElMessage.error('删除失败')
+    }
+  }
+}
+
+async function handleBatchDeleteNotices() {
+  if (selectedNoticeCount.value === 0) {
+    ElMessage.warning('请先选择要删除的平台通知')
+    return
+  }
+
+  const selectedNotices = notices.value.filter((notice) => isNoticeSelected(notice.message_id))
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除已选择的 ${selectedNotices.length} 条平台通知吗？`,
+      '批量删除确认',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+
+    const results = await Promise.allSettled(
+      selectedNotices.map((notice) => deleteMessage(notice.message_id))
+    )
+    const successIds = selectedNotices
+      .filter((_, index) => results[index].status === 'fulfilled')
+      .map((notice) => notice.message_id)
+    const failureCount = results.length - successIds.length
+
+    if (successIds.length > 0) {
+      if (currentNotice.value && successIds.includes(currentNotice.value.message_id)) {
+        showNoticeDrawer.value = false
+        currentNotice.value = null
+      }
+      selectedNoticeIds.value = selectedNoticeIds.value.filter((id) => !successIds.includes(id))
+      await refreshNoticesAfterMutation()
+    }
+
+    if (failureCount > 0) {
+      if (successIds.length > 0) {
+        ElMessage.warning(`已删除 ${successIds.length} 条，${failureCount} 条删除失败`)
+      } else {
+        ElMessage.error('批量删除失败，请稍后重试')
+      }
+      return
+    }
+
+    ElMessage.success(`已删除 ${successIds.length} 条平台通知`)
+    selectedNoticeIds.value = []
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error('批量删除失败')
     }
   }
 }
@@ -297,6 +588,11 @@ onMounted(async () => {
     fetchNoticeData(),
     loadStats(),
   ])
+})
+
+watch(notices, (currentNotices) => {
+  const currentIds = new Set(currentNotices.map((notice) => notice.message_id))
+  selectedNoticeIds.value = selectedNoticeIds.value.filter((id) => currentIds.has(id))
 })
 </script>
 
@@ -331,7 +627,7 @@ onMounted(async () => {
 
         <div class="panel-card">
           <div class="filter-bar">
-            <el-select v-model="feedbackStatus" placeholder="状态" class="filter-select" @change="refreshFeedbacks(true)">
+            <el-select v-model="feedbackStatus" placeholder="状态" class="filter-select" @change="handleFeedbackFilterChange">
               <el-option label="全部状态" value="all" />
               <el-option label="待处理" value="pending" />
               <el-option label="已处理" value="processed" />
@@ -349,10 +645,40 @@ onMounted(async () => {
                 </template>
               </el-input>
               <div class="soft-action-surface filter-actions">
-                <el-button class="soft-action-btn soft-action-btn--primary soft-action-btn--small" @click="handleFeedbackSearch">搜索</el-button>
-                <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" @click="handleFeedbackReset">重置</el-button>
+                <template v-if="feedbackBatchMode">
+                  <el-button
+                    class="soft-action-btn soft-action-btn--secondary soft-action-btn--small"
+                    @click="handleToggleSelectAllFeedbacks"
+                  >
+                    {{ allFeedbacksSelectedOnPage ? '取消全选' : '全选当前页' }}
+                  </el-button>
+                  <el-button
+                    class="soft-action-btn soft-action-btn--danger soft-action-btn--small"
+                    type="danger"
+                    :disabled="selectedFeedbackCount === 0"
+                    @click="handleBatchDeleteFeedbacks"
+                  >
+                    批量删除
+                  </el-button>
+                  <el-button
+                    class="soft-action-btn soft-action-btn--secondary soft-action-btn--small"
+                    @click="exitFeedbackBatchMode"
+                  >
+                    取消管理
+                  </el-button>
+                </template>
+                <template v-else>
+                  <el-button class="soft-action-btn soft-action-btn--primary soft-action-btn--small" @click="handleFeedbackSearch">搜索</el-button>
+                  <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" @click="handleFeedbackReset">重置</el-button>
+                  <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" @click="enterFeedbackBatchMode">批量管理</el-button>
+                </template>
               </div>
             </div>
+          </div>
+
+          <div v-if="feedbackBatchMode && !isFeedbackEmpty" class="batch-toolbar">
+            <span class="batch-toolbar__text">已选择 {{ selectedFeedbackCount }} 条学生反馈</span>
+            <span class="batch-toolbar__hint">选择反馈后可批量删除，点击卡片可直接勾选</span>
           </div>
 
           <div v-loading="isLoadingFeedbacks" class="feedback-list">
@@ -362,13 +688,25 @@ onMounted(async () => {
               v-else
               :key="feedback.feedback_id"
               class="feedback-card"
-              :class="{ 'is-pending': feedback.status === 'pending' }"
-              @click="handleViewFeedback(feedback)"
+              :class="{ 'is-pending': feedback.status === 'pending', 'is-batch-mode': feedbackBatchMode, 'is-selected': isFeedbackSelected(feedback.feedback_id) }"
+              @click="handleFeedbackCardClick(feedback)"
             >
+              <div v-if="feedbackBatchMode" class="notice-select" @click.stop>
+                <el-checkbox
+                  :model-value="isFeedbackSelected(feedback.feedback_id)"
+                  @change="toggleFeedbackSelection(feedback.feedback_id)"
+                />
+              </div>
               <div class="card-main">
                 <div class="card-topline">
                   <div class="student-info">
-                    <span class="student-name">{{ getStudentName(feedback) }}</span>
+                    <UserIdentity
+                      class="student-name"
+                      :username="feedback.username"
+                      :user-id="feedback.user_id"
+                      fallback="用户"
+                      compact
+                    />
                     <span class="course-title">{{ feedback.course_title || '未关联课程' }}</span>
                   </div>
                   <el-tag :type="feedbackStatusMap[feedback.status].type" size="small">
@@ -377,12 +715,20 @@ onMounted(async () => {
                 </div>
                 <p class="feedback-content text-ellipsis-2">{{ feedback.content }}</p>
                 <div class="card-meta">
-                  <span>反馈给：{{ getTargetName(feedback) }}</span>
+                  <span class="meta-identity">
+                    <span>反馈给：</span>
+                    <UserIdentity
+                      :username="feedback.target_username"
+                      :user-id="feedback.target_user_id"
+                      fallback="当前讲师"
+                      compact
+                    />
+                  </span>
                   <span>{{ formatTime(feedback.created_at) }}</span>
                   <span v-if="feedback.images.length">{{ feedback.images.length }} 张截图</span>
                 </div>
               </div>
-              <div class="card-actions" @click.stop>
+              <div v-if="!feedbackBatchMode" class="card-actions" @click.stop>
                 <el-button text type="primary" @click="handleViewFeedback(feedback)">查看详情</el-button>
                 <el-button
                   v-if="feedback.status === 'pending'"
@@ -393,6 +739,7 @@ onMounted(async () => {
                 >
                   回复处理
                 </el-button>
+                <el-button text type="danger" :icon="Delete" @click="handleDeleteFeedback(feedback)">删除</el-button>
               </div>
             </div>
           </div>
@@ -432,15 +779,50 @@ onMounted(async () => {
               </el-select>
             </div>
             <div class="soft-action-surface filter-actions">
-              <el-button
-                class="soft-action-btn soft-action-btn--primary soft-action-btn--small"
-                :loading="isMarkingAllRead"
-                :disabled="unreadNoticeTotal === 0"
-                @click="handleMarkAllRead"
-              >
-                全部已读
-              </el-button>
+              <template v-if="noticeBatchMode">
+                <el-button
+                  class="soft-action-btn soft-action-btn--secondary soft-action-btn--small"
+                  @click="handleToggleSelectAllNotices"
+                >
+                  {{ allNoticesSelectedOnPage ? '取消全选' : '全选当前页' }}
+                </el-button>
+                <el-button
+                  class="soft-action-btn soft-action-btn--danger soft-action-btn--small"
+                  type="danger"
+                  :disabled="selectedNoticeCount === 0"
+                  @click="handleBatchDeleteNotices"
+                >
+                  批量删除
+                </el-button>
+                <el-button
+                  class="soft-action-btn soft-action-btn--secondary soft-action-btn--small"
+                  @click="exitNoticeBatchMode"
+                >
+                  取消管理
+                </el-button>
+              </template>
+              <template v-else>
+                <el-button
+                  class="soft-action-btn soft-action-btn--primary soft-action-btn--small"
+                  :loading="isMarkingAllRead"
+                  :disabled="unreadNoticeTotal === 0"
+                  @click="handleMarkAllRead"
+                >
+                  全部已读
+                </el-button>
+                <el-button
+                  class="soft-action-btn soft-action-btn--secondary soft-action-btn--small"
+                  @click="enterNoticeBatchMode"
+                >
+                  批量管理
+                </el-button>
+              </template>
             </div>
+          </div>
+
+          <div v-if="noticeBatchMode && !isNoticeEmpty" class="batch-toolbar">
+            <span class="batch-toolbar__text">已选择 {{ selectedNoticeCount }} 条平台通知</span>
+            <span class="batch-toolbar__hint">选择通知后可批量删除，点击卡片可直接勾选</span>
           </div>
 
           <div v-loading="isLoadingNotices" class="notice-list">
@@ -450,9 +832,15 @@ onMounted(async () => {
               v-else
               :key="notice.message_id"
               class="notice-card"
-              :class="{ 'is-unread': !notice.is_read }"
-              @click="handleViewNotice(notice)"
+              :class="{ 'is-unread': !notice.is_read, 'is-batch-mode': noticeBatchMode, 'is-selected': isNoticeSelected(notice.message_id) }"
+              @click="handleNoticeCardClick(notice)"
             >
+              <div v-if="noticeBatchMode" class="notice-select" @click.stop>
+                <el-checkbox
+                  :model-value="isNoticeSelected(notice.message_id)"
+                  @change="toggleNoticeSelection(notice.message_id)"
+                />
+              </div>
               <div class="notice-status-dot" />
               <div class="card-main">
                 <div class="card-topline">
@@ -466,7 +854,7 @@ onMounted(async () => {
                 </div>
                 <p class="notice-content text-ellipsis-2">{{ notice.content }}</p>
               </div>
-              <div class="card-actions" @click.stop>
+              <div v-if="!noticeBatchMode" class="card-actions" @click.stop>
                 <el-button text type="primary" @click="handleViewNotice(notice)">查看</el-button>
                 <el-button text type="danger" :icon="Delete" @click="handleDeleteNotice(notice)">删除</el-button>
               </div>
@@ -484,6 +872,91 @@ onMounted(async () => {
           />
         </div>
       </el-tab-pane>
+
+      <el-tab-pane name="usernameGrant">
+        <template #label>
+          <span class="tab-label">
+            <el-icon><RefreshRight /></el-icon>
+            改名机会
+          </span>
+        </template>
+
+        <div class="panel-card username-grant-panel">
+          <div class="grant-intro">
+            <h3>开放一次用户名修改机会</h3>
+            <p>学生或老师首次自助改名后，如确需再次修改，可由老师在这里为指定用户增加一次机会。老师不能为管理员开放机会。</p>
+          </div>
+
+          <div class="filter-bar">
+            <el-input
+              v-model="userSearchKeyword"
+              placeholder="搜索用户名或用户 ID"
+              clearable
+              class="search-input"
+              @keyup.enter="handleGrantUserSearch"
+            >
+              <template #prefix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
+            <div class="soft-action-surface filter-actions">
+              <el-button class="soft-action-btn soft-action-btn--primary soft-action-btn--small" @click="handleGrantUserSearch">搜索</el-button>
+              <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" @click="handleGrantUserReset">重置</el-button>
+            </div>
+          </div>
+
+          <div v-loading="isLoadingGrantUsers" class="grant-user-list">
+            <el-empty v-if="isGrantUserEmpty" description="请输入用户名或用户 ID 搜索用户" />
+            <div
+              v-for="user in grantUsers"
+              v-else
+              :key="user.user_id"
+              class="grant-user-card"
+              :class="{ 'is-selected': selectedGrantUser?.user_id === user.user_id }"
+              @click="selectGrantUser(user)"
+            >
+              <div class="card-main">
+                <div class="card-topline">
+                  <UserIdentity class="student-name" :username="user.username" :user-id="user.user_id" fallback="用户" />
+                  <el-tag size="small">{{ grantUserRoleMap[user.role] }}</el-tag>
+                </div>
+                <div class="card-meta">
+                  <span>状态：{{ user.status }}</span>
+                  <span>剩余改名机会：{{ user.username_change_remaining }}</span>
+                  <span v-if="user.original_username">原用户名：{{ user.original_username }}</span>
+                </div>
+              </div>
+              <el-tag :type="user.can_change_username ? 'success' : 'info'" size="small">
+                {{ user.can_change_username ? '可修改' : '无机会' }}
+              </el-tag>
+            </div>
+          </div>
+
+          <el-pagination
+            v-if="grantUserTotalPages > 1"
+            :current-page="grantUserPage"
+            :page-size="grantUserPageSize"
+            :total="grantUserTotal"
+            layout="total, prev, pager, next, jumper"
+            class="pagination"
+            @current-change="goToGrantUserPage"
+          />
+
+          <div class="drawer-action-area grant-action-area">
+            <div class="soft-action-surface">
+                          <el-button
+                class="soft-action-btn soft-action-btn--primary grant-action-btn"
+                type="primary"
+                :loading="isGrantingUsernameChange"
+                :disabled="!selectedGrantUser"
+                @click="handleGrantUsernameChange"
+              >
+                为选中用户开放一次机会
+              </el-button>
+            </div>
+          </div>
+        </div>
+      </el-tab-pane>
     </el-tabs>
 
     <el-drawer v-model="showFeedbackDrawer" title="学生反馈详情" size="min(520px, 92vw)" class="message-drawer">
@@ -494,7 +967,9 @@ onMounted(async () => {
         <div class="detail-section">
           <div class="detail-row">
             <span class="detail-label">学生</span>
-            <span class="detail-value">{{ getStudentName(currentFeedback) }}</span>
+            <span class="detail-value">
+              <UserIdentity :username="currentFeedback.username" :user-id="currentFeedback.user_id" fallback="用户" />
+            </span>
           </div>
           <div class="detail-row">
             <span class="detail-label">关联课程</span>
@@ -502,7 +977,13 @@ onMounted(async () => {
           </div>
           <div class="detail-row">
             <span class="detail-label">反馈给</span>
-            <span class="detail-value">{{ getTargetName(currentFeedback) }}</span>
+            <span class="detail-value">
+              <UserIdentity
+                :username="currentFeedback.target_username"
+                :user-id="currentFeedback.target_user_id"
+                fallback="当前讲师"
+              />
+            </span>
           </div>
           <div class="detail-row">
             <span class="detail-label">状态</span>
@@ -520,7 +1001,7 @@ onMounted(async () => {
         <div class="feedback-chat">
           <div class="chat-message chat-message--student">
             <div class="chat-meta">
-              <span>{{ getStudentName(currentFeedback) }}</span>
+              <UserIdentity :username="currentFeedback.username" :user-id="currentFeedback.user_id" fallback="用户" compact />
               <span>{{ formatTime(currentFeedback.created_at) }}</span>
             </div>
             <div class="chat-bubble chat-bubble--student">
@@ -541,7 +1022,12 @@ onMounted(async () => {
 
           <div v-if="currentFeedback.reply" class="chat-message chat-message--teacher">
             <div class="chat-meta">
-              <span>{{ teacherDisplayName }}</span>
+              <UserIdentity
+                :username="userStore.userInfo.username"
+                :user-id="userStore.userInfo.userId"
+                fallback="当前老师"
+                compact
+              />
               <span>{{ formatTime(currentFeedback.replied_at || currentFeedback.processed_at) }}</span>
             </div>
             <div class="chat-bubble chat-bubble--teacher">
@@ -550,15 +1036,24 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-if="currentFeedback.status === 'pending'" class="drawer-action-area">
+        <div class="drawer-action-area">
           <div class="soft-action-surface">
             <el-button
+              v-if="currentFeedback.status === 'pending'"
               class="soft-action-btn soft-action-btn--primary"
               type="primary"
               :icon="ChatDotRound"
               @click="openProcessDialog(currentFeedback)"
             >
               回复并处理
+            </el-button>
+            <el-button
+              class="soft-action-btn soft-action-btn--danger"
+              type="danger"
+              :icon="Delete"
+              @click="handleDeleteFeedback(currentFeedback)"
+            >
+              删除反馈
             </el-button>
           </div>
         </div>
@@ -581,6 +1076,18 @@ onMounted(async () => {
         <el-link v-if="currentNotice.link" :href="currentNotice.link" type="primary" target="_blank" rel="noopener noreferrer">
           查看相关链接
         </el-link>
+        <div class="drawer-action-area">
+          <div class="soft-action-surface">
+            <el-button
+              class="soft-action-btn soft-action-btn--danger"
+              type="danger"
+              :icon="Delete"
+              @click="handleDeleteNotice(currentNotice)"
+            >
+              删除通知
+            </el-button>
+          </div>
+        </div>
       </template>
     </el-drawer>
 
@@ -753,13 +1260,75 @@ onMounted(async () => {
   width: fit-content;
 }
 
+.filter-actions {
+  flex-wrap: wrap;
+}
+
+.soft-action-btn--danger {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: #dc2626 !important;
+
+  &:hover,
+  &:focus {
+    border-color: #fecaca !important;
+    background: #fff5f5 !important;
+    color: #b91c1c !important;
+  }
+}
+
+.batch-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 12px 16px;
+  background: #f5f9ff;
+  border: 1px solid #d6e8ff;
+  border-radius: 12px;
+}
+
+.batch-toolbar__text {
+  color: #1d4f91;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.batch-toolbar__hint {
+  color: #5f6f85;
+  font-size: 13px;
+}
+
+.grant-intro {
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: #f8fbff;
+
+  h3 {
+    margin: 0 0 8px;
+    color: $text-primary;
+    font-size: 18px;
+  }
+
+  p {
+    margin: 0;
+    color: $text-secondary;
+    line-height: 1.6;
+  }
+}
+
 .feedback-list,
-.notice-list {
+.notice-list,
+.grant-user-list {
   min-height: 220px;
 }
 
 .feedback-card,
-.notice-card {
+.notice-card,
+.grant-user-card {
   display: flex;
   align-items: flex-start;
   gap: 16px;
@@ -793,6 +1362,39 @@ onMounted(async () => {
 .notice-card.is-unread {
   border-color: rgba(24, 144, 255, 0.42);
   background: linear-gradient(135deg, #f0f7ff 0%, #ffffff 52%);
+}
+
+.feedback-card.is-batch-mode,
+.notice-card.is-batch-mode {
+  cursor: pointer;
+}
+
+.notice-card.is-batch-mode {
+  .notice-status-dot {
+    margin-top: 9px;
+  }
+}
+
+.feedback-card.is-selected,
+.notice-card.is-selected,
+.grant-user-card.is-selected {
+  border-color: #2563eb;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.14);
+}
+
+.grant-action-area {
+  justify-content: flex-start;
+}
+
+.grant-action-btn {
+  white-space: normal;
+}
+
+.notice-select {
+  display: flex;
+  align-items: flex-start;
+  padding-top: 2px;
+  flex-shrink: 0;
 }
 
 .notice-status-dot {
@@ -855,6 +1457,14 @@ onMounted(async () => {
   gap: 8px 16px;
   color: $text-tertiary;
   font-size: 13px;
+}
+
+.meta-identity {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
 }
 
 .card-actions {
@@ -1065,15 +1675,22 @@ onMounted(async () => {
     width: 100%;
   }
 
+  .batch-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .filter-select,
   .search-input,
   .filter-actions,
-  .dialog-action-surface {
+  .dialog-action-surface,
+  .grant-action-area .soft-action-surface {
     width: 100% !important;
   }
 
   .feedback-card,
-  .notice-card {
+  .notice-card,
+  .grant-user-card {
     flex-direction: column;
     gap: 12px;
     padding: 14px;
@@ -1092,6 +1709,26 @@ onMounted(async () => {
     top: 16px;
     right: 16px;
     margin-top: 0;
+  }
+
+  .notice-card.is-batch-mode .notice-status-dot {
+    top: 18px;
+    right: 18px;
+    margin-top: 0;
+  }
+
+  .feedback-card.is-batch-mode {
+    position: relative;
+  }
+
+  .feedback-card.is-batch-mode .notice-select {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+  }
+
+  .notice-select {
+    padding-top: 0;
   }
 
   .card-actions {

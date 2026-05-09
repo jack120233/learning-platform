@@ -21,13 +21,20 @@ const useCompactMainContent = computed(() => route.path === '/profile/messages')
 const unreadCount = computed(() => userStore.unreadMessageCount)
 
 // 菜单项配置
-const menuItems = [
-  { index: '/profile', title: '个人信息', icon: 'User' },
-  { index: '/profile/password', title: '修改密码', icon: 'Lock' },
-  { index: '/profile/records', title: '学习记录', icon: 'Reading' },
-  { index: '/profile/messages', title: '消息中心', icon: 'Bell', badge: true },
-  { index: '/profile/feedbacks', title: '我的反馈', icon: 'ChatDotRound' },
-]
+const menuItems = computed(() => {
+  const items = [
+    { index: '/profile', title: '个人信息', icon: 'User' },
+    { index: '/profile/password', title: '修改密码', icon: 'Lock' },
+    { index: '/profile/records', title: '学习记录', icon: 'Reading' },
+    { index: '/profile/messages', title: '消息中心', icon: 'Bell', badge: true },
+  ]
+
+  if (!userStore.isAdmin) {
+    items.push({ index: '/profile/feedbacks', title: '我的反馈', icon: 'ChatDotRound' })
+  }
+
+  return items
+})
 
 // 需要缓存的页面
 const cachedPages = ['ProfileRecords', 'ProfileMessages']

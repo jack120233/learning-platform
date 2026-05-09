@@ -4,8 +4,8 @@ import { useUserStore } from '@/store/user'
 const ADMIN_ROUTE_PERMISSIONS = [
   { path: '/admin/users', permissionCode: 'admin.user' },
   { path: '/admin/teacher-audits', permissionCode: 'admin.teacher_audit' },
-  { path: '/admin/messages', permissionCode: 'admin.feedback' },
   { path: '/admin/announcements', permissionCode: 'admin.announcement' },
+  { path: '/admin/feedbacks', permissionCode: 'admin.feedback' },
   { path: '/admin/categories', permissionCode: 'admin.category' },
   { path: '/admin/tags', permissionCode: 'admin.tag' },
 ]
@@ -102,7 +102,7 @@ const routes: RouteRecordRaw[] = [
         path: 'feedbacks',
         name: 'ProfileFeedbacks',
         component: () => import('@/views/profile/MyFeedbacksPage.vue'),
-        meta: { title: '我的反馈' },
+        meta: { title: '我的反馈', blockAdminProfileFeedbacks: true },
       },
     ],
   },
@@ -142,12 +142,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/teacher/FeedbackManagePage.vue'),
         meta: { title: '课程反馈' },
       },
-      {
-        path: 'messages',
-        name: 'TeacherMessages',
-        redirect: '/profile/messages',
-        meta: { title: '消息中心' },
-      },
     ],
   },
   {
@@ -181,7 +175,8 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'feedbacks',
         name: 'AdminFeedbacks',
-        redirect: '/admin/messages',
+        component: () => import('@/views/admin/FeedbackManagePage.vue'),
+        meta: { title: '反馈管理', permissionCode: 'admin.feedback' },
       },
       {
         path: 'messages',
@@ -263,6 +258,10 @@ router.beforeEach(async (to) => {
 
     const landingPath = resolveAdminLandingPath(userStore)
     return landingPath || { name: 'Home' }
+  }
+
+  if (to.meta.blockAdminProfileFeedbacks && userStore.isAdmin) {
+    return { name: 'ProfileMessages' }
   }
 
   if (requiredPermissionCode && !userStore.hasPermission(requiredPermissionCode)) {

@@ -654,3 +654,46 @@
 - 验证结果：
   - 已执行：`python3 -m py_compile "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend/app/services/user_service.py"`。
   - 结果：通过。
+
+## 一次性用户名修改与老师开放改名机会
+时间：2026-05-09
+
+- 变更原因：用户需要在个人信息页自助修改用户名一次，后端强制一次性限制并记录原用户名；老师需要有完整入口为用户追加一次改名机会。
+- 涉及文件：
+  - `backend/app/models/user.py`
+  - `backend/app/core/db_schema.py`
+  - `backend/app/schemas/user.py`
+  - `backend/app/services/user_service.py`
+  - `backend/app/api/v1/users.py`
+  - `backend/tests/test_users.py`
+  - `operations-log.md`
+- 核心改动：
+  - `User` 新增 `original_username` 与 `username_change_remaining` 字段，并在数据库兼容检查中为旧库补列。
+  - 个人资料更新支持 `username`，后端校验字母数字格式、唯一性、剩余次数，首次改名记录原用户名并扣减机会。
+  - 用户响应和用户列表响应暴露 `user_id`、`original_username`、`username_change_remaining`、`can_change_username`，供前端控制状态。
+  - 新增 `POST /api/v1/users/{target_user_id}/username-change-opportunity`，允许老师/管理员为用户增加一次改名机会，老师不能为管理员开放机会。
+  - 用户列表允许老师搜索用户，用于老师端开放改名机会入口；学生仍不能访问用户列表。
+  - 补充用户测试覆盖首次改名、重复改名、重名冲突、老师开放机会、学生无权开放、老师不能给管理员开放、开放后再次改名成功。
+- 验证结果：
+  - 已执行：`PYTHONPATH="/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend" "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/.venv/bin/python" -m pytest "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend/tests/test_users.py" -v`。
+  - 结果：`24 passed, 11 warnings`；警告为既有 passlib `crypt` 与 FastAPI 422 常量弃用提示。
+
+## 管理员改名次数规则豁免
+时间：2026-05-09
+
+- 变更原因：用户名修改次数限制已要求不适用于老师和管理员，但后端 schema/service 只对老师做了豁免，管理员仍可能被剩余次数字段限制；正式用户管理文档也需要同步数据库字段和接口规则。
+- 涉及文件：
+  - `backend/app/services/user_service.py`
+  - `backend/app/schemas/user.py`
+  - `backend/tests/test_users.py`
+  - `3.用户管理模块详情.md`
+  - `docs/api-endpoint-inventory.md`
+  - `operations-log.md`
+- 核心改动：
+  - 将用户名修改免次数角色统一为 `teacher` 和 `admin`。
+  - `can_change_username` 对老师和管理员恒为 true，修改用户名时不扣减 `username_change_remaining`。
+  - 增加管理员剩余次数为 0 时仍可改名且不消耗次数的后端测试。
+  - 补充文档说明 `users.username_change_remaining`、`users.original_username` 和 `can_change_username` 派生规则，并更新用户管理接口条目。
+- 验证结果：
+  - 已执行：`"project_code/.venv/bin/python" -m pytest "project_code/backend/tests/test_users.py" -q`
+  - 结果：`26 passed, 11 warnings`

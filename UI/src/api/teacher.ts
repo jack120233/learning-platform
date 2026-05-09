@@ -196,6 +196,28 @@ export interface ProcessTeacherFeedbackRequest {
   reply: string
 }
 
+export interface BatchTeacherFeedbackDeleteResponse {
+  count: number
+}
+
+export interface TeacherUserSearchItem {
+  user_id: number
+  username: string
+  role: 'student' | 'teacher' | 'admin'
+  status: 'active' | 'disabled' | 'pending'
+  original_username: string | null
+  username_change_remaining: number
+  can_change_username: boolean
+}
+
+export interface TeacherUserSearchParams {
+  keyword?: string
+  role?: 'student' | 'teacher' | 'admin'
+  status?: 'active' | 'disabled' | 'pending'
+  page?: number
+  page_size?: number
+}
+
 /** 章节表单数据 */
 export interface ChapterFormData {
   title: string
@@ -330,6 +352,55 @@ export function batchCourseAction(data: BatchCourseActionRequest) {
   return request.post<unknown, BatchCourseActionResponse>('/courses/batch-action', data)
 }
 
+function mapTeacherUser(item: BackendTeacherUserSearchItem): TeacherUserSearchItem {
+  const remaining = Math.max(item.username_change_remaining ?? 1, 0)
+
+  return {
+    user_id: item.user_id ?? item.id,
+    username: item.username,
+    role: item.role,
+    status: item.status,
+    original_username: item.original_username ?? null,
+    username_change_remaining: remaining,
+    can_change_username: item.can_change_username ?? remaining > 0,
+  }
+}
+
+interface BackendTeacherUserSearchItem {
+  id: number
+  user_id?: number
+  username: string
+  role: 'student' | 'teacher' | 'admin'
+  status: 'active' | 'disabled' | 'pending'
+  original_username?: string | null
+  username_change_remaining?: number | null
+  can_change_username?: boolean | null
+}
+
+/** 搜索用户用于开放改名机会 */
+export async function fetchTeacherUsers(params: TeacherUserSearchParams = {}) {
+  const data = await request.get<unknown, PaginatedData<BackendTeacherUserSearchItem>>('/users', {
+    params: {
+      keyword: params.keyword,
+      role: params.role,
+      status: params.status,
+      page: params.page ?? 1,
+      page_size: params.page_size ?? 10,
+    },
+  })
+
+  return {
+    ...data,
+    items: data.items.map(mapTeacherUser),
+  }
+}
+
+/** 老师/管理员开放一次用户改名机会 */
+export function grantUsernameChangeOpportunity(userId: number) {
+  return request.post<unknown, BackendTeacherUserSearchItem>(`/users/${userId}/username-change-opportunity`)
+    .then(mapTeacherUser)
+}
+
 /** 获取课程反馈列表 */
 export function fetchTeacherFeedbacks(params: TeacherFeedbacksParams = {}) {
   const normalizedStatus = params.status === 'all' ? undefined : params.status
@@ -352,6 +423,22 @@ export function fetchTeacherFeedbackDetail(feedbackId: number) {
 /** 回复并处理课程反馈 */
 export function processTeacherFeedback(feedbackId: number, data: ProcessTeacherFeedbackRequest) {
   return request.post<unknown, TeacherFeedbackDetail>(`/feedbacks/${feedbackId}/process`, data)
+}
+
+/** 删除课程反馈 */
+export function deleteTeacherFeedback(feedbackId: number) {
+  return request.delete<unknown, void>(`/feedbacks/${feedbackId}`)
+}
+
+/** 批量删除课程反馈 */
+export async function batchDeleteTeacherFeedbacks(feedbackIds: number[]): Promise<BatchTeacherFeedbackDeleteResponse> {
+  const results = await Promise.allSettled(feedbackIds.map((feedbackId) => deleteTeacherFeedback(feedbackId)))
+  const count = results.filter((result) => result.status === 'fulfilled').length
+  const failureCount = results.length - count
+  if (failureCount > 0) {
+    throw new Error(`部分反馈删除失败：${failureCount} 条`)
+  }
+  return { count }
 }
 
 /** 获取课程章节列表 */

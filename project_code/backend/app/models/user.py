@@ -6,7 +6,7 @@
 from datetime import datetime
 from typing import Literal
 
-from sqlalchemy import DateTime, Enum, String, Text
+from sqlalchemy import DateTime, Enum, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
@@ -40,6 +40,17 @@ class User(BaseModel):
         index=True,
         nullable=False,
         comment="用户名",
+    )
+    original_username: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="首次改名前用户名",
+    )
+    username_change_remaining: Mapped[int] = mapped_column(
+        Integer,
+        default=1,
+        nullable=False,
+        comment="剩余用户名修改次数",
     )
     email: Mapped[str] = mapped_column(
         String(100),

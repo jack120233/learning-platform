@@ -5,6 +5,7 @@ import { usePagination } from '@/composables/usePagination'
 import { fetchMyFeedbacks } from '@/api/profile'
 import type { FeedbackItem } from '@/api/profile'
 import FeedbackForm from '@/components/feedback/FeedbackForm.vue'
+import UserIdentity from '@/components/common/UserIdentity.vue'
 
 const route = useRoute()
 const showSubmitDialog = ref(false)
@@ -42,17 +43,6 @@ function formatTime(time: string) {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-function formatUserIdentity(username: string | null | undefined, userId: number | null | undefined, fallback = '-') {
-  if (username && userId) return `${username}#${userId}`
-  if (username) return username
-  if (userId) return `用户#${userId}`
-  return fallback
-}
-
-function getTargetName(feedback: FeedbackItem) {
-  return formatUserIdentity(feedback.target_username, feedback.target_user_id)
 }
 
 function hasTargetIdentity(feedback: FeedbackItem) {
@@ -139,7 +129,13 @@ watch(() => route.query.refresh, () => {
 
           <p class="feedback-course" v-if="hasTargetIdentity(feedback)">
             <el-icon><User /></el-icon>
-            反馈给：{{ getTargetName(feedback) }}
+            <span>反馈给：</span>
+            <UserIdentity
+              :username="feedback.target_username"
+              :user-id="feedback.target_user_id"
+              fallback="用户"
+              compact
+            />
           </p>
 
           <div v-if="feedback.reply" class="feedback-reply">
