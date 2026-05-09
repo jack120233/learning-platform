@@ -45,9 +45,7 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "05-09-teacher-soft-delete-messages"
-  ],
+  "children": [],
   "parent": null,
   "relatedFiles": [],
   "notes": "",
