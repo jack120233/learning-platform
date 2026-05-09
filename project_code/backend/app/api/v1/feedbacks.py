@@ -157,8 +157,6 @@ async def delete_feedback(
 ) -> ApiResponse[None]:
     """软删除反馈接口。"""
     can_delete_all = current_user.role == "admin" and await has_feedback_admin_permission(db, current_user.role)
-    if not can_delete_all and current_user.role != "teacher":
-        raise ForbiddenException("无权删除反馈")
 
     await feedback_service.soft_delete(
         db,

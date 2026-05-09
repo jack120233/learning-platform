@@ -292,10 +292,25 @@ onMounted(() => {
 
       <!-- 只读信息展示 -->
       <div class="info-section">
-        <div class="info-row">
+        <div class="info-row info-row--identity">
           <span class="info-label">当前用户名</span>
           <span class="info-value">
             <UserIdentity :username="profile.username" :user-id="profile.user_id" fallback="用户" />
+          </span>
+        </div>
+
+        <div class="info-row info-row--role">
+          <span class="info-label">角色</span>
+          <span class="info-value info-value--tags">
+            <el-tag effect="light" size="large">{{ roleMap[profile.role] || profile.role }}</el-tag>
+            <el-tag
+              v-if="profile.role === 'teacher' && profile.status === 'pending'"
+              :type="statusMap[profile.status]?.type"
+              effect="light"
+              size="large"
+            >
+              {{ statusMap[profile.status]?.text }}
+            </el-tag>
           </span>
         </div>
 
@@ -303,19 +318,6 @@ onMounted(() => {
           <span class="info-label">原用户名</span>
           <span class="info-value">{{ profile.original_username }}</span>
         </div>
-
-        <div class="info-row">
-          <span class="info-label">角色</span>
-          <el-tag>{{ roleMap[profile.role] || profile.role }}</el-tag>
-        </div>
-
-        <div class="info-row" v-if="profile.role === 'teacher' && profile.status === 'pending'">
-          <span class="info-label">审核状态</span>
-          <el-tag :type="statusMap[profile.status]?.type">
-            {{ statusMap[profile.status]?.text }}
-          </el-tag>
-        </div>
-
       </div>
 
       <!-- 可编辑表单 -->
@@ -443,28 +445,49 @@ onMounted(() => {
 }
 
 .info-section {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f8fbff 0%, #ffffff 100%);
 }
 
 .info-row {
   display: flex;
   align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid #f0f0f0;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #edf2f7;
+  border-radius: 12px;
+  background: #fff;
+}
 
-  &:last-child {
-    border-bottom: none;
-  }
+.info-row--identity,
+.info-row--role {
+  grid-column: span 2;
 }
 
 .info-label {
-  width: 100px;
-  color: #666;
+  width: 88px;
+  color: #64748b;
+  font-size: 13px;
   flex-shrink: 0;
 }
 
 .info-value {
-  color: #333;
+  min-width: 0;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.info-value--tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .edit-form {
@@ -490,6 +513,23 @@ onMounted(() => {
 @media (max-width: 768px) {
   .avatar-section {
     align-items: stretch;
+  }
+
+  .info-section {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .info-row,
+  .info-row--identity,
+  .info-row--role {
+    grid-column: span 1;
+  }
+
+  .info-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
   }
 
   .email-input-group {

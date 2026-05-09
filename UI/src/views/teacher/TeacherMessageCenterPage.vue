@@ -50,6 +50,12 @@ const grantUserRoleMap: Record<TeacherUserSearchItem['role'], string> = {
   admin: '管理员',
 }
 
+const grantUserStatusMap: Record<TeacherUserSearchItem['status'], string> = {
+  active: '正常',
+  disabled: '已禁用',
+  pending: '待审核',
+}
+
 async function fetchFeedbackList(params: TeacherFeedbacksParams) {
   return fetchTeacherFeedbacks({
     status: feedbackStatus.value,
@@ -93,6 +99,7 @@ const {
 async function fetchGrantUserList(params: { page?: number; page_size?: number }) {
   return fetchTeacherUsers({
     keyword: userSearchKeyword.value.trim() || undefined,
+    role: 'student',
     page: params.page,
     page_size: params.page_size,
   })
@@ -884,7 +891,7 @@ watch(notices, (currentNotices) => {
         <div class="panel-card username-grant-panel">
           <div class="grant-intro">
             <h3>开放一次用户名修改机会</h3>
-            <p>学生或老师首次自助改名后，如确需再次修改，可由老师在这里为指定用户增加一次机会。老师不能为管理员开放机会。</p>
+            <p>学生首次自助改名后，如确需再次修改，可由老师在这里为指定学生增加一次机会。</p>
           </div>
 
           <div class="filter-bar">
@@ -921,7 +928,7 @@ watch(notices, (currentNotices) => {
                   <el-tag size="small">{{ grantUserRoleMap[user.role] }}</el-tag>
                 </div>
                 <div class="card-meta">
-                  <span>状态：{{ user.status }}</span>
+                  <span>状态：{{ grantUserStatusMap[user.status] || user.status }}</span>
                   <span>剩余改名机会：{{ user.username_change_remaining }}</span>
                   <span v-if="user.original_username">原用户名：{{ user.original_username }}</span>
                 </div>
@@ -1046,14 +1053,6 @@ watch(notices, (currentNotices) => {
               @click="openProcessDialog(currentFeedback)"
             >
               回复并处理
-            </el-button>
-            <el-button
-              class="soft-action-btn soft-action-btn--danger"
-              type="danger"
-              :icon="Delete"
-              @click="handleDeleteFeedback(currentFeedback)"
-            >
-              删除反馈
             </el-button>
           </div>
         </div>

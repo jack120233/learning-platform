@@ -880,3 +880,27 @@
   - 已执行：`cd "UI" && npm run build`
   - 结果：通过
   - 备注：构建仍提示既有大体积 chunk 警告，不影响本次功能正确性；浏览器烟测待执行。
+
+## 个人资料、消息反馈历史管理与反馈处理体验修正
+时间：2026-05-09
+
+- 变更原因：个人资料只读区布局、老师消息中心改名机会搜索、个人反馈历史管理、管理员个人消息中心用户反馈处理体验需要按最新需求统一收口。
+- 涉及文件：
+  - `src/api/profile.ts`
+  - `src/api/admin.ts`
+  - `src/views/profile/ProfileInfoPage.vue`
+  - `src/views/profile/MyFeedbacksPage.vue`
+  - `src/views/teacher/TeacherMessageCenterPage.vue`
+  - `src/views/admin/AdminMessagePage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 个人资料只读信息区改为浅蓝卡片式网格，角色与状态标签集中展示，并补充移动端单列布局。
+  - `/profile/feedbacks` 新增我的反馈单条删除、批量管理、当前页选择和删除后分页刷新能力，复用反馈提交人删除接口。
+  - 老师消息中心改名机会搜索限定 `role=student`，并将 `active` 状态展示为“正常”；学生反馈详情抽屉移除删除按钮，保留列表单删和批量删除。
+  - 管理员消息中心用户反馈列表新增单删和批量删除；详情抽屉改为与老师侧一致的反馈对话气泡布局，并保留回复处理入口。
+  - 前端 API 补充我的反馈删除、管理端反馈删除和批量删除封装。
+  - 自检补充：改名机会说明文案同步为“指定学生”，避免与实际只搜索学生用户的范围不一致。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
+  - 结果：通过；构建仍提示既有大体积 chunk 警告。
+  - 备注：本条记录为本轮前端变更留痕；自检后重新执行 `npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`，结果通过；未额外执行浏览器手动联调。

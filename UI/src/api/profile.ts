@@ -279,6 +279,13 @@ export async function fetchMyFeedbacks(params: MyFeedbacksParams = {}): Promise<
   }
 }
 
+/**
+ * 删除我的反馈
+ */
+export function deleteMyFeedback(feedbackId: number): Promise<void> {
+  return request.delete<unknown, void>(`/feedbacks/${feedbackId}`)
+}
+
 interface BackendMessageItem {
   id: number
   type: string

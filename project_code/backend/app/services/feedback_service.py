@@ -282,7 +282,7 @@ class FeedbackService:
             raise NotFoundException("反馈不存在")
 
         if not allow_global:
-            if feedback.target_user_id != operator_id:
+            if feedback.target_user_id != operator_id and feedback.user_id != operator_id:
                 raise ForbiddenException("无权删除该反馈")
 
         feedback.is_deleted = True

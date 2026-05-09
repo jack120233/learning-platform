@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { ChatDotRound, Message, Search } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ChatDotRound, Delete, Message, Search } from '@element-plus/icons-vue'
 import { usePagination } from '@/composables/usePagination'
 import { useUserStore } from '@/store/user'
 import {
+  batchDeleteAdminFeedbacks,
   batchProcessFeedbacks,
+  deleteAdminFeedback,
   fetchFeedbackDetail,
   fetchFeedbacks,
   fetchUsers,
@@ -189,6 +191,8 @@ async function handleSubmitProcess() {
 
 const selectedIds = ref<number[]>([])
 
+const selectedCount = computed(() => selectedIds.value.length)
+
 const pendingSelectedCount = computed(() => {
   return selectedIds.value.filter((id) => {
     const feedback = feedbacks.value.find((item) => item.feedback_id === id)
@@ -221,6 +225,70 @@ async function handleBatchProcess() {
     await refreshFeedbacks()
   } catch {
     ElMessage.error('批量处理失败')
+  }
+}
+
+async function refreshFeedbacksAfterDelete() {
+  await refreshFeedbacks()
+  if (feedbacks.value.length === 0 && page.value > 1) {
+    await goToPage(page.value - 1)
+  }
+}
+
+async function handleDeleteFeedback(feedback: AdminFeedbackItem | AdminFeedbackDetail) {
+  try {
+    await ElMessageBox.confirm('确定要删除这条用户反馈吗？删除后将从列表中隐藏。', '删除反馈', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+    await deleteAdminFeedback(feedback.feedback_id)
+    ElMessage.success('反馈已删除')
+    selectedIds.value = selectedIds.value.filter((id) => id !== feedback.feedback_id)
+    if (currentFeedback.value?.feedback_id === feedback.feedback_id) {
+      showDetailDrawer.value = false
+      currentFeedback.value = null
+    }
+    await refreshFeedbacksAfterDelete()
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
+async function handleBatchDeleteFeedbacks() {
+  if (selectedCount.value === 0) {
+    ElMessage.warning('请选择要删除的反馈')
+    return
+  }
+
+  const selectedFeedbacks = feedbacks.value.filter((feedback) => selectedIds.value.includes(feedback.feedback_id))
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除已选择的 ${selectedFeedbacks.length} 条用户反馈吗？`,
+      '批量删除确认',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+
+    const selectedFeedbackIds = selectedFeedbacks.map((feedback) => feedback.feedback_id)
+    const result = await batchDeleteAdminFeedbacks(selectedFeedbackIds)
+    ElMessage.success(`已删除 ${result.count} 条用户反馈`)
+    if (currentFeedback.value && selectedFeedbackIds.includes(currentFeedback.value.feedback_id)) {
+      showDetailDrawer.value = false
+      currentFeedback.value = null
+    }
+    selectedIds.value = []
+    await refreshFeedbacksAfterDelete()
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error('批量删除失败')
+    }
   }
 }
 
@@ -395,16 +463,28 @@ onMounted(() => {
         </div>
       </div>
 
-      <div v-if="pendingSelectedCount > 0" class="batch-actions">
-        <span>已选择 {{ pendingSelectedCount }} 条待处理反馈</span>
-        <el-button
-          class="soft-action-btn soft-action-btn--primary soft-action-btn--small"
-          type="primary"
-          size="small"
-          @click="handleBatchProcess"
-        >
-          批量标记已处理
-        </el-button>
+      <div v-if="selectedCount > 0" class="batch-actions">
+        <span>已选择 {{ selectedCount }} 条反馈，其中 {{ pendingSelectedCount }} 条待处理</span>
+        <div class="batch-action-buttons">
+          <el-button
+            class="soft-action-btn soft-action-btn--primary soft-action-btn--small"
+            type="primary"
+            size="small"
+            :disabled="pendingSelectedCount === 0"
+            @click="handleBatchProcess"
+          >
+            批量标记已处理
+          </el-button>
+          <el-button
+            class="soft-action-btn soft-action-btn--danger soft-action-btn--small"
+            type="danger"
+            size="small"
+            :disabled="selectedCount === 0"
+            @click="handleBatchDeleteFeedbacks"
+          >
+            批量删除
+          </el-button>
+        </div>
       </div>
 
       <el-empty v-if="isEmpty" description="暂无符合条件的反馈" />
@@ -488,7 +568,7 @@ onMounted(() => {
             {{ formatTime(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="130" fixed="right" prop="__actions">
+        <el-table-column label="操作" width="160" fixed="right" prop="__actions">
           <template #default="{ row }">
             <div class="row-actions" @click.stop>
               <el-button text type="primary" size="small" @click="handleViewDetail(row)">详情</el-button>
@@ -501,6 +581,15 @@ onMounted(() => {
                 @click="openProcessDialog(row)"
               >
                 回复处理
+              </el-button>
+              <el-button
+                text
+                size="small"
+                type="danger"
+                :icon="Delete"
+                @click="handleDeleteFeedback(row)"
+              >
+                删除
               </el-button>
             </div>
           </template>
@@ -649,38 +738,63 @@ onMounted(() => {
           </div>
         </div>
 
-        <el-divider>反馈内容</el-divider>
-        <div class="feedback-content">{{ currentFeedback.content }}</div>
-
-        <template v-if="currentFeedback.reply">
-          <el-divider>处理回复</el-divider>
-          <div class="reply-content">{{ currentFeedback.reply }}</div>
-        </template>
-
-        <template v-if="currentFeedback.images?.length">
-          <el-divider>截图</el-divider>
-          <div class="image-list">
-            <el-image
-              v-for="(img, index) in currentFeedback.images"
-              :key="img"
-              :src="img"
-              :preview-src-list="currentFeedback.images"
-              :initial-index="index"
-              fit="cover"
-              class="feedback-image"
-            />
+        <el-divider>反馈对话</el-divider>
+        <div class="feedback-chat">
+          <div class="chat-message chat-message--user">
+            <div class="chat-meta">
+              <UserIdentity :username="currentFeedback.username" :user-id="currentFeedback.user_id" fallback="用户" compact />
+              <span>{{ formatTime(currentFeedback.created_at) }}</span>
+            </div>
+            <div class="chat-bubble chat-bubble--user">
+              <div class="chat-text">{{ currentFeedback.content }}</div>
+              <div v-if="currentFeedback.images?.length" class="chat-images">
+                <el-image
+                  v-for="(img, index) in currentFeedback.images"
+                  :key="img"
+                  :src="img"
+                  :preview-src-list="currentFeedback.images"
+                  :initial-index="index"
+                  fit="cover"
+                  class="feedback-image"
+                />
+              </div>
+            </div>
           </div>
-        </template>
 
-        <div v-if="currentFeedback.status === 'pending'" class="drawer-action-area">
+          <div v-if="currentFeedback.reply" class="chat-message chat-message--admin">
+            <div class="chat-meta">
+              <UserIdentity
+                :username="userStore.userInfo.username"
+                :user-id="userStore.userInfo.userId"
+                fallback="管理员"
+                compact
+              />
+              <span>{{ formatTime(currentFeedback.replied_at || currentFeedback.processed_at) }}</span>
+            </div>
+            <div class="chat-bubble chat-bubble--admin">
+              <div class="chat-text">{{ currentFeedback.reply }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="drawer-action-area">
           <div class="soft-action-surface">
             <el-button
+              v-if="currentFeedback.status === 'pending'"
               class="soft-action-btn soft-action-btn--primary"
               type="primary"
               :icon="ChatDotRound"
               @click="openProcessDialog(currentFeedback)"
             >
               回复并处理
+            </el-button>
+            <el-button
+              class="soft-action-btn soft-action-btn--danger"
+              type="danger"
+              :icon="Delete"
+              @click="handleDeleteFeedback(currentFeedback)"
+            >
+              删除反馈
             </el-button>
           </div>
         </div>
@@ -888,6 +1002,7 @@ onMounted(() => {
 .batch-actions {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
   padding: 12px 16px;
@@ -897,6 +1012,29 @@ onMounted(() => {
   color: #1d4f91;
   font-size: $font-size-sm;
   font-weight: 600;
+}
+
+.batch-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  :deep(.el-button) {
+    margin-left: 0;
+  }
+}
+
+.soft-action-btn--danger {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: #dc2626 !important;
+
+  &:hover,
+  &:focus {
+    border-color: #fecaca !important;
+    background: #fff5f5 !important;
+    color: #b91c1c !important;
+  }
 }
 
 .feedback-table {
@@ -1030,15 +1168,70 @@ onMounted(() => {
   }
 }
 
-.feedback-content,
-.reply-content {
-  padding: 16px;
-  border-radius: $radius-sm;
-  background: $bg-color;
+.feedback-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.chat-message {
+  display: flex;
+  flex-direction: column;
+  max-width: 72%;
+  min-width: 0;
+
+  &--user {
+    align-items: flex-start;
+    align-self: flex-start;
+  }
+
+  &--admin {
+    align-items: flex-end;
+    align-self: flex-end;
+  }
+}
+
+.chat-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-bottom: 6px;
+  color: $text-tertiary;
+  font-size: 12px;
+}
+
+.chat-message--admin .chat-meta {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.chat-bubble {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 14px 16px;
+  border-radius: 16px;
+  line-height: 1.7;
   color: $text-primary;
-  line-height: 1.6;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+
+  &--user {
+    border-top-left-radius: 4px;
+    background: $bg-color;
+  }
+
+  &--admin {
+    border-top-right-radius: 4px;
+    background: #e8f3ff;
+  }
+}
+
+.chat-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .drawer-action-area {
@@ -1121,6 +1314,14 @@ onMounted(() => {
     align-items: stretch;
     flex-direction: column;
     width: 100%;
+  }
+
+  .batch-action-buttons {
+    flex-direction: column;
+  }
+
+  .chat-message {
+    max-width: 86%;
   }
 
   .filter-select,

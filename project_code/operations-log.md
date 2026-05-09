@@ -697,3 +697,21 @@
 - 验证结果：
   - 已执行：`"project_code/.venv/bin/python" -m pytest "project_code/backend/tests/test_users.py" -q`
   - 结果：`26 passed, 11 warnings`
+
+## 反馈提交人删除权限补齐
+时间：2026-05-09
+
+- 变更原因：个人中心需要支持所有登录角色管理自己提交过的反馈历史，后端删除接口原先在路由层只允许管理员或老师进入，导致反馈提交人无法删除自己的反馈。
+- 涉及文件：
+  - `backend/app/api/v1/feedbacks.py`
+  - `backend/app/services/feedback_service.py`
+  - `backend/tests/test_feedbacks.py`
+  - `operations-log.md`
+- 核心改动：
+  - 移除反馈删除路由中对非管理员、非老师用户的提前拒绝，让服务层统一执行所有权判断。
+  - 反馈软删除服务允许 `Feedback.user_id` 等于当前操作者时删除，同时保留管理员全局删除和目标老师删除能力。
+  - 补充提交人可软删除自己反馈、普通学生不能删除他人反馈的回归测试，并验证软删除后列表和详情隐藏。
+- 验证结果：
+  - 已执行：`/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/.venv/bin/python -m pytest /Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend/tests/test_feedbacks.py -v`
+  - 结果：`21 passed, 11 warnings`。
+  - 备注：警告为既有 passlib `crypt` 与 FastAPI 422 常量弃用提示，本次未扩大处理范围。

@@ -495,6 +495,88 @@ class TestFeedback:
         assert feedback.is_deleted is False
 
     @pytest.mark.asyncio
+    async def test_submitter_can_soft_delete_own_feedback(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_course,
+    ):
+        """测试反馈提交人可删除自己的反馈，删除后列表和详情隐藏。"""
+        from app.models.feedback import Feedback
+
+        submitter_auth = await create_role_user(client, db_session, "student")
+        feedback = Feedback(
+            user_id=submitter_auth["user_id"],
+            type="course",
+            course_id=test_course.id,
+            target_user_id=test_course.teacher_id,
+            title="自己提交的反馈",
+            content="提交人删除自己的反馈测试",
+            status="pending",
+        )
+        db_session.add(feedback)
+        await db_session.flush()
+
+        delete_response = await client.delete(
+            f"/api/v1/feedbacks/{feedback.id}",
+            headers=submitter_auth["headers"],
+        )
+        assert delete_response.status_code == 200
+
+        await db_session.refresh(feedback)
+        assert feedback.is_deleted is True
+        assert feedback.deleted_at is not None
+
+        list_response = await client.get(
+            "/api/v1/users/me/feedbacks",
+            headers=submitter_auth["headers"],
+        )
+        assert list_response.status_code == 200
+        feedback_ids = {item["feedback_id"] for item in list_response.json()["data"]["items"]}
+        assert feedback.id not in feedback_ids
+
+        detail_response = await client.get(
+            f"/api/v1/feedbacks/{feedback.id}",
+            headers=submitter_auth["headers"],
+        )
+        assert detail_response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_student_cannot_delete_other_user_feedback(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_course,
+    ):
+        """测试普通学生不能删除其他用户提交的反馈。"""
+        from app.models.feedback import Feedback
+
+        owner_auth = await create_role_user(client, db_session, "student")
+        other_student_auth = await create_role_user(client, db_session, "student")
+        feedback = Feedback(
+            user_id=owner_auth["user_id"],
+            type="course",
+            course_id=test_course.id,
+            target_user_id=test_course.teacher_id,
+            title="别人的反馈",
+            content="不能被其他学生删除",
+            status="pending",
+        )
+        db_session.add(feedback)
+        await db_session.flush()
+
+        response = await client.delete(
+            f"/api/v1/feedbacks/{feedback.id}",
+            headers=other_student_auth["headers"],
+        )
+
+        assert response.status_code == 403
+        assert response.json()["message"] == "无权删除该反馈"
+
+        await db_session.refresh(feedback)
+        assert feedback.is_deleted is False
+
+    @pytest.mark.asyncio
     async def test_course_feedback_can_target_other_active_teacher(
         self,
         client: AsyncClient,

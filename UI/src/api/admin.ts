@@ -643,3 +643,19 @@ export function processFeedback(feedbackId: number, data: ProcessFeedbackRequest
 export function batchProcessFeedbacks(feedbackIds: number[]) {
   return request.post<unknown, void>('/feedbacks/batch-process', { feedback_ids: feedbackIds })
 }
+
+/** 删除反馈 */
+export function deleteAdminFeedback(feedbackId: number) {
+  return request.delete<unknown, void>(`/feedbacks/${feedbackId}`)
+}
+
+/** 批量删除反馈 */
+export async function batchDeleteAdminFeedbacks(feedbackIds: number[]): Promise<{ count: number }> {
+  const results = await Promise.allSettled(feedbackIds.map((feedbackId) => deleteAdminFeedback(feedbackId)))
+  const count = results.filter((result) => result.status === 'fulfilled').length
+  const failureCount = results.length - count
+  if (failureCount > 0) {
+    throw new Error(`部分反馈删除失败：${failureCount} 条`)
+  }
+  return { count }
+}
