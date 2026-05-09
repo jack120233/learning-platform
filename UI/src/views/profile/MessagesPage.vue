@@ -192,6 +192,20 @@ async function syncUnreadCount() {
   }
 }
 
+function removeDeletedMessages(deletedIds: number[]) {
+  const deletedIdSet = new Set(deletedIds)
+  const originalCount = messages.value.length
+
+  messages.value = messages.value.filter((message) => !deletedIdSet.has(message.message_id))
+  const removedCount = originalCount - messages.value.length
+
+  if (removedCount > 0) {
+    total.value = Math.max(0, total.value - removedCount)
+  }
+
+  selectedIds.value = selectedIds.value.filter((id) => !deletedIdSet.has(id))
+}
+
 // 批量标记已读
 async function handleMarkAllRead() {
   try {
@@ -227,7 +241,7 @@ async function handleDelete(message: MessageItem) {
       userStore.setUnreadCount(unreadCount.value)
     }
 
-    // 刷新列表
+    removeDeletedMessages([message.message_id])
     await refreshAfterMutation()
   } catch (error) {
     // 用户取消或请求失败
@@ -264,7 +278,7 @@ async function handleBatchDelete() {
     }
 
     ElMessage.success(`已删除 ${selectedMessages.length} 条消息`)
-    selectedIds.value = []
+    removeDeletedMessages(selectedMessages.map((message) => message.message_id))
     await refreshAfterMutation()
   } catch (error) {
     // 用户取消或请求失败
@@ -272,10 +286,20 @@ async function handleBatchDelete() {
 }
 
 async function refreshAfterMutation() {
-  await refresh()
-  if (messages.value.length === 0 && page.value > 1) {
-    await goToPage(page.value - 1)
+  const validPage = Math.max(1, Math.min(page.value, totalPages.value))
+
+  if (validPage !== page.value) {
+    page.value = validPage
+    await refresh()
+    return
   }
+
+  if (messages.value.length === 0 && page.value > 1) {
+    await goToPage(Math.max(1, page.value - 1))
+    return
+  }
+
+  await refresh()
 }
 
 // 格式化时间

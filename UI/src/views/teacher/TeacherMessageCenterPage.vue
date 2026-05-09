@@ -213,10 +213,34 @@ async function refreshNotices(resetPage = false) {
 }
 
 async function refreshNoticesAfterMutation() {
-  await refreshNotices()
-  if (notices.value.length === 0 && noticePage.value > 1) {
-    await goToNoticePage(noticePage.value - 1)
+  const validPage = Math.max(1, Math.min(noticePage.value, noticeTotalPages.value))
+
+  if (validPage !== noticePage.value) {
+    noticePage.value = validPage
+    await refreshNotices()
+    return
   }
+
+  if (notices.value.length === 0 && noticePage.value > 1) {
+    await goToNoticePage(Math.max(1, noticePage.value - 1))
+    return
+  }
+
+  await refreshNotices()
+}
+
+function removeDeletedNotices(deletedIds: number[]) {
+  const deletedIdSet = new Set(deletedIds)
+  const originalCount = notices.value.length
+
+  notices.value = notices.value.filter((notice) => !deletedIdSet.has(notice.message_id))
+  const removedCount = originalCount - notices.value.length
+
+  if (removedCount > 0) {
+    noticeTotal.value = Math.max(0, noticeTotal.value - removedCount)
+  }
+
+  selectedNoticeIds.value = selectedNoticeIds.value.filter((id) => !deletedIdSet.has(id))
 }
 
 function handleFeedbackSearch() {
@@ -527,6 +551,7 @@ async function handleDeleteNotice(notice: MessageItem) {
       showNoticeDrawer.value = false
       currentNotice.value = null
     }
+    removeDeletedNotices([notice.message_id])
     await refreshNoticesAfterMutation()
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
@@ -567,7 +592,7 @@ async function handleBatchDeleteNotices() {
         showNoticeDrawer.value = false
         currentNotice.value = null
       }
-      selectedNoticeIds.value = selectedNoticeIds.value.filter((id) => !successIds.includes(id))
+      removeDeletedNotices(successIds)
       await refreshNoticesAfterMutation()
     }
 

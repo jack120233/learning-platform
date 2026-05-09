@@ -654,6 +654,23 @@
   - 已执行：用学生账号 `student1@example.com / Test123456` 验证 PC 下拉菜单和 390px 移动端菜单仍进入 `/profile/messages`。
   - 已检查：教师账号接口权限包含 `teacher.course`，路由守卫允许直接访问 `/teacher/messages`。
 
+## 消息中心删除后空白占位修复
+时间：2026-05-09
+
+- 变更原因：学生在 `/profile/messages` 删除消息后，旧卡片区域会残留大块空白，多次删除会累积；同时需要检查老师消息中心的平台通知删除链路。
+- 涉及文件：
+  - `src/views/profile/MessagesPage.vue`
+  - `src/views/teacher/TeacherMessageCenterPage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 学生消息中心单删和批量删除成功后，先从本地 `messages` 列表同步移除已删除 ID、扣减当前分页总数并清理选中项，再刷新后端数据，避免等待刷新期间残留旧占位。
+  - 删除后刷新逻辑改为先根据本地扣减后的 `totalPages` 夹紧当前页；当前页被删空时跳转到上一有效页，避免停留在越界空页。
+  - 老师消息中心“平台通知”单删和批量删除应用相同的本地移除、总数扣减、选中项清理和分页夹紧逻辑；管理员消息中心当前主功能为反馈处理/系统消息发送表单，未发现同类消息卡片删除问题。
+- 验证结果：
+  - 已执行：`npm --prefix "UI" run build`。
+  - 结果：通过；构建仍提示既有大体积 chunk 警告。
+  - 已执行：真实前后端联调浏览器验证。通过管理员真实 API 给 `student1@example.com` 与 `teacher1@example.com` 各发送临时消息，分别在 `/profile/messages` 学生消息列表与老师“平台通知”页删除；删除后目标卡片从 DOM 消失、后端列表不再返回、列表高度收缩未留白。
+
 ## 教师反馈详情对话气泡布局优化
 时间：2026-05-08
 
