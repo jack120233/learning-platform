@@ -71,3 +71,37 @@ Integrated admin message center into profile messages, unified user identity dis
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Profile feedback UX and username history fixes
+
+**Date**: 2026-05-09
+**Task**: Profile feedback UX and username history fixes
+**Branch**: `master`
+
+### Summary
+
+Improved profile feedback management UX, removed disruptive drawer delete actions, hid username history from profile UI, and preserved username history append-only in backend storage.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4c4f520` | (see git log) |
+| `e859505` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
