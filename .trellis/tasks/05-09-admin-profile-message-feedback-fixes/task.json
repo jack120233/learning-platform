@@ -45,9 +45,7 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "05-09-teacher-message-batch-delete"
-  ],
+  "children": [],
   "parent": null,
   "relatedFiles": [],
   "notes": "",
