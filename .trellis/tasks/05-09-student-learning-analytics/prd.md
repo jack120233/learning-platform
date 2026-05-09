@@ -37,6 +37,9 @@
 * 已决定：文档/图片会话防挂机规则按资源类型区分：图片单次最多计 5 分钟；文档无操作 5 分钟停止累计，单次最多计 20 分钟。
 * 已决定：后续实现任务按“学习统计底座 + 学生自我统计 + 教师课程统计/管理员平台统计”拆分，而不是按三个页面孤立实现，避免重复改底层数据口径。
 * 已决定：统计数据刷新采用混合刷新：学生个人统计可实时/轻量聚合；教师和管理员看板以定时聚合为主；当天数据可实时补充，历史数据走聚合表。
+* 已决定：学生个人统计页仅面向 `student` 角色；教师和管理员可以在数据层保留学习记录，但不提供个人学习统计页，他们只使用教师课程统计或管理员平台统计汇总。
+* 已决定：教师课程统计也只统计 `student` 学习者，学习人数、活跃人数、完成率和学生明细都不包含 teacher/admin 学习行为。
+* 已决定：学生端不保留老版学习记录页面；个人中心当前学习记录右侧内容区直接替换为新设计的“学习统计”页面，学习记录列表作为新页面的一部分展示；个人中心菜单名称改为“学习统计”。
 
 ## Requirements (evolving)
 
@@ -114,7 +117,7 @@ Scope:
 Scope:
 
 * Add student-facing overview metrics, growth feedback, trend chart data, and course progress distribution.
-* Integrate with existing personal learning records page or adjacent personal center route.
+* Replace the existing personal learning records content area with the new learning statistics page; keep the learning-record list as a section within the new page.
 * Use foundation metrics and avoid redefining course completion/time rules.
 
 ### Task 3: Teacher course statistics and admin platform statistics
@@ -140,7 +143,7 @@ Scope:
 * 学习过程中前端本地累计有效学习时长。
 * 资源切换、离开学习页、播放完成、文档/图片关闭、页面关闭时提交会话结果。
 * 提交失败时进入离线队列，下次恢复网络或进入学习页时补交。
-* 后端以 `session_id` 做全局唯一幂等键，同一会话重复提交不重复累计。
+* 后端以 `session_id` 做全局唯一幂等键；同一会话重复提交允许补全更新，但不新增记录、不重复累计。
 
 建议接口：`POST /api/v1/learning/sessions`。
 
@@ -168,7 +171,9 @@ Scope:
 
 ### Effective duration rules
 
-* 视频/音频：会话有效时长来自实际播放时长累计，不把暂停时间计入。
+* 前端提交本地累计的 `effective_duration_seconds`。
+* 后端同时计算外框时长 `ended_at - started_at`，最终有效时长取前端有效时长、外框时长、资源类型上限中的较小值。
+* 视频/音频：前端有效时长来自实际播放时长累计，不把暂停时间计入；后端校验不能超过外框时长，也不能明显超过资源总时长。
 * 文档：会话有效时长来自打开后的前台停留时间；无操作 5 分钟停止累计；单次会话最多计 20 分钟。
 * 图片：会话有效时长来自打开后的前台查看时间；单次会话最多计 5 分钟。
 * 页面后台、网络异常、异常关闭：通过结束原因和最终上报进行归档；无法确认的时间不计入或按上限截断。
@@ -190,16 +195,124 @@ Scope:
 
 设计口径以会话事实为准；聚合表只作为查询性能优化和趋势查询来源。
 
+### Student daily aggregate
+
+建议新增学生每日统计聚合表，概念名可为 `student_daily_learning_stats`，用于学生个人趋势、总时长、活跃天数、连续学习天数。
+
+核心字段建议：
+
+* `id`
+* `user_id`
+* `stat_date`
+* `effective_duration_seconds`
+* `video_duration_seconds`
+* `audio_duration_seconds`
+* `document_duration_seconds`
+* `image_duration_seconds`
+* `session_count`
+* `learned_course_count`
+* `completed_resource_count`
+* `created_at`
+* `updated_at`
+
+说明：
+
+* 资源类型时长拆分不是学生侧 MVP 必须展示，但成本低，后续可用于学习类型占比。
+* `effective_duration_seconds` 应等于各资源类型时长之和。
+* `learned_course_count` 按当天产生有效学习会话的去重课程数计算。
+* `completed_resource_count` 按当天完成资源数量计算。
+
+### Student-course daily aggregate
+
+建议新增学生课程每日统计聚合表，概念名可为 `student_course_daily_stats`，用于课程内学生学习趋势、教师学生明细、课程维度平均进度和平均学习时长。
+
+核心字段建议：
+
+* `id`
+* `user_id`
+* `course_id`
+* `stat_date`
+* `effective_duration_seconds`
+* `session_count`
+* `completed_resource_count`
+* `course_progress_at_day_end`
+* `is_course_completed_at_day_end`
+* `created_at`
+* `updated_at`
+
+说明：
+
+* 学生课程每日统计不拆分资源类型时长，资源类型诊断暂作为后续增强。
+* `course_progress_at_day_end` 保存当天结束时课程级进度快照，便于趋势查询。
+* `is_course_completed_at_day_end` 用于课程完成趋势和完成率统计。
+
+### Course daily aggregate
+
+建议新增课程每日统计聚合表，概念名可为 `course_daily_learning_stats`，用于教师课程看板、管理员热门课程和低完成率课程列表。
+
+核心字段建议：
+
+* `id`
+* `course_id`
+* `stat_date`
+* `active_student_count`
+* `new_started_student_count`
+* `new_completed_student_count`
+* `cumulative_started_student_count`
+* `cumulative_completed_student_count`
+* `total_effective_duration_seconds`
+* `avg_progress`
+* `completion_rate`
+* `created_at`
+* `updated_at`
+
+说明：
+
+* `active_student_count`：当天有有效学习会话的去重学生数。
+* `new_started_student_count`：当天首次开始学习该课程的学生数。
+* `new_completed_student_count`：当天首次完成该课程的学生数。
+* `completion_rate`：截至当天累计完成率，即 `cumulative_completed_student_count / cumulative_started_student_count`。
+* `avg_progress`：截至当天所有已开始学习学生的课程进度均值。
+
+### Platform daily aggregate
+
+建议新增平台每日统计聚合表，概念名可为 `platform_daily_learning_stats`，用于管理员平台运营分析。
+
+核心字段建议：
+
+* `id`
+* `stat_date`
+* `active_student_count`
+* `new_started_course_count`
+* `new_completed_course_count`
+* `total_effective_duration_seconds`
+* `active_course_count`
+* `created_at`
+* `updated_at`
+
+说明：
+
+* 平台级运营统计只统计 `student` 角色学习者，避免教师/管理员学习或测试行为污染运营指标。
+* `active_student_count`：当天有有效学习会话的去重学生数。
+* `new_started_course_count`：当天学生首次开始学习课程的次数，按用户-课程计数。
+* `new_completed_course_count`：当天学生首次完成课程的次数，按用户-课程计数。
+* `total_effective_duration_seconds`：当天学生有效学习时长总和。
+* `active_course_count`：当天有学生学习行为的去重课程数。
+
 ### Relationship with current progress tables
 
 * `resource_progress` 继续作为当前进度快照，用于继续学习、资源完成状态、当前进度展示。
 * `learning_sessions` 作为统计事实来源，用于学习时长、活跃天数、趋势图。
-* 课程完成状态需要有课程级记录，例如复用/修正 `learning_progress` 或新增课程学习汇总表，在首次完成时写入 `completed_at`。
+* 会话提交和进度保存保持分离：现有 `POST /learning/progress` 继续负责进度保存；新增 `POST /learning/sessions` 只负责统计事实写入，不顺便更新 `resource_progress`。
+* 正式复用/修正现有 `learning_progress` 作为用户-课程级学习汇总表；课程完成检查由现有 `POST /learning/progress` 触发，在资源进度保存后检查必学资源完成情况，首次完成时写入 `completed_at`。
 
 ### Idempotency / retry boundaries
 
-* 前端结束会话时应携带稳定会话标识，避免离线重试或 `sendBeacon` 重复造成重复时长。
-* 同一会话重复提交时应幂等更新，不重复累计。
+* 前端结束会话时应携带全局唯一 `session_id`，避免离线重试或 `sendBeacon` 重复造成重复时长。
+* 同一 `session_id` 重复提交时允许补全更新，但不新增记录、不重复累计。
+* 可更新字段包括更完整的 `ended_at`、`effective_duration_seconds`、`end_position_seconds`、`progress_percent_at_end`、`is_completed_at_end`、`end_reason`。
+* 更新时仍重新应用有效时长校验：最终有效时长取前端有效时长、外框时长、资源类型上限中的较小值。
+* 不允许重复提交把已存在会话更新为更早的开始时间、更小的结束位置或明显更差的完成状态。
 * 会话结束失败时，可在下次进入或离线队列恢复时补交；补交仍受单次时长上限保护。
 
 ## Required / Optional Learning Content Scheme (draft)
@@ -233,17 +346,41 @@ Scope:
 * 教师创建或编辑资源时，可设置资源为“必学”或“选学”。
 * 默认新资源为必学。
 * 管理员如可管理课程内容，也应看到同样字段。
+* 课程发布前必须校验至少存在 1 个必学资源；没有必学资源时拒绝发布。
 * 课程发布后修改必学/选学会影响完成率统计，需要有提示：修改后课程完成率可能重新计算。
+
+### Course-level progress storage
+
+正式复用/修正现有 `learning_progress` 作为用户-课程级学习汇总表，职责包括：
+
+* 记录用户是否开始学习某课程。
+* 保存课程级进度百分比。
+* 保存最后学习位置，用于课程级最近学习记录。
+* 保存首次课程完成时间 `completed_at`。
+* 支撑学生已完成课程数、教师完成率、管理员低完成率课程等统计。
+
+建议关键字段：
+
+* `user_id`
+* `course_id`
+* `progress`
+* `last_section_id`
+* `last_resource_id`
+* `last_position`
+* `started_at` 或 `created_at`
+* `last_learn_at` 或 `updated_at`
+* `completed_at`
 
 ### Completion calculation
 
 * `required_resource_count`：课程下 `is_required = true` 的资源数量。
 * `completed_required_resource_count`：该学生已完成的必学资源数量。
-* `course_progress_percent = completed_required_resource_count / required_resource_count * 100`。
+* 课程级 `progress` 按必学资源数量等权计算，不按资源时长加权：`course_progress_percent = completed_required_resource_count / required_resource_count * 100`。
 * `course_completed = required_resource_count > 0 AND completed_required_resource_count == required_resource_count`。
+* 课程完成检查由现有 `POST /learning/progress` 触发：资源进度保存成功后，检查该学生是否已完成课程下所有必学资源。
 * 学生首次满足课程完成条件时写入课程完成状态和 `completed_at`。
 * 首次完成后永久保留完成状态；后续课程新增/调整必学资源，不取消该学生已完成状态。
-* 如果课程没有任何必学资源，MVP 建议不允许发布，或在统计中显示“未配置必学资源”。
+* 课程发布前必须至少配置 1 个必学资源；如果课程没有任何必学资源，不允许发布。
 
 ### Resource completion rule remains unchanged
 
@@ -273,6 +410,7 @@ Scope:
 
 ### Proposed admin pages
 
+* 管理员平台统计入口：管理后台侧边栏新增“学习统计”菜单。
 * 平台学习统计总览页：展示核心指标卡片、趋势图、热门/低完成课程列表。
 * 筛选器：时间范围、课程分类、讲师、课程状态。
 * 下钻入口：从热门课程或低完成率课程进入课程详情或教师课程统计视角。
@@ -286,7 +424,7 @@ Scope:
 * 每日学习时长趋势：按自然日聚合有效学习时长。
 * 每日课程完成数趋势：按自然日统计新完成课程次数。
 * 热门课程 Top N：按学习人数、学习时长或开始学习人数排序，MVP 默认按活跃学习人数排序。
-* 低完成率课程列表：开始学习人数达到最小阈值后，按完成率升序展示。
+* 低完成率课程列表：仅纳入累计开始学习人数不少于 5 的课程，且完成率低于 30%；按完成率升序展示。
 * 课程完成率：完成课程人数 / 开始学习课程人数。
 
 ### Admin filters
@@ -348,14 +486,15 @@ MVP 权限建议：
 
 ### Proposed teacher pages
 
-* 教师课程统计列表：展示教师可查看统计的课程，包括自己负责和被授权课程。
+* 教师课程统计入口：仅 `teacher` 角色的右上角头像菜单中新增“课程统计”菜单项，点击进入教师可查看统计的课程列表。
+* 教师课程统计列表：展示教师可查看统计的课程，包括自己负责和被授权课程；列表显示权限类型（负责人 / 被授权），让教师清楚课程来源；保留课程级“最近学习时间”，表示该课程最近一次被任意学生学习的时间。
 * 单课程统计详情：课程总览指标 + 学生学习明细表。
-* 学生明细表筛选：全部、最近未学习、低进度、已完成。
+* 学生明细表筛选：全部、最近未学习、低进度、已完成；“最近未学习”定义为最近 7 天没有学习该课程；“低进度”定义为课程进度低于 30%；默认按课程进度升序排序，让低进度学生优先显示。
 
 ### Proposed teacher metrics
 
-* 学习人数：对该课程产生过学习行为的去重学生数。
-* 近 7/30 天活跃人数：统计窗口内有有效学习时长或学习事件的去重学生数。
+* 学习人数：对该课程产生过学习行为的去重 `student` 用户数。
+* 近 7/30 天活跃人数：统计窗口内有有效学习时长或学习事件的去重 `student` 用户数。
 * 平均课程进度：所有学习该课程学生的课程完成百分比均值。
 * 完成率：完成课程的学生数 / 开始学习课程的学生数。
 * 平均学习时长：该课程下学生有效学习时长均值。
@@ -363,7 +502,7 @@ MVP 权限建议：
 
 ### Teacher permission boundaries
 
-* 教师只能查看自己负责或被授权课程的数据。
+* 教师只能查看自己负责或被授权课程的数据，且统计对象仅包含 `student` 学习者。
 * 教师不能通过任意 `course_id` 越权查看未授权课程统计。
 * 教师明细中只展示学习统计必要身份字段：用户名/昵称等最小标识；不展示邮箱、手机号等联系信息。
 * 被授权教师默认只有统计查看和学习明细导出权限，不自动获得课程内容编辑权限。
@@ -381,7 +520,7 @@ MVP 权限建议：
 
 ### Product scope
 
-学生侧采用“成长反馈版”，目标是把个人中心从单纯的学习记录列表升级为可反馈学习投入和成长趋势的页面。
+学生侧采用“成长反馈版”，目标是把 student 角色的个人中心从单纯的学习记录列表升级为可反馈学习投入和成长趋势的页面。教师和管理员可以保留学习记录数据，但不提供个人学习统计页。
 
 ### Proposed page structure
 
@@ -389,7 +528,7 @@ MVP 权限建议：
 * 成长反馈卡片：连续学习天数、累计活跃天数。
 * 趋势图：近 7/30 天每日学习时长趋势，可切换周期。
 * 课程进度分布：未开始/学习中/已完成课程数量或占比。
-* 最近学习记录：沿用现有“我的学习记录”列表，保留时间筛选、分页、继续学习入口。
+* 最近学习记录：放在新“学习统计”页面下方，形成先统计概览、后记录明细的布局；保留时间筛选、分页、继续学习入口；老版独立学习记录内容不保留。
 
 ### Metric definitions
 
@@ -406,7 +545,7 @@ MVP 权限建议：
 
 * 数据来源：`resource_progress` 提供当前资源/课程进度；新增学习事件或学习会话事实提供有效学习时长和活跃日期；聚合统计表提供每日汇总。
 * 建议接口：`GET /api/v1/learning/statistics/me/overview` 返回学生统计总览；`GET /api/v1/learning/statistics/me/trend` 返回趋势；现有 `GET /api/v1/users/me/learning-records` 可保留或扩展。
-* 权限边界：只能查看当前登录用户自己的统计，不允许通过传 user_id 查看他人数据。
+* 权限边界：只有 `student` 角色可查看自己的个人学习统计；不允许通过传 user_id 查看他人数据。
 
 ### Edge boundaries
 
