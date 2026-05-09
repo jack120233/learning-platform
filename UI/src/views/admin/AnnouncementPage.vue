@@ -234,7 +234,7 @@ onMounted(() => {
     </div>
 
     <!-- 公告表格 -->
-    <el-table :data="announcements" v-loading="isLoading" stripe border>
+    <el-table class="announcement-table" :data="announcements" v-loading="isLoading" stripe border>
       <el-table-column prop="title" label="标题" min-width="200" />
       <el-table-column label="状态" width="100" align="center">
         <template #default="{ row }">
@@ -249,32 +249,44 @@ onMounted(() => {
         </template>
       </el-table-column>
       <el-table-column prop="creator_name" label="创建人" width="100" align="center" />
-      <el-table-column label="操作" width="240" fixed="right">
+      <el-table-column label="操作" width="280" fixed="right" align="center">
         <template #default="{ row }">
-          <el-button text size="small" :icon="Edit" @click="handleEdit(row)">
-            编辑
-          </el-button>
-          <el-button
-            v-if="row.status === 'draft'"
-            text
-            size="small"
-            type="success"
-            @click="handlePublish(row)"
-          >
-            发布
-          </el-button>
-          <el-button
-            v-if="row.status === 'published'"
-            text
-            size="small"
-            type="warning"
-            @click="handleToDraft(row)"
-          >
-            转为草稿
-          </el-button>
-          <el-button text size="small" type="danger" :icon="Delete" @click="handleDelete(row)">
-            删除
-          </el-button>
+          <div class="announcement-row-actions soft-action-surface">
+            <el-button
+              class="announcement-action-btn soft-action-btn soft-action-btn--secondary soft-action-btn--small"
+              size="small"
+              :icon="Edit"
+              @click="handleEdit(row)"
+            >
+              编辑
+            </el-button>
+            <el-button
+              v-if="row.status === 'draft'"
+              class="announcement-action-btn soft-action-btn soft-action-btn--primary soft-action-btn--small"
+              size="small"
+              type="primary"
+              @click="handlePublish(row)"
+            >
+              发布
+            </el-button>
+            <el-button
+              v-if="row.status === 'published'"
+              class="announcement-action-btn announcement-action-btn--warning soft-action-btn soft-action-btn--small"
+              size="small"
+              @click="handleToDraft(row)"
+            >
+              转草稿
+            </el-button>
+            <el-button
+              class="announcement-action-btn soft-action-btn soft-action-btn--danger soft-action-btn--small"
+              size="small"
+              type="danger"
+              :icon="Delete"
+              @click="handleDelete(row)"
+            >
+              删除
+            </el-button>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -378,6 +390,38 @@ onMounted(() => {
   width: fit-content;
 }
 
+.announcement-table {
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.announcement-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px;
+}
+
+.announcement-action-btn {
+  min-width: 54px;
+  margin-left: 0;
+}
+
+.announcement-action-btn--warning {
+  color: #b7791f;
+  border-color: #fde68a;
+  background: linear-gradient(135deg, #fffbeb 0%, #fff7ed 100%);
+
+  &:hover,
+  &:focus {
+    color: #92400e;
+    border-color: #fbbf24;
+    background: #fef3c7;
+  }
+}
+
 .pagination {
   margin-top: 24px;
   display: flex;
@@ -396,6 +440,17 @@ onMounted(() => {
   .filter-actions,
   .dialog-action-surface {
     width: 100%;
+  }
+
+  .announcement-row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .announcement-action-btn {
+    width: 100%;
+    min-width: 0;
   }
 }
 </style>

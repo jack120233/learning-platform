@@ -920,3 +920,23 @@
 - 验证结果：
   - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
   - 结果：通过；构建仍提示既有大体积 chunk 警告。
+
+## 管理员公告操作列布局优化
+时间：2026-05-09
+
+- 变更原因：管理员公告管理页表格右侧“操作”列的行内文字按钮视觉松散，需要与当前后台 Soft Blue 操作面风格对齐。
+- 涉及文件：
+  - `src/views/admin/AnnouncementPage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 将公告表格操作列改为居中的浅蓝软操作面按钮组，保留编辑、发布、转草稿和删除动作。
+  - 为发布、转草稿和删除按钮补充主次/警示/危险层级，收紧按钮间距并提高操作列可读性。
+  - 补充小屏下两列网格排列，减少窄屏操作列横向拥挤。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
+  - 结果：通过；构建仍提示既有大体积 chunk 警告。
+  - 已执行：`git diff --check -- UI/src/views/admin/AnnouncementPage.vue`
+  - 结果：通过。
+  - 已执行：浏览器访问 `http://127.0.0.1:3000/admin/announcements`，分别检查 1280px 桌面和 390px 窄屏视口。
+  - 结果：操作列已显示浅蓝软操作面按钮组，`编辑 / 转草稿 / 删除` 可见；390px 视口下 `documentElement.scrollWidth <= innerWidth`，未出现页面级横向溢出。
+  - 备注：当前数据行均为已发布公告，浏览器冒烟只观察到 `转草稿`，未观察到草稿行的 `发布` 按钮；代码保留草稿行发布入口。
