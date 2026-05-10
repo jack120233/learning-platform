@@ -119,197 +119,453 @@ onMounted(() => {
 
 <template>
   <div class="course-statistics-detail-page">
-    <div class="page-header">
-      <div>
-        <el-button text :icon="Back" @click="router.push('/teacher/statistics')">返回课程统计</el-button>
+    <section class="statistics-hero">
+      <div class="hero-content">
+        <el-button class="back-link" text :icon="Back" @click="router.push('/teacher/statistics')">
+          返回课程统计
+        </el-button>
+        <span class="hero-eyebrow">课程学习数据</span>
         <h2 class="page-title">{{ overview?.course_title || '课程统计详情' }}</h2>
-        <p class="page-desc">学生明细仅显示学生ID、用户名和学习行为指标，不展示邮箱、手机号、昵称等隐私字段。</p>
+        <p class="page-desc">聚焦课程学习进度、活跃情况和完成表现，帮助老师快速识别需要跟进的学习状态。</p>
       </div>
-      <el-segmented v-model="range" :options="[{ label: '近7天', value: '7d' }, { label: '近30天', value: '30d' }]" @change="loadOverview" />
-    </div>
+      <div class="range-panel">
+        <span class="range-label">统计范围</span>
+        <el-segmented
+          v-model="range"
+          :options="[{ label: '近7天', value: '7d' }, { label: '近30天', value: '30d' }]"
+          @change="loadOverview"
+        />
+      </div>
+    </section>
 
-    <el-skeleton v-if="isLoadingOverview" :rows="3" animated />
-    <el-empty v-else-if="!overview" description="无法加载课程统计，请确认你仍有访问权限" />
+    <div v-if="isLoadingOverview" class="state-card">
+      <el-skeleton :rows="4" animated />
+    </div>
+    <div v-else-if="!overview" class="state-card state-card--empty">
+      <el-empty description="无法加载课程统计，请确认你仍有访问权限" />
+    </div>
 
     <template v-else>
       <div class="metric-grid">
-        <div class="metric-card">
+        <div class="metric-card metric-card--blue">
+          <span class="metric-icon">学</span>
           <span class="metric-label">开始学习</span>
           <strong>{{ overview.started_student_count }}</strong>
+          <small>已产生学习记录的学生</small>
         </div>
-        <div class="metric-card">
+        <div class="metric-card metric-card--cyan">
+          <span class="metric-icon">活</span>
           <span class="metric-label">范围活跃</span>
           <strong>{{ overview.active_student_count }}</strong>
+          <small>{{ range === '7d' ? '近7天' : '近30天' }}有学习行为</small>
         </div>
-        <div class="metric-card">
+        <div class="metric-card metric-card--violet">
+          <span class="metric-icon">进</span>
           <span class="metric-label">平均进度</span>
           <strong>{{ overview.avg_progress.toFixed(1) }}%</strong>
+          <small>全体学习者平均完成度</small>
         </div>
-        <div class="metric-card">
+        <div class="metric-card metric-card--green">
+          <span class="metric-icon">完</span>
           <span class="metric-label">完成率</span>
           <strong>{{ overview.completion_rate.toFixed(1) }}%</strong>
+          <small>已完成课程的学生占比</small>
         </div>
-        <div class="metric-card">
+        <div class="metric-card metric-card--amber">
+          <span class="metric-icon">均</span>
           <span class="metric-label">人均时长</span>
           <strong>{{ formatDuration(overview.avg_duration_seconds) }}</strong>
+          <small>单个学生平均学习投入</small>
         </div>
-        <div class="metric-card">
+        <div class="metric-card metric-card--slate">
+          <span class="metric-icon">总</span>
           <span class="metric-label">累计时长</span>
           <strong>{{ formatDuration(overview.total_duration_seconds) }}</strong>
+          <small>课程累计学习投入</small>
         </div>
       </div>
 
-      <div class="section-header">
-        <div>
-          <h3>学生学习明细</h3>
-          <p>默认按学习进度升序，便于优先关注低进度学生。</p>
-        </div>
-        <el-button type="primary" :icon="Download" :loading="isExporting" @click="handleExport">导出CSV</el-button>
-      </div>
-
-      <div class="filter-bar">
-        <el-select v-model="statusFilter" placeholder="学生状态" style="width: 150px" @change="fetchData">
-          <el-option label="全部学生" value="all" />
-          <el-option label="7日未学习" value="inactive" />
-          <el-option label="低进度" value="low_progress" />
-          <el-option label="已完成" value="completed" />
-        </el-select>
-        <div class="filter-right">
-          <el-input v-model="keyword" placeholder="搜索用户名" clearable style="width: 220px" @keyup.enter="handleSearch">
-            <template #prefix><el-icon><Search /></el-icon></template>
-          </el-input>
-          <div class="soft-action-surface filter-actions">
-            <el-button class="soft-action-btn soft-action-btn--primary soft-action-btn--small" @click="handleSearch">搜索</el-button>
-            <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" @click="handleReset">重置</el-button>
+      <section class="detail-card">
+        <div class="section-header">
+          <div>
+            <span class="section-eyebrow">Student Details</span>
+            <h3>学生学习明细</h3>
+            <p>默认按学习进度升序，便于优先关注低进度学生。</p>
+          </div>
+          <div class="soft-action-surface export-actions">
+            <el-button
+              class="soft-action-btn soft-action-btn--primary"
+              type="primary"
+              :icon="Download"
+              :loading="isExporting"
+              @click="handleExport"
+            >
+              导出CSV
+            </el-button>
           </div>
         </div>
-      </div>
 
-      <div class="table-scroll">
-        <el-table :data="students" v-loading="isLoading" stripe border>
-          <el-table-column prop="student_id" label="学生ID" width="100" align="center" />
-          <el-table-column prop="username" label="用户名" min-width="140" />
-          <el-table-column label="进度" width="160" align="center">
-            <template #default="{ row }">
-              <el-progress :percentage="Number(row.progress.toFixed(1))" :stroke-width="8" />
-            </template>
-          </el-table-column>
-          <el-table-column label="累计时长" width="140" align="center">
-            <template #default="{ row }">{{ formatDuration(row.total_duration_seconds) }}</template>
-          </el-table-column>
-          <el-table-column label="最近学习" width="170" align="center">
-            <template #default="{ row }">{{ formatTime(row.last_learn_at) }}</template>
-          </el-table-column>
-          <el-table-column label="完成状态" width="110" align="center">
-            <template #default="{ row }">
-              <el-tag :type="row.is_completed ? 'success' : 'info'" size="small">{{ row.is_completed ? '已完成' : '学习中' }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="完成时间" width="170" align="center">
-            <template #default="{ row }">{{ formatTime(row.completed_at) }}</template>
-          </el-table-column>
-        </el-table>
-      </div>
+        <div class="filter-bar">
+          <el-select v-model="statusFilter" placeholder="学生状态" class="status-select" @change="fetchData">
+            <el-option label="全部学生" value="all" />
+            <el-option label="7日未学习" value="inactive" />
+            <el-option label="低进度" value="low_progress" />
+            <el-option label="已完成" value="completed" />
+          </el-select>
+          <div class="filter-right">
+            <el-input v-model="keyword" placeholder="搜索用户名" clearable class="keyword-input" @keyup.enter="handleSearch">
+              <template #prefix><el-icon><Search /></el-icon></template>
+            </el-input>
+            <div class="soft-action-surface filter-actions">
+              <el-button class="soft-action-btn soft-action-btn--primary soft-action-btn--small" @click="handleSearch">搜索</el-button>
+              <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" @click="handleReset">重置</el-button>
+            </div>
+          </div>
+        </div>
 
-      <el-pagination
-        v-if="totalPages > 1"
-        :current-page="page"
-        :page-size="pageSize"
-        :total="total"
-        layout="total, prev, pager, next, jumper"
-        class="pagination"
-        @current-change="goToPage"
-      />
+        <div class="table-scroll">
+          <el-table :data="students" v-loading="isLoading" stripe border class="students-table">
+            <el-table-column prop="student_id" label="学生ID" width="100" align="center" />
+            <el-table-column prop="username" label="用户名" min-width="140" />
+            <el-table-column label="进度" width="170" align="center">
+              <template #default="{ row }">
+                <el-progress :percentage="Number(row.progress.toFixed(1))" :stroke-width="9" />
+              </template>
+            </el-table-column>
+            <el-table-column label="累计时长" width="140" align="center">
+              <template #default="{ row }">{{ formatDuration(row.total_duration_seconds) }}</template>
+            </el-table-column>
+            <el-table-column label="最近学习" width="170" align="center">
+              <template #default="{ row }">{{ formatTime(row.last_learn_at) }}</template>
+            </el-table-column>
+            <el-table-column label="完成状态" width="110" align="center">
+              <template #default="{ row }">
+                <el-tag :type="row.is_completed ? 'success' : 'info'" size="small" effect="light">
+                  {{ row.is_completed ? '已完成' : '学习中' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="完成时间" width="170" align="center">
+              <template #default="{ row }">{{ formatTime(row.completed_at) }}</template>
+            </el-table-column>
+          </el-table>
+        </div>
+
+        <el-pagination
+          v-if="totalPages > 1"
+          :current-page="page"
+          :page-size="pageSize"
+          :total="total"
+          layout="total, prev, pager, next, jumper"
+          class="pagination"
+          @current-change="goToPage"
+        />
+      </section>
     </template>
   </div>
 </template>
 
 <style lang="scss" scoped>
 .course-statistics-detail-page {
-  .page-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 24px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid $border-color-light;
-  }
+  position: relative;
+  min-height: calc(100vh - 96px);
+  margin: -24px;
+  padding: 28px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(24, 144, 255, 0.15), transparent 30%),
+    radial-gradient(circle at 92% 8%, rgba(82, 196, 26, 0.12), transparent 28%),
+    linear-gradient(180deg, #f4f8ff 0%, #ffffff 46%, #f8fbff 100%);
 
-  .page-title {
-    margin: 8px 0 0;
-    font-size: 20px;
-    font-weight: 600;
-    color: $text-primary;
+  &::before {
+    content: '';
+    position: absolute;
+    top: 120px;
+    right: -120px;
+    width: 280px;
+    height: 280px;
+    border-radius: 50%;
+    background: rgba(24, 144, 255, 0.08);
+    filter: blur(8px);
+    pointer-events: none;
   }
+}
 
-  .page-desc {
-    margin: 8px 0 0;
-    color: $text-secondary;
-    font-size: $font-size-sm;
-  }
+.statistics-hero,
+.metric-grid,
+.detail-card,
+.state-card {
+  position: relative;
+  z-index: 1;
+}
+
+.statistics-hero {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+  padding: 28px;
+  border: 1px solid rgba(219, 234, 254, 0.9);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(239, 246, 255, 0.96) 100%),
+    #fff;
+  box-shadow: 0 20px 48px rgba(24, 144, 255, 0.12);
+}
+
+.hero-content {
+  min-width: 0;
+}
+
+.back-link {
+  margin: 0 0 18px -8px;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.hero-eyebrow,
+.section-eyebrow {
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.page-title {
+  margin: 8px 0 0;
+  color: #0f172a;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.page-desc {
+  max-width: 680px;
+  margin: 10px 0 0;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.range-panel {
+  display: flex;
+  flex: 0 0 260px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.range-label {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.state-card {
+  padding: 24px;
+  border: 1px solid #dbeafe;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+}
+
+.state-card--empty {
+  display: flex;
+  justify-content: center;
 }
 
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
-  margin-bottom: 28px;
+  margin-bottom: 22px;
 }
 
 .metric-card {
-  padding: 18px;
-  background: #fff;
-  border: 1px solid $border-color-light;
-  border-radius: $radius-lg;
-  box-shadow: $shadow-sm;
+  position: relative;
+  min-height: 158px;
+  padding: 20px;
+  overflow: hidden;
+  border: 1px solid #e0ecff;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.07);
+  transition: transform $transition-base, box-shadow $transition-base;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: auto -36px -46px auto;
+    width: 112px;
+    height: 112px;
+    border-radius: 50%;
+    background: var(--metric-glow, rgba(24, 144, 255, 0.12));
+  }
+
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.1);
+  }
+
+  .metric-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    margin-bottom: 14px;
+    border-radius: 12px;
+    background: var(--metric-bg, #eff6ff);
+    color: var(--metric-color, #2563eb);
+    font-weight: 800;
+  }
 
   .metric-label {
     display: block;
-    color: $text-secondary;
-    font-size: $font-size-sm;
-    margin-bottom: 8px;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 700;
   }
 
   strong {
-    font-size: 22px;
-    color: $text-primary;
+    display: block;
+    margin-top: 6px;
+    color: #0f172a;
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
   }
+
+  small {
+    display: block;
+    margin-top: 8px;
+    color: #64748b;
+    line-height: 1.5;
+  }
+}
+
+.metric-card--blue {
+  --metric-bg: #eff6ff;
+  --metric-color: #2563eb;
+  --metric-glow: rgba(37, 99, 235, 0.13);
+}
+
+.metric-card--cyan {
+  --metric-bg: #ecfeff;
+  --metric-color: #0891b2;
+  --metric-glow: rgba(8, 145, 178, 0.13);
+}
+
+.metric-card--violet {
+  --metric-bg: #f5f3ff;
+  --metric-color: #7c3aed;
+  --metric-glow: rgba(124, 58, 237, 0.12);
+}
+
+.metric-card--green {
+  --metric-bg: #ecfdf5;
+  --metric-color: #16a34a;
+  --metric-glow: rgba(22, 163, 74, 0.13);
+}
+
+.metric-card--amber {
+  --metric-bg: #fffbeb;
+  --metric-color: #d97706;
+  --metric-glow: rgba(217, 119, 6, 0.13);
+}
+
+.metric-card--slate {
+  --metric-bg: #f1f5f9;
+  --metric-color: #475569;
+  --metric-glow: rgba(71, 85, 105, 0.12);
+}
+
+.detail-card {
+  padding: 24px;
+  border: 1px solid rgba(219, 234, 254, 0.95);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
 }
 
 .section-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 16px;
+  gap: 16px;
+  margin-bottom: 18px;
 
   h3 {
-    margin: 0;
-    color: $text-primary;
+    margin: 4px 0 0;
+    color: #0f172a;
+    font-size: 20px;
+    font-weight: 800;
   }
 
   p {
     margin: 6px 0 0;
-    color: $text-secondary;
-    font-size: $font-size-sm;
+    color: #64748b;
+    font-size: 13px;
   }
+}
+
+.export-actions {
+  flex-shrink: 0;
 }
 
 .filter-bar,
 .filter-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .filter-bar {
   justify-content: space-between;
   margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #e0ecff;
+  border-radius: 18px;
+  background: #f8fbff;
+}
+
+.status-select {
+  width: 150px;
+}
+
+.keyword-input {
+  width: 220px;
 }
 
 .table-scroll {
   overflow-x: auto;
+  border: 1px solid #e0ecff;
+  border-radius: 18px;
+  background: #fff;
+
+  :deep(.el-table) {
+    border-radius: 18px;
+  }
+
+  :deep(.el-table__header th) {
+    background: #f8fbff;
+    color: #334155;
+    font-weight: 700;
+  }
+
+  :deep(.el-table__row) {
+    transition: background-color $transition-fast;
+  }
 }
 
 .pagination {
@@ -318,8 +574,37 @@ onMounted(() => {
   justify-content: center;
 }
 
+@media (max-width: 1024px) {
+  .statistics-hero {
+    flex-direction: column;
+  }
+
+  .range-panel {
+    flex-basis: auto;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
-  .course-statistics-detail-page .page-header,
+  .course-statistics-detail-page {
+    min-height: calc(100vh - 72px);
+    margin: -16px;
+    padding: 16px;
+  }
+
+  .statistics-hero,
+  .detail-card {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .page-title {
+    font-size: 23px;
+  }
+
   .section-header,
   .filter-bar,
   .filter-right {
@@ -331,8 +616,10 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
-  .filter-right :deep(.el-input),
-  .filter-actions {
+  .status-select,
+  .keyword-input,
+  .filter-actions,
+  .export-actions {
     width: 100% !important;
   }
 }

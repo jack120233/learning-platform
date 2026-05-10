@@ -533,29 +533,6 @@ onMounted(() => {
             {{ row.content }}
           </template>
         </el-table-column>
-        <el-table-column label="截图" width="80" align="center">
-          <template #default="{ row }">
-            <el-popover v-if="row.images?.length" placement="right" :width="400" trigger="hover">
-              <template #reference>
-                <el-badge :value="row.images.length" type="primary" @click.stop>
-                  <el-button size="small" text @click.stop>查看</el-button>
-                </el-badge>
-              </template>
-              <div class="image-preview-list">
-                <el-image
-                  v-for="(img, index) in row.images"
-                  :key="img"
-                  :src="img"
-                  :preview-src-list="row.images"
-                  :initial-index="Number(index)"
-                  fit="cover"
-                  class="preview-image"
-                />
-              </div>
-            </el-popover>
-            <span v-else class="text-muted">-</span>
-          </template>
-        </el-table-column>
         <el-table-column label="状态" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="statusMap[row.status]?.type || 'info'" size="small">
@@ -568,21 +545,25 @@ onMounted(() => {
             {{ formatTime(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right" prop="__actions">
+        <el-table-column label="操作" width="190" fixed="right" prop="__actions" align="center">
           <template #default="{ row }">
-            <div class="row-actions" @click.stop>
-              <el-button text type="primary" size="small" @click="handleViewDetail(row)">详情</el-button>
+            <div class="row-action-surface" @click.stop>
+              <el-button class="row-action-btn row-action-btn--secondary" text size="small" @click="handleViewDetail(row)">
+                详情
+              </el-button>
               <el-button
                 v-if="row.status === 'pending'"
+                class="row-action-btn row-action-btn--primary"
                 text
                 size="small"
                 type="success"
                 :icon="ChatDotRound"
                 @click="openProcessDialog(row)"
               >
-                回复处理
+                处理
               </el-button>
               <el-button
+                class="row-action-btn row-action-btn--danger"
                 text
                 size="small"
                 type="danger"
@@ -682,111 +663,123 @@ onMounted(() => {
       </el-form>
     </el-card>
 
-    <el-drawer v-model="showDetailDrawer" title="用户反馈详情" size="min(560px, 92vw)">
+    <el-drawer v-model="showDetailDrawer" title="用户反馈详情" size="min(560px, 92vw)" class="feedback-detail-drawer">
       <div v-if="isLoadingDetail" class="loading-container">
         <el-skeleton :rows="7" animated />
       </div>
       <template v-else-if="currentFeedback">
-        <div class="detail-section">
-          <div class="detail-row">
-            <span class="detail-label">提交用户</span>
-            <span class="detail-value">
-              <UserIdentity :username="currentFeedback.username" :user-id="currentFeedback.user_id" fallback="用户" />
-            </span>
-          </div>
-          <div class="detail-row" v-if="currentFeedback.user_email">
-            <span class="detail-label">邮箱</span>
-            <span class="detail-value">{{ currentFeedback.user_email }}</span>
-          </div>
-          <div class="detail-row" v-if="currentFeedback.user_phone">
-            <span class="detail-label">手机号</span>
-            <span class="detail-value">{{ currentFeedback.user_phone }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">反馈类型</span>
-            <el-tag :type="typeMap[currentFeedback.feedback_type]?.type || 'info'">
-              {{ typeMap[currentFeedback.feedback_type]?.text || currentFeedback.feedback_type }}
-            </el-tag>
-          </div>
-          <div class="detail-row" v-if="currentFeedback.course_title">
-            <span class="detail-label">关联课程</span>
-            <span class="detail-value">{{ currentFeedback.course_title }}</span>
-          </div>
-          <div class="detail-row" v-if="hasTargetIdentity(currentFeedback)">
-            <span class="detail-label">反馈给</span>
-            <span class="detail-value">
-              <UserIdentity
-                :username="currentFeedback.target_username"
-                :user-id="currentFeedback.target_user_id"
-                fallback="用户"
-              />
-            </span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">处理状态</span>
-            <el-tag :type="statusMap[currentFeedback.status]?.type || 'info'">
+        <div class="feedback-detail-shell">
+          <section class="detail-hero">
+            <div class="detail-hero__main">
+              <span class="detail-eyebrow">用户反馈</span>
+              <h3>{{ typeMap[currentFeedback.feedback_type]?.text || currentFeedback.feedback_type }}</h3>
+              <p v-if="currentFeedback.course_title">关联课程：{{ currentFeedback.course_title }}</p>
+            </div>
+            <el-tag class="detail-status" :type="statusMap[currentFeedback.status]?.type || 'info'" effect="light">
               {{ statusMap[currentFeedback.status]?.text || currentFeedback.status }}
             </el-tag>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">提交时间</span>
-            <span class="detail-value">{{ formatTime(currentFeedback.created_at) }}</span>
-          </div>
-          <div class="detail-row" v-if="currentFeedback.replied_at || currentFeedback.processed_at">
-            <span class="detail-label">处理时间</span>
-            <span class="detail-value">{{ formatTime(currentFeedback.replied_at || currentFeedback.processed_at) }}</span>
-          </div>
-        </div>
+          </section>
 
-        <el-divider>反馈对话</el-divider>
-        <div class="feedback-chat">
-          <div class="chat-message chat-message--user">
-            <div class="chat-meta">
-              <UserIdentity :username="currentFeedback.username" :user-id="currentFeedback.user_id" fallback="用户" compact />
-              <span>{{ formatTime(currentFeedback.created_at) }}</span>
+          <section class="detail-meta-grid">
+            <div class="detail-meta-item">
+              <span class="detail-meta-label">提交人</span>
+              <strong>
+                <UserIdentity :username="currentFeedback.username" :user-id="currentFeedback.user_id" fallback="用户" />
+              </strong>
+              <small v-if="currentFeedback.user_email || currentFeedback.user_phone">
+                {{ currentFeedback.user_email || currentFeedback.user_phone }}
+              </small>
             </div>
-            <div class="chat-bubble chat-bubble--user">
-              <div class="chat-text">{{ currentFeedback.content }}</div>
-              <div v-if="currentFeedback.images?.length" class="chat-images">
-                <el-image
-                  v-for="(img, index) in currentFeedback.images"
-                  :key="img"
-                  :src="img"
-                  :preview-src-list="currentFeedback.images"
-                  :initial-index="index"
-                  fit="cover"
-                  class="feedback-image"
+            <div class="detail-meta-item">
+              <span class="detail-meta-label">反馈对象</span>
+              <strong>
+                <UserIdentity
+                  v-if="hasTargetIdentity(currentFeedback)"
+                  :username="currentFeedback.target_username"
+                  :user-id="currentFeedback.target_user_id"
+                  fallback="用户"
                 />
+                <template v-else>{{ currentFeedback.course_title || '平台/系统' }}</template>
+              </strong>
+              <small v-if="currentFeedback.course_title && hasTargetIdentity(currentFeedback)">
+                关联课程：{{ currentFeedback.course_title }}
+              </small>
+            </div>
+            <div class="detail-meta-item">
+              <span class="detail-meta-label">反馈编号</span>
+              <strong>#{{ currentFeedback.feedback_id }}</strong>
+            </div>
+            <div class="detail-meta-item">
+              <span class="detail-meta-label">提交时间</span>
+              <strong>{{ formatTime(currentFeedback.created_at) }}</strong>
+            </div>
+            <div class="detail-meta-item">
+              <span class="detail-meta-label">处理回复</span>
+              <strong>{{ currentFeedback.reply ? '已回复' : '未回复' }}</strong>
+              <small v-if="currentFeedback.replied_at || currentFeedback.processed_at">
+                {{ formatTime(currentFeedback.replied_at || currentFeedback.processed_at) }}
+              </small>
+            </div>
+          </section>
+
+          <section class="feedback-thread" aria-label="反馈处理对话">
+            <div class="thread-item thread-item--submitter">
+              <div class="thread-avatar">提</div>
+              <div class="thread-body">
+                <div class="thread-meta">
+                  <span class="thread-identity">
+                    <UserIdentity :username="currentFeedback.username" :user-id="currentFeedback.user_id" fallback="用户" compact />
+                    <span>提交反馈</span>
+                  </span>
+                  <time>{{ formatTime(currentFeedback.created_at) }}</time>
+                </div>
+                <div class="message-bubble message-bubble--submitter">
+                  <p>{{ currentFeedback.content }}</p>
+                  <div v-if="currentFeedback.images?.length" class="image-list message-images">
+                    <el-image
+                      v-for="(img, index) in currentFeedback.images"
+                      :key="img"
+                      :src="img"
+                      :preview-src-list="currentFeedback.images"
+                      :initial-index="Number(index)"
+                      fit="cover"
+                      class="feedback-image"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div v-if="currentFeedback.reply" class="chat-message chat-message--admin">
-            <div class="chat-meta">
-              <UserIdentity
-                :username="userStore.userInfo.username"
-                :user-id="userStore.userInfo.userId"
-                fallback="管理员"
-                compact
-              />
-              <span>{{ formatTime(currentFeedback.replied_at || currentFeedback.processed_at) }}</span>
+            <div class="thread-item thread-item--handler">
+              <div class="thread-avatar">处</div>
+              <div class="thread-body">
+                <div class="thread-meta">
+                  <span>处理回复</span>
+                  <time v-if="currentFeedback.replied_at || currentFeedback.processed_at">
+                    {{ formatTime(currentFeedback.replied_at || currentFeedback.processed_at) }}
+                  </time>
+                </div>
+                <div
+                  class="message-bubble message-bubble--handler"
+                  :class="{ 'message-bubble--empty': !currentFeedback.reply }"
+                >
+                  <p>{{ currentFeedback.reply || '暂未填写处理回复，可点击下方“回复并处理”完成处理。' }}</p>
+                </div>
+              </div>
             </div>
-            <div class="chat-bubble chat-bubble--admin">
-              <div class="chat-text">{{ currentFeedback.reply }}</div>
-            </div>
-          </div>
-        </div>
+          </section>
 
-        <div v-if="currentFeedback.status === 'pending'" class="drawer-action-area">
-          <div class="soft-action-surface">
-            <el-button
-              class="soft-action-btn soft-action-btn--primary"
-              type="primary"
-              :icon="ChatDotRound"
-              @click="openProcessDialog(currentFeedback)"
-            >
-              回复并处理
-            </el-button>
+          <div v-if="currentFeedback.status === 'pending'" class="drawer-action-area">
+            <div class="soft-action-surface">
+              <el-button
+                class="soft-action-btn soft-action-btn--primary"
+                type="primary"
+                :icon="ChatDotRound"
+                @click="openProcessDialog(currentFeedback)"
+              >
+                回复并处理
+              </el-button>
+            </div>
           </div>
         </div>
       </template>
@@ -1070,11 +1063,55 @@ onMounted(() => {
   color: $text-tertiary !important;
 }
 
-.row-actions {
-  display: flex;
+.row-action-surface {
+  display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 2px;
+  justify-content: center;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  background: #f4f8ff;
+}
+
+.row-action-btn {
+  height: 26px;
+  min-width: 42px;
+  margin-left: 0 !important;
+  padding: 0 9px !important;
+  border-radius: 999px !important;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.row-action-btn--secondary {
+  color: #2563eb !important;
+
+  &:hover,
+  &:focus {
+    background: #fff !important;
+    color: #1d4ed8 !important;
+  }
+}
+
+.row-action-btn--primary {
+  color: #16a34a !important;
+
+  &:hover,
+  &:focus {
+    background: #ecfdf5 !important;
+    color: #15803d !important;
+  }
+}
+
+.row-action-btn--danger {
+  color: #dc2626 !important;
+
+  &:hover,
+  &:focus {
+    background: #fff5f5 !important;
+    color: #b91c1c !important;
+  }
 }
 
 .pagination {
@@ -1116,119 +1153,227 @@ onMounted(() => {
   }
 }
 
-.image-preview-list,
 .image-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.preview-image,
 .feedback-image {
-  width: 100px;
-  height: 100px;
-  border-radius: $radius-sm;
+  width: 104px;
+  height: 104px;
+  border: 1px solid $border-color-light;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .loading-container {
   padding: 24px;
 }
 
-.detail-section {
-  .detail-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 0;
-    border-bottom: 1px solid $border-color-light;
+:deep(.feedback-detail-drawer) {
+  .el-drawer__body {
+    padding: 0;
+    background: linear-gradient(180deg, #f8fbff 0%, #ffffff 42%);
+  }
+}
 
-    &:last-child {
-      border-bottom: none;
-    }
+.feedback-detail-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px;
+}
+
+.detail-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+  box-shadow: 0 12px 28px rgba(24, 144, 255, 0.08);
+
+  &__main {
+    min-width: 0;
   }
 
-  .detail-label {
-    width: 80px;
-    color: $text-secondary;
-    flex-shrink: 0;
-  }
-
-  .detail-value {
+  h3 {
+    margin: 6px 0;
     color: $text-primary;
+    font-size: 20px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  p {
+    margin: 0;
+    color: $text-secondary;
+    font-size: $font-size-sm;
+  }
+}
+
+.detail-eyebrow {
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.detail-status {
+  flex-shrink: 0;
+}
+
+.detail-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detail-meta-item {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid $border-color-light;
+  border-radius: 14px;
+  background: $bg-white;
+
+  strong,
+  small {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  strong {
+    margin-top: 6px;
+    color: $text-primary;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  small {
+    margin-top: 4px;
+    color: $text-tertiary;
+    line-height: 1.4;
+  }
+}
+
+.detail-meta-label {
+  color: $text-secondary;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.feedback-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.thread-item {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+.thread-item--handler {
+  flex-direction: row-reverse;
+
+  .thread-meta {
+    justify-content: flex-end;
+    text-align: right;
+  }
+}
+
+.thread-avatar {
+  display: flex;
+  flex: 0 0 36px;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #e0f2fe;
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.thread-item--handler .thread-avatar {
+  background: #ecfdf5;
+  color: $success-color;
+}
+
+.thread-body {
+  min-width: 0;
+  max-width: calc(100% - 48px);
+  flex: 1;
+}
+
+.thread-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: $text-secondary;
+  font-size: 12px;
+
+  span,
+  time {
     overflow-wrap: anywhere;
   }
 }
 
-.feedback-chat {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.chat-message {
-  display: flex;
-  flex-direction: column;
-  max-width: 72%;
-  min-width: 0;
-
-  &--user {
-    align-items: flex-start;
-    align-self: flex-start;
-  }
-
-  &--admin {
-    align-items: flex-end;
-    align-self: flex-end;
-  }
-}
-
-.chat-meta {
-  display: flex;
+.thread-identity {
+  display: inline-flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 6px 10px;
-  margin-bottom: 6px;
-  color: $text-tertiary;
-  font-size: 12px;
+  gap: 6px;
+  min-width: 0;
 }
 
-.chat-message--admin .chat-meta {
-  justify-content: flex-end;
-  text-align: right;
-}
-
-.chat-bubble {
-  box-sizing: border-box;
-  max-width: 100%;
-  padding: 14px 16px;
+.message-bubble {
+  padding: 16px;
   border-radius: 16px;
   line-height: 1.7;
   color: $text-primary;
   overflow-wrap: anywhere;
   word-break: break-word;
-  white-space: pre-wrap;
 
-  &--user {
-    border-top-left-radius: 4px;
-    background: $bg-color;
-  }
-
-  &--admin {
-    border-top-right-radius: 4px;
-    background: #e8f3ff;
+  p {
+    margin: 0;
+    white-space: pre-wrap;
   }
 }
 
-.chat-images {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 12px;
+.message-bubble--submitter {
+  border: 1px solid #dbeafe;
+  border-top-left-radius: 4px;
+  background: $bg-white;
+}
+
+.message-bubble--handler {
+  border-top-right-radius: 4px;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+}
+
+.message-bubble--empty {
+  color: $text-secondary;
+  background: #f5f7fa;
+  border: 1px dashed $border-color;
+}
+
+.message-images {
+  margin-top: 14px;
 }
 
 .drawer-action-area {
   display: flex;
   justify-content: flex-end;
-  margin-top: 24px;
+  margin-top: 2px;
+  padding-top: 18px;
+  border-top: 1px solid $border-color-light;
 }
 
 .process-summary {
@@ -1311,8 +1456,44 @@ onMounted(() => {
     flex-direction: column;
   }
 
-  .chat-message {
-    max-width: 86%;
+  .feedback-detail-shell {
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .detail-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-hero {
+    flex-direction: column;
+    padding: 16px;
+  }
+
+  .thread-item,
+  .thread-item--handler {
+    flex-direction: column;
+  }
+
+  .thread-item--handler .thread-meta {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .thread-body {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .message-bubble,
+  .message-bubble--submitter,
+  .message-bubble--handler {
+    border-radius: 14px;
+  }
+
+  .image-list .feedback-image {
+    width: 88px;
+    height: 88px;
   }
 
   .filter-select,

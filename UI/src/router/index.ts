@@ -7,7 +7,7 @@ const ADMIN_ROUTE_PERMISSIONS = [
   { path: '/admin/users', permissionCode: 'admin.user' },
   { path: '/admin/teacher-audits', permissionCode: 'admin.teacher_audit' },
   { path: '/admin/announcements', permissionCode: 'admin.announcement' },
-  { path: '/admin/feedbacks', permissionCode: 'admin.feedback' },
+  { path: '/admin/messages', permissionCode: 'admin.feedback' },
   { path: '/admin/categories', permissionCode: 'admin.category' },
   { path: '/admin/tags', permissionCode: 'admin.tag' },
 ]
@@ -98,7 +98,7 @@ const routes: RouteRecordRaw[] = [
         path: 'messages',
         name: 'ProfileMessages',
         component: () => import('@/views/profile/MessagesPage.vue'),
-        meta: { title: '消息中心' },
+        meta: { title: '消息中心', blockAdminProfileMessages: true },
       },
       {
         path: 'feedbacks',
@@ -114,6 +114,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       permissionCode: 'teacher.course',
+      requiresActualTeacher: true,
     },
     children: [
       {
@@ -142,13 +143,13 @@ const routes: RouteRecordRaw[] = [
         path: 'statistics',
         name: 'TeacherStatistics',
         component: () => import('@/views/teacher/CourseStatisticsPage.vue'),
-        meta: { title: '课程统计' },
+        meta: { title: '课程统计', requiresActualTeacher: true },
       },
       {
         path: 'statistics/courses/:courseId',
         name: 'TeacherStatisticsDetail',
         component: () => import('@/views/teacher/CourseStatisticsDetailPage.vue'),
-        meta: { title: '课程统计详情' },
+        meta: { title: '课程统计详情', requiresActualTeacher: true },
       },
       {
         path: 'feedbacks',
@@ -208,7 +209,7 @@ const routes: RouteRecordRaw[] = [
         path: 'messages',
         name: 'AdminMessages',
         component: () => import('@/views/admin/AdminMessagePage.vue'),
-        meta: { title: '消息中心', permissionCode: 'admin.feedback' },
+        meta: { title: '系统消息', permissionCode: 'admin.feedback' },
       },
       {
         path: 'categories',
@@ -286,12 +287,20 @@ router.beforeEach(async (to) => {
     return landingPath || { name: 'Home' }
   }
 
+  if (to.meta.blockAdminProfileMessages && userStore.isAdmin) {
+    return { name: 'AdminMessages' }
+  }
+
   if (to.meta.blockAdminProfileFeedbacks && userStore.isAdmin) {
-    return { name: 'ProfileMessages' }
+    return { name: 'AdminMessages' }
   }
 
   if (to.meta.requiresStudent && !userStore.isStudent) {
-    return userStore.canAccessTeacherCenter ? { name: 'TeacherStatistics' } : { name: 'Profile' }
+    return userStore.canAccessTeacherCenter && userStore.isTeacher ? { name: 'TeacherStatistics' } : { name: 'Profile' }
+  }
+
+  if (to.meta.requiresActualTeacher && (!userStore.isTeacher || !userStore.canAccessTeacherCenter)) {
+    return { name: 'Home' }
   }
 
   if (requiredPermissionCode && !userStore.hasPermission(requiredPermissionCode)) {

@@ -643,3 +643,25 @@
   - 结果：`46 passed, 18 warnings`，警告为既有 passlib `crypt` 与 FastAPI 422 常量弃用警告。
   - 自检复跑：`cd "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend" && "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/.venv/bin/pytest" tests/test_system.py::TestAnnouncement::test_editing_published_announcement_without_status_does_not_resend tests/test_system.py::TestAnnouncement::test_republishing_announcement_creates_new_non_admin_messages tests/test_system.py::TestAnnouncement::test_published_announcement_excludes_admin_recipients tests/test_feedbacks.py::TestMessage::test_soft_deleted_messages_are_hidden_and_not_counted_unread -q`
   - 结果：`4 passed, 1 warning`，警告为既有 passlib `crypt` 弃用警告。
+
+## 管理员公告未读脏数据清理
+时间：2026-05-10 15:30
+
+- 变更原因：管理员登录后右上角仍显示 4 条未读消息，追查后确认来自重复发布公告遗留的管理员公告未读脏数据，需要定向清理并确认不会继续生成。
+- 涉及范围：
+  - 真实 MySQL 数据库 `learning_platform.messages`
+  - `backend/app/services/system_service.py`（只读复核）
+  - `backend/app/services/message_service.py`（只读复核）
+  - `backend/tests/test_system.py`（验证）
+  - `operations-log.md`
+- 核心改动：
+  - 通过数据库定向软删除管理员账号下 4 条未读公告消息，避免误删其他正常消息。
+  - 复核公告同步逻辑当前已排除管理员收件人，且重复发布只会继续给非管理员用户生成公告消息。
+  - 复核未读计数服务口径，确保未读统计与消息列表/软删除语义一致。
+- 验证结果：
+  - 已执行：`mysql -h 127.0.0.1 -u root learning_platform -e "..."` 定向检查并清理管理员未读公告消息。
+  - 结果：管理员未读公告从 4 条降为 0 条。
+  - 已执行：`cd "project_code/backend" && ../.venv/bin/pytest tests/test_system.py::TestAnnouncement::test_published_announcement_excludes_admin_recipients tests/test_system.py::TestAnnouncement::test_republishing_announcement_creates_new_non_admin_messages tests/test_system.py::TestAnnouncement::test_published_announcement_is_visible_in_student_messages -q`
+  - 结果：`3 passed`。
+  - 已执行：真实 API `POST /api/v1/auth/login` + `GET /api/v1/messages/unread-count`。
+  - 结果：管理员未读统计返回 `total=0`，`announcement=0`。

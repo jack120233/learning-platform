@@ -43,10 +43,15 @@ const userDropdownItems = computed(() => {
     items.push({ label: '我的学习', path: '/profile/records', icon: 'Reading' })
   }
 
-  items.push({ label: '消息中心', path: '/profile/messages', icon: 'Bell' })
+  if (!userStore.isAdmin) {
+    items.push({ label: '消息中心', path: '/profile/messages', icon: 'Bell' })
+  }
 
-  if (userStore.canAccessTeacherCenter) {
+  if (userStore.isTeacher && userStore.canAccessTeacherCenter) {
     items.push({ label: '课程管理', path: '/teacher/courses', icon: 'Notebook' })
+  }
+
+  if (userStore.isTeacher && userStore.canAccessTeacherCenter) {
     items.push({ label: '课程统计', path: '/teacher/statistics', icon: 'TrendCharts' })
   }
 
@@ -292,7 +297,7 @@ watch(() => route.fullPath, () => {
                 <el-icon><Reading /></el-icon>
                 <span>我的学习</span>
               </div>
-              <div class="menu-item" @click="handleMobileNavClick('/profile/messages')">
+              <div v-if="!userStore.isAdmin" class="menu-item" @click="handleMobileNavClick('/profile/messages')">
                 <el-icon><Bell /></el-icon>
                 <UnreadLabelBadge
                   label="消息中心"
@@ -301,11 +306,11 @@ watch(() => route.fullPath, () => {
                   class="mobile-message-badge"
                 />
               </div>
-              <div v-if="userStore.canAccessTeacherCenter" class="menu-item" @click="handleMobileNavClick('/teacher/courses')">
+              <div v-if="userStore.isTeacher && userStore.canAccessTeacherCenter" class="menu-item" @click="handleMobileNavClick('/teacher/courses')">
                 <el-icon><Notebook /></el-icon>
                 <span>课程管理</span>
               </div>
-              <div v-if="userStore.canAccessTeacherCenter" class="menu-item" @click="handleMobileNavClick('/teacher/statistics')">
+              <div v-if="userStore.isTeacher && userStore.canAccessTeacherCenter" class="menu-item" @click="handleMobileNavClick('/teacher/statistics')">
                 <el-icon><TrendCharts /></el-icon>
                 <span>课程统计</span>
               </div>

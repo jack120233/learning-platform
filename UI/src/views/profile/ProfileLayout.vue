@@ -16,6 +16,7 @@ const activeMenu = computed(() => {
 })
 
 const useCompactMainContent = computed(() => route.path === '/profile/messages')
+const useWideMainContent = computed(() => route.path === '/profile/messages' && userStore.isAdmin)
 
 // 未读消息数
 const unreadCount = computed(() => userStore.unreadMessageCount)
@@ -38,7 +39,9 @@ const menuItems = computed<ProfileMenuItem[]>(() => {
     items.push({ index: '/profile/records', title: '学习统计', icon: 'Reading' })
   }
 
-  items.push({ index: '/profile/messages', title: '消息中心', icon: 'Bell', badge: true })
+  if (!userStore.isAdmin) {
+    items.push({ index: '/profile/messages', title: '消息中心', icon: 'Bell', badge: true })
+  }
 
   if (!userStore.isAdmin) {
     items.push({ index: '/profile/feedbacks', title: '我的反馈', icon: 'ChatDotRound' })
@@ -110,7 +113,13 @@ watch(() => route.fullPath, () => {
       </el-aside>
 
       <!-- 右侧内容区 -->
-      <el-main class="main-content" :class="{ 'is-compact': useCompactMainContent }">
+      <el-main
+        class="main-content"
+        :class="{
+          'is-compact': useCompactMainContent,
+          'is-wide': useWideMainContent,
+        }"
+      >
         <router-view v-slot="{ Component, route: currentRoute }">
           <keep-alive :include="cachedPages">
             <component :is="Component" :key="currentRoute.fullPath" />
@@ -130,6 +139,8 @@ watch(() => route.fullPath, () => {
 }
 
 .layout-container {
+  box-sizing: border-box;
+  width: 100%;
   max-width: 1440px;
   margin: 0 auto;
   padding: 0 24px;
@@ -192,6 +203,7 @@ watch(() => route.fullPath, () => {
 
 .main-content {
   flex: 1;
+  min-width: 0;
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
@@ -201,6 +213,12 @@ watch(() => route.fullPath, () => {
 
   &.is-compact {
     min-height: auto;
+  }
+
+  &.is-wide {
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
   }
 }
 
@@ -254,6 +272,10 @@ watch(() => route.fullPath, () => {
   .main-content {
     min-height: auto;
     padding: 16px;
+
+    &.is-wide {
+      padding: 0;
+    }
   }
 }
 

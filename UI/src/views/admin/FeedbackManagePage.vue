@@ -308,34 +308,6 @@ onMounted(() => {
           {{ row.content }}
         </template>
       </el-table-column>
-      <el-table-column label="截图" width="80" align="center">
-        <template #default="{ row }">
-          <el-popover
-            v-if="row.images?.length"
-            placement="right"
-            :width="400"
-            trigger="hover"
-          >
-            <template #reference>
-              <el-badge :value="row.images.length" type="primary" @click.stop>
-                <el-button size="small" text @click.stop>查看</el-button>
-              </el-badge>
-            </template>
-            <div class="image-preview-list">
-              <el-image
-                v-for="(img, imgIndex) in row.images"
-                :key="imgIndex"
-                :src="img"
-                :preview-src-list="row.images"
-                :initial-index="Number(imgIndex)"
-                fit="cover"
-                class="preview-image"
-              />
-            </div>
-          </el-popover>
-          <span v-else class="text-muted">-</span>
-        </template>
-      </el-table-column>
       <el-table-column label="状态" width="90" align="center">
         <template #default="{ row }">
           <el-tag :type="statusMap[row.status]?.type || 'info'" size="small">
@@ -648,18 +620,6 @@ onMounted(() => {
   margin-top: 24px;
   display: flex;
   justify-content: center;
-}
-
-.image-preview-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-
-  .preview-image {
-    width: 100px;
-    height: 100px;
-    border-radius: $radius-sm;
-  }
 }
 
 .loading-container {

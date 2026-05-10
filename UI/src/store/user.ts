@@ -131,7 +131,7 @@ export const useUserStore = defineStore('user', () => {
   const isTeacher = computed(() => userInfo.value.role === 'teacher')
   const isAdmin = computed(() => userInfo.value.role === 'admin')
   const isPendingTeacher = computed(() => userInfo.value.status === 'pending' && userInfo.value.role === 'teacher')
-  const canAccessTeacherCenter = computed(() => hasPermission('teacher.course'))
+  const canAccessTeacherCenter = computed(() => isTeacher.value && hasPermission('teacher.course'))
   const canAccessAdminCenter = computed(() => hasAnyPermission(ADMIN_ENTRY_PERMISSION_CODES))
 
   function persistUserInfo() {

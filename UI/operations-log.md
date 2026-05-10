@@ -768,3 +768,73 @@
 - 验证结果：
   - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
   - 结果：通过，保留既有大 chunk 警告。
+
+## 手工前端测试问题修复
+时间：2026-05-10 17:18
+
+- 变更原因：处理手工测试发现的教师课程统计详情页视觉过白、管理员误见/误入教师课程统计、管理端反馈表格截图列冗余等前端问题。
+- 涉及文件：
+  - `src/views/teacher/CourseStatisticsDetailPage.vue`
+  - `src/components/layout/AppHeader.vue`
+  - `src/router/index.ts`
+  - `src/views/admin/FeedbackManagePage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 课程统计详情页改为渐变背景、Hero 信息区、彩色指标卡片和独立明细卡片布局，并保留移动端单列响应式适配。
+  - 移除课程统计详情页中关于学生明细隐私字段的用户可见句子。
+  - Header 中“课程统计”入口仅对实际 teacher 角色且拥有讲师中心权限的用户展示；管理员仍可按既有逻辑保留课程管理/后台入口。
+  - 为 `/teacher/statistics` 和 `/teacher/statistics/courses/:courseId` 增加教师本人角色元信息，并在路由守卫中集中拦截管理员访问。
+  - 移除管理员反馈管理表格中的“截图”列，详情抽屉内截图展示保持不变。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
+  - 结果：通过，保留既有大 chunk 警告。
+  - 已执行：启动 Vite dev server 后用 Playwright 通过真实 `/api/v1/auth/login` 分别登录 `admin1@example.com` 与 `teacher1@example.com`，检查 Header 菜单、管理员访问 `/teacher/statistics` 的拦截、`/admin/feedbacks` 表格截图列移除、`/teacher/statistics/courses/2` 详情页 Hero/指标卡片和隐私句子移除。
+  - 结果：关键路径通过；浏览器控制台出现若干 `net::ERR_CONNECTION_CLOSED` 资源加载错误，但不影响上述断言。
+
+## 前端展示与权限细节修复
+时间：2026-05-10 18:40
+
+- 变更原因：修复管理员消息/反馈页面展示拥挤、后台消息入口重复、管理员误入讲师课程管理，以及管理员个人中心消息页展示不完整等前端问题。
+- 涉及文件：
+  - `src/views/admin/AdminLayout.vue`
+  - `src/views/admin/AdminMessagePage.vue`
+  - `src/views/profile/ProfileLayout.vue`
+  - `src/components/layout/AppHeader.vue`
+  - `src/router/index.ts`
+  - `src/store/user.ts`
+  - `operations-log.md`
+- 核心改动：
+  - 后台侧边栏移除重复的“反馈管理”菜单项，保留“系统消息”入口承载用户反馈处理台；发送站内消息面板逻辑保持不变。
+  - `/admin/messages` 用户反馈处理台移除表格“截图”列，详情抽屉继续展示图片，并参考反馈管理详情样式重构信息卡片与对话流布局。
+  - 优化 `/admin/messages` 表格右侧操作列为紧凑软操作面，降低拥挤感，同时保持行内动作可用。
+  - `/profile/messages` 管理员复用 `AdminMessagePage` 时移除个人中心内容卡片内边距/阴影限制，使管理员消息页可完整展示。
+  - Header 中“课程管理”仅对真实 teacher 角色且有讲师课程权限的用户展示；`/teacher` 路由增加真实讲师拦截，管理员即使带有 `teacher.course` 权限也不能直达讲师端课程管理。
+  - 管理员右上角下拉和个人中心侧栏不再展示“消息中心”，管理员直达 `/profile/messages` 会跳转后台 `/admin/messages`，非管理员消息中心入口保持不变。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
+  - 结果：通过，保留既有大 chunk 警告。
+  - 已执行：在本地 Vite + 后端服务下用 Playwright 通过真实登录页分别登录 `admin1@example.com` 与 `teacher1@example.com`，检查 `/admin/messages` 侧边栏入口、截图列表头移除、发送站内消息入口仍存在、`/profile/messages` 管理员视图无横向溢出、管理员下拉不再出现讲师端课程管理、管理员直达 `/teacher/courses` 被拦截、教师下拉仍保留课程管理。
+  - 结果：关键断言通过；浏览器控制台仍有若干 `net::ERR_CONNECTION_CLOSED` 资源加载错误，未影响本次断言。
+  - 已执行：`npm --prefix UI run build`
+  - 结果：通过，保留既有大 chunk 警告。
+  - 已执行：在本地 Vite + 后端服务下用 Playwright 通过真实登录页分别登录 `admin1@example.com` 与 `student1@example.com`，检查管理员右上角不显示“消息中心”、仍显示“个人中心/后台管理”，管理员个人中心侧栏不显示“消息中心”、仍显示“个人信息”，管理员直达 `/profile/messages` 重定向 `/admin/messages`，学生右上角和个人中心侧栏仍显示“消息中心”。
+  - 结果：关键断言通过；浏览器控制台出现若干 `net::ERR_CONNECTION_CLOSED` 资源加载错误，未影响本次断言。
+
+
+## 管理员课程管理恢复并合并统计授权
+时间：2026-05-10
+
+- 变更原因：管理员课程管理需要恢复原有全站课程管理体验，并把新增课程统计授权作为附加操作合并到同一后台课程管理入口，避免授权功能替代原有管理能力。
+- 涉及文件：
+  - `src/views/admin/CourseManagePage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 已将当前授权版页面备份到 `.trellis/tasks/05-10-frontend-display-permissions-fixes/current-CourseManagePage.authorization-backup.vue`。
+  - 以历史课程管理列表形态恢复 `/admin/courses` 的全站已发布课程管理、搜索筛选、单课下架和批量下架能力。
+  - 在原课程管理操作列新增“授权”入口，保留课程统计授权抽屉、候选老师搜索、授权和撤销能力。
+- 验证结果：
+  - 已执行：`npm --prefix UI run build`
+  - 结果：通过
+  - 备注：构建仍提示大体积 chunk 警告，但不影响本次课程管理合并改动。
+  - 已执行：在本地 Vite + 后端服务下用 Playwright 通过真实登录页登录 `admin1@example.com`，检查 `/admin/courses` 标题、已发布筛选、搜索框、表格选择列、下架按钮、授权按钮、无教师创建课程入口，以及授权抽屉标题、当前授权老师、添加授权、候选老师搜索和授予统计授权按钮。
+  - 结果：浏览器断言全部通过，控制台无 error/warning。

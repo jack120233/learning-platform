@@ -1,13 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Bottom, Connection, Search, VideoPlay } from '@element-plus/icons-vue'
+import { Connection, Refresh, Search, VideoPlay } from '@element-plus/icons-vue'
 import { usePagination } from '@/composables/usePagination'
 import {
-  archiveCourse,
-  batchCourseAction,
   fetchManageCourses,
-  type BatchCourseAction,
   type TeacherCourseItem,
   type TeacherCoursesParams,
 } from '@/api/teacher'
@@ -20,9 +17,8 @@ import {
   type CourseStatisticsAuthorizationItem,
 } from '@/api/admin'
 
-const statusFilter = ref<'published'>('published')
 const keyword = ref('')
-const selectedRows = ref<TeacherCourseItem[]>([])
+const statusFilter = ref<'all' | 'draft' | 'published' | 'archived'>('published')
 const showAuthorizationDrawer = ref(false)
 const currentCourse = ref<TeacherCourseItem | null>(null)
 const authorizations = ref<CourseStatisticsAuthorizationItem[]>([])
@@ -32,12 +28,10 @@ const selectedTeacherIds = ref<number[]>([])
 const isLoadingAuthorizations = ref(false)
 const isGranting = ref(false)
 
-const availableStatusTabs = [{ label: '已发布', name: 'published' as const }]
-
 async function fetchCourses(params: TeacherCoursesParams) {
   return fetchManageCourses({
     scope: 'published_all',
-    status: statusFilter.value,
+    status: statusFilter.value === 'all' ? undefined : statusFilter.value,
     keyword: keyword.value || undefined,
     ...params,
   })
@@ -61,21 +55,22 @@ const statusMap: Record<string, { text: string; type: 'info' | 'success' | 'dang
   archived: { text: '已下架', type: 'danger' },
 }
 
-const selectedCount = computed(() => selectedRows.value.length)
-const canBatchArchive = computed(() => canBatchByAction('archive', selectedRows.value))
 const availableCandidates = computed(() => candidates.value.filter(item => !item.authorized))
 const activeAuthorizations = computed(() => authorizations.value.filter(item => item.is_active))
 
-function formatTime(time?: string | null) {
-  if (!time) return '-'
-  return new Date(time).toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  })
+function handleSearch() {
+  page.value = 1
+  fetchData()
 }
 
-function formatDetailTime(time?: string | null) {
+function handleReset() {
+  keyword.value = ''
+  statusFilter.value = 'published'
+  page.value = 1
+  fetchData()
+}
+
+function formatTime(time?: string | null) {
   if (!time) return '-'
   return new Date(time).toLocaleString('zh-CN', {
     year: 'numeric',
@@ -84,110 +79,6 @@ function formatDetailTime(time?: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-function formatViewCount(count: number | undefined | null) {
-  if (count == null) return '0'
-  if (count >= 10000) {
-    return `${(count / 10000).toFixed(1)}万`
-  }
-  return count.toString()
-}
-
-function canArchiveCourse(course: TeacherCourseItem) {
-  return course.status === 'published'
-}
-
-function canBatchByAction(action: BatchCourseAction, rows: TeacherCourseItem[]) {
-  if (!rows.length) return false
-  if (action !== 'archive') return false
-  return rows.every(row => canArchiveCourse(row))
-}
-
-function handleSelectionChange(selection: TeacherCourseItem[]) {
-  selectedRows.value = selection
-}
-
-function handleSearch() {
-  page.value = 1
-  fetchData()
-}
-
-function handleReset() {
-  statusFilter.value = 'published'
-  keyword.value = ''
-  selectedRows.value = []
-  page.value = 1
-  fetchData()
-}
-
-async function reloadTable() {
-  selectedRows.value = []
-  await fetchData()
-}
-
-async function requestArchiveReason(title: string) {
-  const { value } = await ElMessageBox.prompt(
-    `确定要下架${title}吗？下架后学生将无法访问该课程。`,
-    '下架原因',
-    {
-      confirmButtonText: '确定下架',
-      cancelButtonText: '取消',
-      inputType: 'textarea',
-      inputPlaceholder: '请输入下架原因',
-      inputValidator: (reason) => {
-        if (reason && reason.length > 200) return '下架原因最多 200 个字符'
-        return true
-      },
-    }
-  )
-  return value
-}
-
-async function handleArchive(course: TeacherCourseItem) {
-  try {
-    const reason = await requestArchiveReason(`课程「${course.title}」`)
-
-    await archiveCourse(course.id, { archive_reason: reason })
-    ElMessage.success('课程已下架')
-    await reloadTable()
-  } catch (error) {
-    // 用户取消
-  }
-}
-
-function showBatchResult(message: string, failedCount: number) {
-  if (failedCount > 0) {
-    ElMessage.warning(message)
-    return
-  }
-  ElMessage.success(message)
-}
-
-async function handleBatchArchive() {
-  if (!selectedRows.value.length) {
-    ElMessage.warning('请先选择课程')
-    return
-  }
-
-  if (!canBatchArchive.value) {
-    ElMessage.warning('当前选中的课程不满足批量下架条件')
-    return
-  }
-
-  try {
-    const archiveReason = await requestArchiveReason(`已选择的 ${selectedRows.value.length} 门课程`)
-    const result = await batchCourseAction({
-      action: 'archive',
-      course_ids: selectedRows.value.map(item => item.id),
-      archive_reason: archiveReason,
-    })
-
-    showBatchResult(`批量下架完成，成功 ${result.success_count} 门，失败 ${result.failed_count} 门`, result.failed_count)
-    await reloadTable()
-  } catch (error) {
-    // 用户取消
-  }
 }
 
 async function loadAuthorizationData() {
@@ -255,137 +146,76 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="course-list-page">
+  <div class="admin-course-manage-page">
     <div class="page-header">
       <div>
         <h2 class="page-title">课程管理</h2>
-        <p class="page-desc">管理全站已发布课程，并在原课程管理操作中新增课程统计授权。</p>
+        <p class="page-desc">管理课程统计授权。授权仅允许老师查看、明细和导出课程学习统计，不授予编辑、发布、下架、删除、内容或资源管理权限。</p>
       </div>
+      <el-button :icon="Refresh" :loading="isLoading" @click="() => fetchData()">刷新</el-button>
     </div>
 
     <div class="filter-bar">
       <div class="filter-left">
-        <el-tabs v-model="statusFilter" @tab-change="() => fetchData()" class="status-tabs">
-          <el-tab-pane
-            v-for="tab in availableStatusTabs"
-            :key="tab.name"
-            :label="tab.label"
-            :name="tab.name"
-          />
-        </el-tabs>
+        <el-select v-model="statusFilter" placeholder="课程状态" style="width: 140px" @change="fetchData">
+          <el-option label="全部状态" value="all" />
+          <el-option label="草稿" value="draft" />
+          <el-option label="已发布" value="published" />
+          <el-option label="已下架" value="archived" />
+        </el-select>
       </div>
-
-      <div class="search-area">
-        <el-input
-          v-model="keyword"
-          placeholder="搜索课程名称"
-          clearable
-          @keyup.enter="handleSearch"
-          style="width: 240px"
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
+      <div class="filter-right">
+        <el-input v-model="keyword" placeholder="搜索课程名称" clearable style="width: 240px" @keyup.enter="handleSearch">
+          <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
-        <div class="filter-actions soft-action-surface">
+        <div class="soft-action-surface filter-actions">
           <el-button class="soft-action-btn soft-action-btn--primary soft-action-btn--small" @click="handleSearch">搜索</el-button>
           <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" @click="handleReset">重置</el-button>
         </div>
       </div>
     </div>
 
-    <div v-if="selectedCount > 0" class="batch-actions soft-action-surface--card">
-      <span class="selected-count">已选择 {{ selectedCount }} 门课程</span>
-      <el-button class="soft-action-btn soft-action-btn--secondary soft-action-btn--small" type="warning" size="small" :icon="Bottom" :disabled="!canBatchArchive" @click="handleBatchArchive">
-        批量下架
-      </el-button>
-    </div>
-
-    <div v-if="isLoading" class="loading-container">
-      <el-skeleton :rows="5" animated />
-    </div>
-
-    <el-empty v-else-if="isEmpty" description="暂无符合条件的课程" />
+    <el-empty v-if="!isLoading && isEmpty" description="暂无符合条件的课程" />
 
     <template v-else>
-      <el-table :data="courses" stripe border @selection-change="handleSelectionChange">
-        <el-table-column type="selection" width="50" />
-
-        <el-table-column label="封面" width="100" align="center">
-          <template #default="{ row }">
-            <el-image :src="row.cover_url || ''" fit="cover" class="cover-image">
-              <template #error>
-                <div class="cover-placeholder">
-                  <el-icon><VideoPlay /></el-icon>
+      <div class="table-scroll">
+        <el-table :data="courses" v-loading="isLoading" stripe border>
+          <el-table-column label="课程" min-width="260">
+            <template #default="{ row }">
+              <div class="course-cell">
+                <el-image :src="row.cover_url || ''" fit="cover" class="cover-image">
+                  <template #error>
+                    <div class="cover-placeholder"><el-icon><VideoPlay /></el-icon></div>
+                  </template>
+                </el-image>
+                <div class="course-info">
+                  <span class="course-title">{{ row.title }}</span>
+                  <span class="teacher-name">负责人：{{ row.teacher_name || row.author || `老师#${row.teacher_id}` }}</span>
                 </div>
-              </template>
-            </el-image>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="课程名称" min-width="220">
-          <template #default="{ row }">
-            <div class="course-title-wrap">
-              <span class="course-title">{{ row.title }}</span>
-              <span v-if="row.teacher_name" class="teacher-name">讲师：{{ row.teacher_name }}</span>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="状态" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="statusMap[row.status]?.type || 'info'" size="small">
-              {{ statusMap[row.status]?.text || row.status }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="浏览量" width="100" align="center">
-          <template #default="{ row }">
-            {{ formatViewCount(row.view_count) }}
-          </template>
-        </el-table-column>
-
-        <el-table-column label="创建时间" width="120" align="center">
-          <template #default="{ row }">
-            {{ formatTime(row.created_at) }}
-          </template>
-        </el-table-column>
-
-        <el-table-column label="发布时间" width="120" align="center">
-          <template #default="{ row }">
-            {{ formatTime(row.published_at) }}
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作" width="220" fixed="right">
-          <template #default="{ row }">
-            <div class="row-actions soft-action-surface">
-              <el-button
-                v-if="canArchiveCourse(row)"
-                class="soft-action-btn soft-action-btn--secondary soft-action-btn--small"
-                text
-                size="small"
-                type="warning"
-                :icon="Bottom"
-                @click="handleArchive(row)"
-              >
-                下架
-              </el-button>
-              <el-button
-                class="soft-action-btn soft-action-btn--primary soft-action-btn--small"
-                text
-                size="small"
-                type="primary"
-                :icon="Connection"
-                @click="openAuthorizationDrawer(row)"
-              >
-                授权
-              </el-button>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="100" align="center">
+            <template #default="{ row }">
+              <el-tag :type="statusMap[row.status]?.type || 'info'" size="small">
+                {{ statusMap[row.status]?.text || row.status }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="学习人数" width="100" align="center" prop="student_count" />
+          <el-table-column label="创建时间" width="170" align="center">
+            <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
+          </el-table-column>
+          <el-table-column label="发布时间" width="170" align="center">
+            <template #default="{ row }">{{ formatTime(row.published_at) }}</template>
+          </el-table-column>
+          <el-table-column label="统计授权" width="130" fixed="right" align="center">
+            <template #default="{ row }">
+              <el-button text type="primary" :icon="Connection" @click="openAuthorizationDrawer(row)">授权</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
 
       <el-pagination
         v-if="totalPages > 1"
@@ -423,7 +253,7 @@ onMounted(() => {
               <template #default="{ row }">{{ row.username }}#{{ row.teacher_id }}</template>
             </el-table-column>
             <el-table-column label="授权时间" width="170" align="center">
-              <template #default="{ row }">{{ formatDetailTime(row.assigned_at) }}</template>
+              <template #default="{ row }">{{ formatTime(row.assigned_at) }}</template>
             </el-table-column>
             <el-table-column label="操作" width="90" align="center">
               <template #default="{ row }">
@@ -463,7 +293,7 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-.course-list-page {
+.admin-course-manage-page {
   .page-header {
     display: flex;
     align-items: flex-start;
@@ -475,77 +305,52 @@ onMounted(() => {
   }
 
   .page-title {
+    margin: 0;
     font-size: 20px;
     font-weight: 600;
     color: $text-primary;
-    margin: 0;
   }
 
   .page-desc {
+    max-width: 860px;
     margin: 8px 0 0;
     color: $text-secondary;
     font-size: $font-size-sm;
+    line-height: 1.7;
   }
+}
+
+.filter-bar,
+.filter-left,
+.filter-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .filter-bar {
-  display: flex;
-  align-items: center;
   justify-content: space-between;
   margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 16px;
-
-  .filter-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
-
-  .status-tabs {
-    :deep(.el-tabs__header) {
-      margin-bottom: 0;
-    }
-
-    :deep(.el-tabs__nav-wrap::after) {
-      height: 1px;
-      background-color: $border-color-light;
-    }
-  }
-
-  .search-area {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
 }
 
-.batch-actions {
+.table-scroll {
+  overflow-x: auto;
+}
+
+.course-cell {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  background: #f5f7fa;
-  border-radius: $radius-sm;
-
-  .selected-count {
-    color: $text-secondary;
-    font-size: $font-size-sm;
-  }
-}
-
-.loading-container {
-  padding: 40px 0;
 }
 
 .cover-image,
 .cover-placeholder {
-  width: 60px;
-  height: 40px;
+  width: 72px;
+  height: 48px;
   border-radius: $radius-sm;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .cover-placeholder {
@@ -556,10 +361,10 @@ onMounted(() => {
   color: $text-tertiary;
 }
 
-.course-title-wrap {
+.course-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .course-title {
@@ -570,10 +375,6 @@ onMounted(() => {
 .teacher-name {
   font-size: $font-size-sm;
   color: $text-secondary;
-}
-
-.row-actions {
-  width: fit-content;
 }
 
 .pagination {
@@ -642,13 +443,11 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
-  .course-list-page .page-header,
+  .admin-course-manage-page .page-header,
   .filter-bar,
-  .filter-bar .filter-left,
-  .filter-bar .search-area,
+  .filter-left,
+  .filter-right,
   .filter-actions,
-  .batch-actions,
-  .row-actions,
   .drawer-section-header,
   .candidate-search,
   .drawer-actions {
@@ -657,7 +456,7 @@ onMounted(() => {
     width: 100%;
   }
 
-  .filter-bar .search-area :deep(.el-input) {
+  .filter-right :deep(.el-input) {
     width: 100% !important;
   }
 }
