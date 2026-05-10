@@ -387,8 +387,7 @@ class AnnouncementService:
         update_data = data.model_dump(exclude_unset=True)
         if "is_published" in update_data:
             if update_data["is_published"]:
-                if update_data.get("publish_at") is None and announcement.publish_at is None:
-                    update_data["publish_at"] = datetime.now(timezone.utc)
+                update_data["publish_at"] = datetime.now(timezone.utc)
             else:
                 update_data["publish_at"] = None
 
@@ -396,7 +395,8 @@ class AnnouncementService:
             setattr(announcement, key, value)
 
         await db.flush()
-        await self._sync_messages_for_announcement(db, announcement)
+        if "is_published" in update_data:
+            await self._sync_messages_for_announcement(db, announcement)
         await db.refresh(announcement)
         return announcement
 
@@ -467,42 +467,17 @@ class AnnouncementService:
             return
 
         link = self._build_announcement_link(announcement.id)
-        result = await db.execute(
-            select(Message).where(
-                and_(
-                    Message.type == self.MESSAGE_TYPE,
-                    Message.link == link,
+        for recipient_id in recipients:
+            db.add(
+                Message(
+                    user_id=recipient_id,
+                    type=self.MESSAGE_TYPE,
+                    title=announcement.title,
+                    content=announcement.content,
+                    link=link,
+                    sender_id=announcement.author_id,
                 )
             )
-        )
-        existing_messages = {
-            message.user_id: message
-            for message in result.scalars().all()
-        }
-
-        stale_user_ids = set(existing_messages) - set(recipients)
-        for stale_user_id in stale_user_ids:
-            await db.delete(existing_messages[stale_user_id])
-
-        for recipient_id in recipients:
-            message = existing_messages.get(recipient_id)
-            if message is None:
-                db.add(
-                    Message(
-                        user_id=recipient_id,
-                        type=self.MESSAGE_TYPE,
-                        title=announcement.title,
-                        content=announcement.content,
-                        link=link,
-                        sender_id=announcement.author_id,
-                    )
-                )
-                continue
-
-            message.title = announcement.title
-            message.content = announcement.content
-            message.link = link
-            message.sender_id = announcement.author_id
 
         await db.flush()
 
@@ -527,7 +502,12 @@ class AnnouncementService:
     async def _get_active_recipient_ids(self, db: AsyncSession) -> Sequence[int]:
         """获取应接收公告消息的活跃用户 ID。"""
         result = await db.execute(
-            select(User.id).where(User.status == "active")
+            select(User.id).where(
+                and_(
+                    User.status == "active",
+                    User.role != "admin",
+                )
+            )
         )
         return [user_id for user_id in result.scalars().all()]
 

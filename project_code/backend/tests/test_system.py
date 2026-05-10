@@ -464,6 +464,42 @@ class TestAnnouncement:
         assert message.content == "这是一条测试公告"
 
     @pytest.mark.asyncio
+    async def test_published_announcement_excludes_admin_recipients(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_admin,
+    ):
+        """测试发布公告不会给管理员生成站内消息。"""
+        admin_headers = await login_as_admin(client, db_session)
+        student_auth = await create_role_user(client, db_session, "student")
+        teacher_auth = await create_role_user(client, db_session, "teacher")
+        title = f"排除管理员公告{uuid.uuid4().hex[:8]}"
+
+        response = await client.post(
+            "/api/v1/announcements",
+            headers=admin_headers,
+            json={
+                "title": title,
+                "content": "管理员不应接收公告消息",
+                "is_published": True,
+            },
+        )
+        assert response.status_code == 200
+        announcement_id = response.json()["data"]["id"]
+
+        result = await db_session.execute(
+            select(Message.user_id).where(
+                Message.type == "announcement",
+                Message.link == f"/announcements/{announcement_id}",
+            )
+        )
+        recipient_ids = set(result.scalars().all())
+        assert student_auth["user_id"] in recipient_ids
+        assert teacher_auth["user_id"] in recipient_ids
+        assert test_admin.id not in recipient_ids
+
+    @pytest.mark.asyncio
     async def test_admin_can_update_announcement(
         self,
         client: AsyncClient,
@@ -537,13 +573,113 @@ class TestAnnouncement:
         assert matched["content"] == "学生端应该可以看到这条公告"
 
     @pytest.mark.asyncio
+    async def test_republishing_announcement_creates_new_non_admin_messages(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试同一公告再次发布会给非管理员生成新的可见消息。"""
+        admin_headers = await login_as_admin(client, db_session)
+        student_auth = await create_role_user(client, db_session, "student")
+        title = f"再次发布公告{uuid.uuid4().hex[:8]}"
+        create_response = await client.post(
+            "/api/v1/announcements",
+            headers=admin_headers,
+            json={
+                "title": title,
+                "content": "第一次发布内容",
+                "is_published": True,
+            },
+        )
+        assert create_response.status_code == 200
+        announcement_id = create_response.json()["data"]["id"]
+
+        republish_response = await client.post(
+            f"/api/v1/announcements/{announcement_id}",
+            headers=admin_headers,
+            json={"is_published": True},
+        )
+        assert republish_response.status_code == 200
+
+        messages_response = await client.get(
+            "/api/v1/messages",
+            headers=student_auth["headers"],
+            params={"type": "announcement"},
+        )
+        assert messages_response.status_code == 200
+        matched_messages = [
+            item
+            for item in messages_response.json()["data"]["items"]
+            if item["link"] == f"/announcements/{announcement_id}"
+        ]
+        assert len(matched_messages) == 2
+        assert {item["title"] for item in matched_messages} == {title}
+
+        unread_response = await client.get(
+            "/api/v1/messages/unread-count",
+            headers=student_auth["headers"],
+        )
+        assert unread_response.status_code == 200
+        unread_data = unread_response.json()["data"]
+        assert unread_data["announcement"] == 2
+        assert unread_data["total"] >= 2
+
+    @pytest.mark.asyncio
+    async def test_editing_published_announcement_without_status_does_not_resend(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试编辑已发布公告内容但不提交发布状态时不会重新发送消息。"""
+        admin_headers = await login_as_admin(client, db_session)
+        student_auth = await create_role_user(client, db_session, "student")
+        title = f"编辑不重发公告{uuid.uuid4().hex[:8]}"
+        create_response = await client.post(
+            "/api/v1/announcements",
+            headers=admin_headers,
+            json={
+                "title": title,
+                "content": "首次发布内容",
+                "is_published": True,
+            },
+        )
+        assert create_response.status_code == 200
+        announcement_id = create_response.json()["data"]["id"]
+
+        update_response = await client.post(
+            f"/api/v1/announcements/{announcement_id}",
+            headers=admin_headers,
+            json={
+                "title": f"{title}-已编辑",
+                "content": "只编辑内容，不重发消息",
+            },
+        )
+        assert update_response.status_code == 200
+        assert update_response.json()["data"]["content"] == "只编辑内容，不重发消息"
+
+        messages_response = await client.get(
+            "/api/v1/messages",
+            headers=student_auth["headers"],
+            params={"type": "announcement"},
+        )
+        assert messages_response.status_code == 200
+        matched_messages = [
+            item
+            for item in messages_response.json()["data"]["items"]
+            if item["link"] == f"/announcements/{announcement_id}"
+        ]
+        assert len(matched_messages) == 1
+        assert matched_messages[0]["title"] == title
+        assert matched_messages[0]["content"] == "首次发布内容"
+
+    @pytest.mark.asyncio
     async def test_unpublishing_announcement_removes_synced_messages(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
         test_user,
     ):
-        """测试公告转回草稿后会移除同步消息。"""
+        """测试公告转回草稿后会移除所有同步消息。"""
         admin_headers = await login_as_admin(client, db_session)
         create_response = await client.post(
             "/api/v1/announcements",
@@ -555,6 +691,12 @@ class TestAnnouncement:
             },
         )
         announcement_id = create_response.json()["data"]["id"]
+        republish_response = await client.post(
+            f"/api/v1/announcements/{announcement_id}",
+            headers=admin_headers,
+            json={"is_published": True},
+        )
+        assert republish_response.status_code == 200
 
         update_response = await client.post(
             f"/api/v1/announcements/{announcement_id}",

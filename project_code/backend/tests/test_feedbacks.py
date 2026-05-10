@@ -769,22 +769,43 @@ async def test_ensure_database_compatibility_adds_feedback_fields():
                     """
                 )
             )
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE messages (
+                        id INTEGER PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
+                        type VARCHAR(20) NOT NULL,
+                        title VARCHAR(200) NOT NULL,
+                        content TEXT NOT NULL,
+                        link VARCHAR(500),
+                        is_read BOOLEAN NOT NULL DEFAULT 0,
+                        read_at DATETIME,
+                        sender_id INTEGER
+                    )
+                    """
+                )
+            )
 
             messages = await ensure_database_compatibility(conn)
 
-            def get_columns(sync_conn):
+            def get_feedback_columns(sync_conn):
                 return inspect(sync_conn).get_columns("feedbacks")
 
-            columns = await conn.run_sync(get_columns)
+            def get_message_columns(sync_conn):
+                return inspect(sync_conn).get_columns("messages")
+
+            feedback_columns = await conn.run_sync(get_feedback_columns)
+            message_columns = await conn.run_sync(get_message_columns)
 
         assert "已为 feedbacks 表补充 course_id 字段" in messages
         assert "已为 feedbacks 表补充 target_user_id 字段" in messages
-        assert "已为 feedbacks 表补充 is_deleted 字段" in messages
-        assert "已为 feedbacks 表补充 deleted_at 字段" in messages
-        assert any(column["name"] == "course_id" for column in columns)
-        assert any(column["name"] == "target_user_id" for column in columns)
-        assert any(column["name"] == "is_deleted" for column in columns)
-        assert any(column["name"] == "deleted_at" for column in columns)
+        assert "已为 messages 表补充 is_deleted 字段" in messages
+        assert "已为 messages 表补充 deleted_at 字段" in messages
+        assert any(column["name"] == "course_id" for column in feedback_columns)
+        assert any(column["name"] == "target_user_id" for column in feedback_columns)
+        assert any(column["name"] == "is_deleted" for column in message_columns)
+        assert any(column["name"] == "deleted_at" for column in message_columns)
     finally:
         await engine.dispose()
 
@@ -865,6 +886,73 @@ class TestMessage:
         )
 
         assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_soft_deleted_messages_are_hidden_and_not_counted_unread(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+    ):
+        """测试软删除消息不显示且不计入未读数。"""
+        from app.models.message import Message
+        from app.services.message_service import message_service
+
+        headers = {"Authorization": f"Bearer {create_access_token(test_user.id)}"}
+        baseline = await message_service.get_unread_count(db_session, test_user.id)
+        visible_title = f"保留消息{uuid.uuid4().hex[:8]}"
+        deleted_title = f"已删除未读消息{uuid.uuid4().hex[:8]}"
+        visible_message = Message(
+            user_id=test_user.id,
+            type="system",
+            title=visible_title,
+            content="仍应显示并计数",
+            is_read=False,
+        )
+        deleted_message = Message(
+            user_id=test_user.id,
+            type="system",
+            title=deleted_title,
+            content="不应显示或计数",
+            is_read=False,
+            is_deleted=True,
+        )
+        db_session.add_all([visible_message, deleted_message])
+        await db_session.flush()
+
+        list_response = await client.get(
+            "/api/v1/messages",
+            headers=headers,
+            params={"type": "system"},
+        )
+        assert list_response.status_code == 200
+        titles = {item["title"] for item in list_response.json()["data"]["items"]}
+        assert visible_title in titles
+        assert deleted_title not in titles
+
+        unread_response = await client.get(
+            "/api/v1/messages/unread-count",
+            headers=headers,
+        )
+        assert unread_response.status_code == 200
+        unread_data = unread_response.json()["data"]
+        assert unread_data["system"] == baseline["system"] + 1
+        assert unread_data["total"] == baseline["total"] + 1
+
+        delete_response = await client.delete(
+            f"/api/v1/messages/{visible_message.id}",
+            headers=headers,
+        )
+        assert delete_response.status_code == 200
+
+        unread_after_delete_response = await client.get(
+            "/api/v1/messages/unread-count",
+            headers=headers,
+        )
+        assert unread_after_delete_response.status_code == 200
+        unread_after_delete = unread_after_delete_response.json()["data"]
+        assert unread_after_delete["system"] == baseline["system"]
+        assert unread_after_delete["total"] == baseline["total"]
 
     @pytest.mark.asyncio
     async def test_mark_all_read(

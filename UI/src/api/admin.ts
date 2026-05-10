@@ -349,9 +349,9 @@ interface BackendAnnouncementItem {
 }
 
 interface BackendAnnouncementPayload {
-  title: string
-  content: string
-  is_published: boolean
+  title?: string
+  content?: string
+  is_published?: boolean
   publish_at?: string | null
 }
 
@@ -621,7 +621,7 @@ export function createAnnouncement(data: AnnouncementFormData) {
 }
 
 /** 更新公告 */
-export function updateAnnouncement(announcementId: number, data: AnnouncementFormData) {
+export function updateAnnouncement(announcementId: number, data: AnnouncementFormData | Partial<AnnouncementFormData>) {
   return request.post<unknown, BackendAnnouncementItem>(
     `/announcements/${announcementId}`,
     mapAnnouncementPayload(data)
@@ -703,14 +703,22 @@ function mapAnnouncementItem(item: BackendAnnouncementItem): AnnouncementItem {
   }
 }
 
-function mapAnnouncementPayload(data: AnnouncementFormData): BackendAnnouncementPayload {
-  const isPublished = data.status === 'published'
-  return {
-    title: data.title,
-    content: data.content,
-    is_published: isPublished,
-    publish_at: isPublished ? undefined : null,
+function mapAnnouncementPayload(data: AnnouncementFormData | Partial<AnnouncementFormData>): BackendAnnouncementPayload {
+  const payload: BackendAnnouncementPayload = {}
+
+  if (data.title !== undefined) {
+    payload.title = data.title
   }
+  if (data.content !== undefined) {
+    payload.content = data.content
+  }
+  if (data.status !== undefined) {
+    const isPublished = data.status === 'published'
+    payload.is_published = isPublished
+    payload.publish_at = isPublished ? undefined : null
+  }
+
+  return payload
 }
 
 // ---------- 反馈管理 ----------

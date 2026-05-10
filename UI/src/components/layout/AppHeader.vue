@@ -6,6 +6,7 @@ import { useUserStore } from '@/store/user'
 import { useBreakpoint } from '@/composables/useBreakpoint'
 import { fetchUnreadCount } from '@/api/profile'
 import UnreadLabelBadge from '@/components/common/UnreadLabelBadge.vue'
+import UserIdentity from '@/components/common/UserIdentity.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -187,7 +188,12 @@ watch(() => route.fullPath, () => {
                     {{ userStore.unreadMessageCount > 99 ? '99+' : userStore.unreadMessageCount }}
                   </span>
                 </div>
-                <span class="username">{{ userStore.userInfo.nickname || userStore.userInfo.username }}</span>
+                <UserIdentity
+                  class="username"
+                  :username="userStore.userInfo.username"
+                  :user-id="userStore.userInfo.userId"
+                  fallback="用户"
+                />
               </div>
               <template #dropdown>
                 <el-dropdown-menu>
@@ -272,7 +278,12 @@ watch(() => route.fullPath, () => {
                 <el-icon :size="20"><User /></el-icon>
               </el-avatar>
               <div class="user-info-text">
-                <div class="nickname">{{ userStore.userInfo.nickname || userStore.userInfo.username }}</div>
+                <UserIdentity
+                  class="nickname"
+                  :username="userStore.userInfo.username"
+                  :user-id="userStore.userInfo.userId"
+                  fallback="用户"
+                />
                 <div class="role-tag">{{ userStore.isTeacher || userStore.isAdmin ? '讲师' : '学生' }}</div>
               </div>
             </div>
@@ -470,12 +481,11 @@ watch(() => route.fullPath, () => {
   }
 
   .username {
-    font-size: 14px;
+    max-width: 148px;
+    min-width: 0;
     color: #333;
-    max-width: 100px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 500;
   }
   .user-avatar-wrap {
     position: relative;
@@ -637,10 +647,13 @@ watch(() => route.fullPath, () => {
     cursor: pointer;
 
     .user-info-text {
+      min-width: 0;
+
       .nickname {
+        max-width: 180px;
+        color: #333;
         font-size: 15px;
         font-weight: 500;
-        color: #333;
       }
 
       .role-tag {

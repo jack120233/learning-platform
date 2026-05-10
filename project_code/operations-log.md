@@ -619,3 +619,27 @@
 - 验证结果：
   - 已执行：真实浏览器联调业务流（Playwright，经 Vite `/api` 代理访问本地 FastAPI）。
   - 结果：通过。授权、教师统计列表、详情、CSV 导出、管理员学习统计概览页面均可用；CSV 下载包含 UTF-8 BOM；撤销授权后教师访问课程统计详情被拒绝。
+
+## 公告发布消息同步与未读计数修复
+时间：2026-05-10 10:37:26
+
+- 变更原因：公告发布会给管理员生成公告消息，重复发布会复用旧消息，且软删除消息仍可能计入未读数量，需要统一公告发布、消息列表和未读计数语义。
+- 涉及文件：
+  - `backend/app/services/system_service.py`
+  - `backend/app/services/message_service.py`
+  - `backend/app/core/db_schema.py`
+  - `backend/tests/test_system.py`
+  - `backend/tests/test_feedbacks.py`
+  - `operations-log.md`
+- 核心改动：
+  - 公告发布同步排除管理员收件人；每次发布均为非管理员用户新增一批公告消息，不再按公告链接复用旧消息。
+  - 公告内容编辑不触发消息重发，只有显式发布/再次发布或下线状态变化触发公告消息同步。
+  - 未读统计排除软删除消息，和消息列表/详情过滤口径保持一致。
+  - 数据库兼容检查补齐旧版 `messages.is_deleted`、`messages.deleted_at` 字段。
+  - 补充公告发布排除管理员、重复发布新增消息、下线清理所有公告消息、软删除不计未读的回归测试。
+  - 自检补充：增加“编辑已发布公告但未显式提交发布状态不会重新发送消息”的回归测试。
+- 验证结果：
+  - 已执行：`cd "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend" && /Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/.venv/bin/pytest tests/test_system.py tests/test_feedbacks.py -q`
+  - 结果：`46 passed, 18 warnings`，警告为既有 passlib `crypt` 与 FastAPI 422 常量弃用警告。
+  - 自检复跑：`cd "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend" && "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/.venv/bin/pytest" tests/test_system.py::TestAnnouncement::test_editing_published_announcement_without_status_does_not_resend tests/test_system.py::TestAnnouncement::test_republishing_announcement_creates_new_non_admin_messages tests/test_system.py::TestAnnouncement::test_published_announcement_excludes_admin_recipients tests/test_feedbacks.py::TestMessage::test_soft_deleted_messages_are_hidden_and_not_counted_unread -q`
+  - 结果：`4 passed, 1 warning`，警告为既有 passlib `crypt` 弃用警告。

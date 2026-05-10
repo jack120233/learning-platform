@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Edit, Delete, Search } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, Search, RefreshRight } from '@element-plus/icons-vue'
 import { usePagination } from '@/composables/usePagination'
 import {
   fetchAnnouncements,
@@ -111,7 +111,14 @@ async function handleSubmit() {
   isSaving.value = true
   try {
     if (isEdit.value && currentAnnouncement.value) {
-      await updateAnnouncement(currentAnnouncement.value.announcement_id, formData.value)
+      const payload: Partial<AnnouncementFormData> = {
+        title: formData.value.title,
+        content: formData.value.content,
+      }
+      if (formData.value.status !== currentAnnouncement.value.status) {
+        payload.status = formData.value.status
+      }
+      await updateAnnouncement(currentAnnouncement.value.announcement_id, payload)
       ElMessage.success('公告更新成功')
     } else {
       await createAnnouncement(formData.value)
@@ -129,14 +136,27 @@ async function handleSubmit() {
 // 发布公告
 async function handlePublish(announcement: AnnouncementItem) {
   try {
+    if (announcement.status === 'published') {
+      await ElMessageBox.confirm(
+        `确定要再次发布公告「${announcement.title}」吗？本次会向非管理员用户重新发送一批公告消息，公告内容不会改变。`,
+        '再次发布确认',
+        {
+          confirmButtonText: '再次发布',
+          cancelButtonText: '取消',
+          type: 'warning',
+        }
+      )
+    }
+
     await updateAnnouncement(announcement.announcement_id, {
-      ...announcement,
       status: 'published',
     })
-    ElMessage.success('公告已发布')
+    ElMessage.success(announcement.status === 'published' ? '公告已再次发布' : '公告已发布')
     fetchData()
   } catch (error) {
-    ElMessage.error('发布失败')
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error('发布失败')
+    }
   }
 }
 
@@ -144,7 +164,6 @@ async function handlePublish(announcement: AnnouncementItem) {
 async function handleToDraft(announcement: AnnouncementItem) {
   try {
     await updateAnnouncement(announcement.announcement_id, {
-      ...announcement,
       status: 'draft',
     })
     ElMessage.success('已转为草稿')
@@ -269,6 +288,21 @@ onMounted(() => {
             >
               发布
             </el-button>
+            <el-tooltip
+              v-if="row.status === 'published'"
+              content="不改公告内容，向非管理员用户重新发送一批公告消息"
+              placement="top"
+            >
+              <el-button
+                class="announcement-action-btn soft-action-btn soft-action-btn--primary soft-action-btn--small"
+                size="small"
+                type="success"
+                :icon="RefreshRight"
+                @click="handlePublish(row)"
+              >
+                再次发布
+              </el-button>
+            </el-tooltip>
             <el-button
               v-if="row.status === 'published'"
               class="announcement-action-btn announcement-action-btn--warning soft-action-btn soft-action-btn--small"

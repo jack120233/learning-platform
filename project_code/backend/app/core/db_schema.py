@@ -171,6 +171,18 @@ async def ensure_database_compatibility(conn: AsyncConnection) -> list[str]:
         lambda _: "ALTER TABLE feedbacks ADD COLUMN target_user_id INTEGER",
         "已为 feedbacks 表补充 target_user_id 字段",
     )
+    await ensure_column(
+        "messages",
+        "is_deleted",
+        lambda _: "ALTER TABLE messages ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT 0",
+        "已为 messages 表补充 is_deleted 字段",
+    )
+    await ensure_column(
+        "messages",
+        "deleted_at",
+        lambda _: "ALTER TABLE messages ADD COLUMN deleted_at DATETIME",
+        "已为 messages 表补充 deleted_at 字段",
+    )
 
     if await conn.run_sync(has_table, "permissions") and await conn.run_sync(has_table, "role_permissions"):
         allowed_teacher_permission_ids = ", ".join(

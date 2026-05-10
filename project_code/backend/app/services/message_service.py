@@ -188,6 +188,7 @@ class MessageService:
             and_(
                 Message.user_id == user_id,
                 Message.is_read == False,
+                Message.is_deleted == False,
             )
         )
         if message_types:

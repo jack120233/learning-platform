@@ -87,14 +87,30 @@ const allSelectedOnPage = computed(() => {
   return messages.value.length > 0
     && messages.value.every((message) => selectedIds.value.includes(message.message_id))
 })
-const detailDialogWidth = computed(() => (isMobile.value ? '94%' : '760px'))
-const detailDialogTop = computed(() => (isMobile.value ? '10vh' : '8vh'))
+const detailDialogWidth = computed(() => (isMobile.value ? '94%' : '780px'))
+const detailDialogTop = computed(() => (isMobile.value ? '7vh' : '6vh'))
 
 // 消息类型映射
 const typeMap: Record<string, { text: string; type: 'primary' | 'success' }> = {
   announcement: { text: '公告', type: 'primary' },
   notification: { text: '通知', type: 'success' },
 }
+const detailTypeMeta = computed(() => {
+  const messageType = currentMessage.value?.message_type
+  if (messageType === 'announcement') {
+    return {
+      label: '平台公告',
+      description: '来自平台公告中心',
+      accentClass: 'is-announcement',
+    }
+  }
+
+  return {
+    label: '系统通知',
+    description: '来自学习平台消息中心',
+    accentClass: 'is-notification',
+  }
+})
 
 // 类型筛选选项
 const typeOptions = [
@@ -479,29 +495,26 @@ watch(messages, (currentMessages) => {
       v-model="detailDrawer"
       class="message-detail-dialog"
       :class="{ 'mobile-message-detail-dialog': isMobile }"
-      title="消息详情"
       :width="detailDialogWidth"
       :top="detailDialogTop"
       append-to-body
     >
       <div class="message-detail" v-loading="detailLoading">
         <template v-if="currentMessage">
-          <div class="detail-header">
-            <el-tag
-              :type="typeMap[currentMessage.message_type]?.type || 'info'"
-              size="small"
-            >
-              {{ typeMap[currentMessage.message_type]?.text }}
-            </el-tag>
-            <span class="detail-time">
-              {{ formatTime(currentMessage.created_at) }}
-            </span>
-          </div>
+          <div class="reader-shell" :class="detailTypeMeta.accentClass">
+            <div class="reader-shell__header">
+              <div class="reader-shell__label">{{ detailTypeMeta.label }}</div>
+              <div class="reader-shell__time">{{ formatTime(currentMessage.created_at) }}</div>
+            </div>
 
-          <h3 class="detail-title">{{ currentMessage.title }}</h3>
-
-          <div class="detail-content">
-            {{ currentMessage.content }}
+            <article class="reader-paper">
+              <h3 class="reader-title">{{ currentMessage.title }}</h3>
+              <div class="reader-subtitle">{{ detailTypeMeta.description }}</div>
+              <div class="reader-divider" />
+              <div class="reader-content">
+                {{ currentMessage.content }}
+              </div>
+            </article>
           </div>
         </template>
       </div>
@@ -705,82 +718,153 @@ watch(messages, (currentMessages) => {
   justify-content: center;
 }
 
-// 消息详情抽屉
+// 消息详情阅读页
 .message-detail {
-  padding: 0 16px;
-  max-height: min(72vh, 720px);
+  max-height: min(76vh, 760px);
   overflow-y: auto;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(64, 158, 255, 0.14), transparent 34%),
+    linear-gradient(180deg, #f7faff 0%, #eef3f8 100%);
 }
 
-.detail-header {
+.reader-shell {
+  padding: 0 22px 22px;
+}
+
+.reader-shell__header {
   display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 16px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 4px;
+  color: #6b7280;
 }
 
-.detail-time {
-  font-size: 14px;
-  color: #999;
+.reader-shell__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #1677ff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
-.detail-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
-  line-height: 1.6;
-  white-space: normal;
+.reader-shell__label::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1677ff;
+  box-shadow: 0 0 0 5px rgba(22, 119, 255, 0.12);
+}
+
+.reader-shell.is-notification .reader-shell__label {
+  color: #389e0d;
+}
+
+.reader-shell.is-notification .reader-shell__label::before {
+  background: #52c41a;
+  box-shadow: 0 0 0 5px rgba(82, 196, 26, 0.14);
+}
+
+.reader-shell__time {
+  color: #8a94a6;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.reader-paper {
+  min-height: 400px;
+  padding: 34px 42px 46px;
+  border-radius: 24px;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 252, 255, 0.98));
+  box-shadow:
+    0 22px 56px rgba(31, 41, 55, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.reader-title {
+  margin: 0;
+  color: #111827;
+  font-size: 26px;
+  font-weight: 750;
+  line-height: 1.45;
+  letter-spacing: -0.02em;
   overflow-wrap: anywhere;
-  margin: 0 0 16px;
 }
 
-.detail-content {
-  font-size: 15px;
-  color: #666;
-  line-height: 1.8;
+.reader-subtitle {
+  margin-top: 12px;
+  color: #7b8798;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.reader-divider {
+  width: 48px;
+  height: 3px;
+  margin: 26px 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #1677ff, #69b1ff);
+}
+
+.reader-shell.is-notification .reader-divider {
+  background: linear-gradient(90deg, #52c41a, #13c2c2);
+}
+
+.reader-content {
+  color: #374151;
+  font-size: 16px;
+  line-height: 2.05;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
 :deep(.message-detail-dialog) {
-  --el-dialog-border-radius: 18px;
+  --el-dialog-border-radius: 24px;
 }
 
 :deep(.message-detail-dialog .el-dialog) {
-  max-width: min(94vw, 760px);
+  max-width: min(94vw, 780px);
   margin-left: auto;
   margin-right: auto;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 24px 70px rgba(31, 41, 55, 0.16);
+  backdrop-filter: blur(18px);
 }
 
 :deep(.message-detail-dialog .el-dialog__header) {
   margin-right: 0;
-  padding: 18px 20px 10px;
+  padding: 16px 22px 12px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+:deep(.message-detail-dialog .el-dialog__title) {
+  font-size: 17px;
+  font-weight: 650;
+  color: #1f2937;
 }
 
 :deep(.message-detail-dialog .el-dialog__body) {
-  padding: 0 0 20px;
+  padding: 0;
 }
 
 :deep(.mobile-message-detail-dialog) {
-  --el-dialog-border-radius: 18px;
+  --el-dialog-border-radius: 22px;
 }
 
 :deep(.mobile-message-detail-dialog .el-dialog) {
-  max-width: 420px;
+  max-width: 94vw;
 }
 
 :deep(.mobile-message-detail-dialog .el-dialog__header) {
-  margin-right: 0;
-  padding: 16px 18px 8px;
+  padding: 14px 18px 10px;
 }
 
-:deep(.mobile-message-detail-dialog .el-dialog__body) {
-  padding: 0 0 18px;
-}
-
-// 响应式
 @media (max-width: 768px) {
   .page-header {
     align-items: flex-start;
@@ -812,6 +896,45 @@ watch(messages, (currentMessages) => {
 
   .message-actions {
     align-self: flex-start;
+  }
+
+  .message-detail {
+    max-height: min(78vh, 760px);
+  }
+
+  .reader-shell {
+    padding: 0 14px 14px;
+  }
+
+  .reader-shell__header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 2px;
+  }
+
+  .reader-paper {
+    min-height: 420px;
+    padding: 24px 20px 30px;
+    border-radius: 20px;
+  }
+
+  .reader-title {
+    font-size: 21px;
+  }
+
+  .reader-subtitle {
+    margin-top: 10px;
+    font-size: 13px;
+  }
+
+  .reader-divider {
+    margin: 22px 0;
+  }
+
+  .reader-content {
+    font-size: 15px;
+    line-height: 1.95;
   }
 }
 </style>

@@ -717,3 +717,54 @@
   - 结果：通过，保留既有大 chunk 警告。
   - 已执行：真实浏览器回归验证。
   - 结果：通过。教师访问 `/profile/records` 会重定向到 `/teacher/statistics`，头像/个人中心不再展示学生“我的学习/学习统计”入口；学生 `student1@example.com` 仍可打开 `/profile/records`；教师 `teacher1@example.com` 可打开 `/teacher/statistics/courses/1` 并查看学生学习明细。
+
+## 公告管理再次发布交互补齐
+时间：2026-05-10 10:37:26
+
+- 变更原因：公告管理页只在草稿状态显示发布入口，已发布公告重复发布语义不清，需要提供简单明确的“再次发布”操作以重新发送公告消息。
+- 涉及文件：
+  - `src/views/admin/AnnouncementPage.vue`
+  - `src/api/admin.ts`
+  - `operations-log.md`
+- 核心改动：
+  - 已发布公告新增“再次发布”行内操作，并通过确认弹窗说明会向非管理员用户重新发送一批公告消息且不改变公告内容。
+  - 编辑公告内容时只提交标题/内容；只有状态实际变化或点击“再次发布”时才提交发布状态，避免编辑已发布公告时暗中重发消息。
+  - 公告状态切换改为只提交状态字段，管理端公告更新 API 支持部分字段更新。
+  - 自检补充：发布/再次发布接口失败时恢复错误提示，同时保留用户取消确认时不报错。
+- 验证结果：
+  - 已执行：`cd "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" && npm run build`
+  - 结果：通过，保留既有大 chunk 警告。
+  - 自检复跑：`cd "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" && npm run build`
+  - 结果：通过，保留既有大 chunk 警告。
+
+## 学生消息详情弹窗视觉优化
+时间：2026-05-10 10:45:00
+
+- 变更原因：学生角色消息中心点击历史消息后展示的详情弹窗过于简单，需要参考项目现有卡片、渐变和圆角风格提升视觉层次。
+- 涉及文件：
+  - `src/views/profile/MessagesPage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 将消息详情弹窗调整为高级阅读页样式：轻量顶部信息条 + 居中阅读纸张正文。
+  - 移除底部元信息区，正文区域改为大留白纸张卡片，强化标题、来源说明、分隔线和正文行距。
+  - 按公告/通知类型使用不同提示点和分隔线颜色，保持与项目蓝绿色视觉体系一致。
+  - 优化移动端阅读纸张尺寸、标题字号和正文行距，避免长标题或多行正文横向溢出。
+- 验证结果：
+  - 已执行：`cd "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" && npm run build`
+  - 结果：通过，保留既有大 chunk 警告。
+
+
+## Header 用户身份展示修复
+时间：2026-05-10 14:55
+
+- 变更原因：项目已不再使用昵称作为用户身份，Header 桌面端和移动端仍优先显示 `nickname`，需统一为个人中心同款 `username#id` 展示。
+- 涉及文件：
+  - `src/components/layout/AppHeader.vue`
+  - `operations-log.md`
+- 核心改动：
+  - Header 桌面端头像下拉触发区域改用 `UserIdentity`，传入 `userStore.userInfo.username` 和 `userStore.userInfo.userId`，fallback 为“用户”。
+  - 移动端抽屉用户资料区域同步改用 `UserIdentity`，不再读取或回退 `nickname`。
+  - 收紧 Header 内本地样式，确保身份组件在桌面端可截断、移动抽屉内不破坏布局。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
+  - 结果：通过，保留既有大 chunk 警告。
