@@ -177,3 +177,36 @@ Completed the student 学习统计 page/API validation, fixed mobile overflow, v
 ### Next Steps
 
 - Proceed to child task `05-09-teacher-admin-learning-statistics` when ready.
+
+
+## Session 5: Admin message and course flow consolidation
+
+**Date**: 2026-05-10
+**Task**: Admin message and course flow consolidation
+**Branch**: `master`
+
+### Summary
+
+Consolidated admin message entry points, restored admin course management with course authorization, validated frontend build and browser flows, and created 20 student test accounts.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c1aa030` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
