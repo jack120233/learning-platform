@@ -210,3 +210,36 @@ Consolidated admin message entry points, restored admin course management with c
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: Fix announcement notifications and message reader UI
+
+**Date**: 2026-05-10
+**Task**: Fix announcement notifications and message reader UI
+**Branch**: `master`
+
+### Summary
+
+修复公告发布后的站内消息投递口径：管理员不再收到公告未读提醒，重复发布会为非管理员生成新的消息记录，并统一软删除消息与未读统计过滤；同时完成公告管理再次发布交互、右上角用户名显示和学生消息详情阅读页样式优化。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c911b66` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
