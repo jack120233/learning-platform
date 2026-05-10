@@ -92,7 +92,7 @@ const routes: RouteRecordRaw[] = [
         path: 'records',
         name: 'ProfileRecords',
         component: () => import('@/views/profile/LearningRecordsPage.vue'),
-        meta: { title: '学习统计' },
+        meta: { title: '学习统计', requiresStudent: true },
       },
       {
         path: 'messages',
@@ -288,6 +288,10 @@ router.beforeEach(async (to) => {
 
   if (to.meta.blockAdminProfileFeedbacks && userStore.isAdmin) {
     return { name: 'ProfileMessages' }
+  }
+
+  if (to.meta.requiresStudent && !userStore.isStudent) {
+    return userStore.canAccessTeacherCenter ? { name: 'TeacherStatistics' } : { name: 'Profile' }
   }
 
   if (requiredPermissionCode && !userStore.hasPermission(requiredPermissionCode)) {

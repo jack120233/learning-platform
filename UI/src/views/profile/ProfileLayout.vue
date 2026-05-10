@@ -20,14 +20,25 @@ const useCompactMainContent = computed(() => route.path === '/profile/messages')
 // 未读消息数
 const unreadCount = computed(() => userStore.unreadMessageCount)
 
+interface ProfileMenuItem {
+  index: string
+  title: string
+  icon: string
+  badge?: boolean
+}
+
 // 菜单项配置
-const menuItems = computed(() => {
-  const items = [
+const menuItems = computed<ProfileMenuItem[]>(() => {
+  const items: ProfileMenuItem[] = [
     { index: '/profile', title: '个人信息', icon: 'User' },
     { index: '/profile/password', title: '修改密码', icon: 'Lock' },
-    { index: '/profile/records', title: '学习统计', icon: 'Reading' },
-    { index: '/profile/messages', title: '消息中心', icon: 'Bell', badge: true },
   ]
+
+  if (userStore.isStudent) {
+    items.push({ index: '/profile/records', title: '学习统计', icon: 'Reading' })
+  }
+
+  items.push({ index: '/profile/messages', title: '消息中心', icon: 'Bell', badge: true })
 
   if (!userStore.isAdmin) {
     items.push({ index: '/profile/feedbacks', title: '我的反馈', icon: 'ChatDotRound' })

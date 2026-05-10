@@ -127,6 +127,7 @@ export const useUserStore = defineStore('user', () => {
   let permissionLoadPromise: Promise<string[]> | null = null
 
   const isLoggedIn = computed(() => !!accessToken.value && !!userInfo.value.userId)
+  const isStudent = computed(() => userInfo.value.role === 'student')
   const isTeacher = computed(() => userInfo.value.role === 'teacher')
   const isAdmin = computed(() => userInfo.value.role === 'admin')
   const isPendingTeacher = computed(() => userInfo.value.status === 'pending' && userInfo.value.role === 'teacher')
@@ -300,6 +301,7 @@ export const useUserStore = defineStore('user', () => {
     permissionsLoading,
     unreadMessageCount,
     isLoggedIn,
+    isStudent,
     isTeacher,
     isAdmin,
     isPendingTeacher,

@@ -36,9 +36,13 @@ const handleSearch = () => {
 const userDropdownItems = computed(() => {
   const items = [
     { label: '个人中心', path: '/profile', icon: 'User' },
-    { label: '我的学习', path: '/profile/records', icon: 'Reading' },
-    { label: '消息中心', path: '/profile/messages', icon: 'Bell' },
   ]
+
+  if (userStore.isStudent) {
+    items.push({ label: '我的学习', path: '/profile/records', icon: 'Reading' })
+  }
+
+  items.push({ label: '消息中心', path: '/profile/messages', icon: 'Bell' })
 
   if (userStore.canAccessTeacherCenter) {
     items.push({ label: '课程管理', path: '/teacher/courses', icon: 'Notebook' })
@@ -273,7 +277,7 @@ watch(() => route.fullPath, () => {
               </div>
             </div>
             <div class="user-menu">
-              <div class="menu-item" @click="handleMobileNavClick('/profile/records')">
+              <div v-if="userStore.isStudent" class="menu-item" @click="handleMobileNavClick('/profile/records')">
                 <el-icon><Reading /></el-icon>
                 <span>我的学习</span>
               </div>

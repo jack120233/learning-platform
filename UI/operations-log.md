@@ -696,3 +696,24 @@
   - 结果：通过。课程统计授权成功，教师可查看被授权课程统计详情，CSV 下载文件 `course-2-students.csv` 包含 UTF-8 BOM，管理员学习统计移动端页面可打开。
   - 已执行：撤销授权后教师访问 `/teacher/statistics/courses/2`。
   - 结果：通过，页面显示“无法加载课程统计，请确认你仍有访问权限”。
+
+
+## 教师访问学生个人学习统计入口权限修正
+时间：2026-05-10 09:30
+
+- 变更原因：真实浏览器联调发现教师角色可打开 `/profile/records` 学生个人学习统计页面；后端学生统计接口已返回 403，但前端仍展示学生统计 UI，容易混淆教师端“课程统计”和学生端“我的学习”。
+- 涉及文件：
+  - `src/router/index.ts`
+  - `src/store/user.ts`
+  - `src/views/profile/ProfileLayout.vue`
+  - `src/components/layout/AppHeader.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 为 `/profile/records` 增加 `requiresStudent` 路由元信息，非学生访问时重定向：教师进入 `/teacher/statistics`，其他非学生回到个人信息页。
+  - `useUserStore` 补充 `isStudent` 计算属性，供路由守卫和菜单显隐复用。
+  - 头像下拉、移动端菜单和个人中心侧栏仅对学生展示“我的学习/学习统计”，教师保留“课程统计”入口。
+- 验证结果：
+  - 已执行：`npm run build`。
+  - 结果：通过，保留既有大 chunk 警告。
+  - 已执行：真实浏览器回归验证。
+  - 结果：通过。教师访问 `/profile/records` 会重定向到 `/teacher/statistics`，头像/个人中心不再展示学生“我的学习/学习统计”入口；学生 `student1@example.com` 仍可打开 `/profile/records`；教师 `teacher1@example.com` 可打开 `/teacher/statistics/courses/1` 并查看学生学习明细。
