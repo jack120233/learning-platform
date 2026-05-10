@@ -138,3 +138,42 @@ Fixed student and teacher message center deletion so removed messages compact im
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Student self-statistics validation
+
+**Date**: 2026-05-10
+**Task**: Student self-statistics
+**Branch**: `master`
+
+### Summary
+
+Completed the student 学习统计 page/API validation, fixed mobile overflow, validated real learning-record single/batch deletion with generated learning data, and fixed the backend legacy fallback that could re-show hidden records.
+
+### Main Changes
+
+- Added final real-data Playwright validation for `/profile/records`.
+- Fixed `users/me/learning-records` fallback so hidden records do not reappear after all visible entries are deleted.
+- Added backend regression coverage for hidden-record list behavior.
+- Updated frontend/backend operations logs and Trellis task notes.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| pending | Not committed in this session |
+
+### Testing
+
+- [OK] `npm --prefix UI run build`
+- [OK] `cd project_code/backend && ../.venv/bin/python -m pytest tests/test_users.py -q`
+- [OK] `git diff --check` on touched files
+- [OK] Playwright real-data validation: create records, single delete, recreate, select-all batch delete
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Proceed to child task `05-09-teacher-admin-learning-statistics` when ready.

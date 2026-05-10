@@ -4,7 +4,6 @@
 """
 
 import json
-import re
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
@@ -21,7 +20,8 @@ from app.core.exceptions import (
 from app.core.security import hash_password, verify_password
 from app.models.content import Resource, Section
 from app.models.course import Course
-from app.models.learning import ResourceProgress
+from app.models.learning import LearningRecordEntry, ResourceProgress
+from app.models.learning_progress import LearningProgress
 from app.models.user import User
 from app.models.teacher_audit import TeacherAudit
 from app.models.admin_application import AdminApplication
@@ -33,10 +33,6 @@ from app.schemas.user import (
     UserProfileUpdate,
     UserStatusUpdate,
 )
-
-
-USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9]{2,50}$")
-USERNAME_HISTORY_DELIMITER = " -> "
 
 
 class UserService:
@@ -95,9 +91,21 @@ class UserService:
                 raise ConflictException("手机号已被使用")
 
         update_data = data.model_dump(exclude_unset=True)
-        username = update_data.pop("username", None)
-        if username is not None and username != user.username:
-            await self._change_username(db, user, username)
+        new_username = update_data.pop("username", None)
+        if new_username and new_username != user.username:
+            existing_username = await self._get_user_by_username(db, new_username)
+            if existing_username:
+                raise ConflictException("用户名已被使用")
+            if user.role == "student":
+                if user.username_change_remaining <= 0:
+                    raise ValidationException("用户名修改次数已用完")
+                user.original_username = (
+                    f"{user.original_username} -> {user.username}"
+                    if user.original_username
+                    else user.username
+                )
+                user.username_change_remaining -= 1
+            user.username = new_username
 
         # 更新属性
         for key, value in update_data.items():
@@ -105,57 +113,6 @@ class UserService:
 
         await db.flush()
         return user
-
-    async def grant_username_change(
-        self,
-        db: AsyncSession,
-        target_user_id: int,
-        operator: User,
-    ) -> User:
-        """为指定用户增加一次用户名修改机会。"""
-        if operator.role not in {"teacher", "admin"}:
-            raise ForbiddenException("仅老师或管理员可开放改名机会")
-
-        target_user = await db.get(User, target_user_id)
-        if not target_user:
-            raise NotFoundException("用户不存在")
-        if target_user.role == "admin" and operator.role != "admin":
-            raise ForbiddenException("老师不能为管理员开放改名机会")
-
-        target_user.username_change_remaining = max(target_user.username_change_remaining or 0, 0) + 1
-        await db.flush()
-        await db.refresh(target_user)
-        return target_user
-
-    async def _change_username(
-        self,
-        db: AsyncSession,
-        user: User,
-        username: str,
-    ) -> None:
-        """校验并修改当前用户用户名。"""
-        normalized_username = username.strip().lower()
-        if not USERNAME_PATTERN.fullmatch(normalized_username):
-            raise ValidationException("用户名只能包含 2-50 位字母和数字")
-        has_unlimited_username_changes = user.role in {"teacher", "admin"}
-        if not has_unlimited_username_changes and (user.username_change_remaining or 0) <= 0:
-            raise ValidationException("用户名修改次数已用完")
-
-        existing = await self._get_user_by_username(db, normalized_username)
-        if existing and existing.id != user.id:
-            raise ConflictException("用户名已被使用")
-
-        history = [
-            item.strip()
-            for item in (user.original_username or "").split(USERNAME_HISTORY_DELIMITER)
-            if item.strip()
-        ]
-        if not history or history[-1] != user.username:
-            history.append(user.username)
-        user.original_username = USERNAME_HISTORY_DELIMITER.join(history)
-        user.username = normalized_username
-        if not has_unlimited_username_changes:
-            user.username_change_remaining = max((user.username_change_remaining or 0) - 1, 0)
 
     async def change_password(
         self,
@@ -209,17 +166,28 @@ class UserService:
         """
         query = (
             select(
-                ResourceProgress,
+                LearningRecordEntry,
+                LearningProgress,
                 Course.title.label("course_title"),
                 Course.cover_url.label("course_cover"),
                 Course.total_duration.label("course_total_duration"),
                 Course.status.label("course_status"),
                 func.coalesce(Section.title, Resource.title).label("last_section_title"),
             )
-            .join(Course, Course.id == ResourceProgress.course_id)
-            .outerjoin(Section, Section.id == ResourceProgress.section_id)
-            .outerjoin(Resource, Resource.id == ResourceProgress.resource_id)
-            .where(ResourceProgress.user_id == user_id)
+            .join(Course, Course.id == LearningRecordEntry.course_id)
+            .outerjoin(
+                LearningProgress,
+                and_(
+                    LearningProgress.user_id == LearningRecordEntry.user_id,
+                    LearningProgress.course_id == LearningRecordEntry.course_id,
+                ),
+            )
+            .outerjoin(Section, Section.id == LearningRecordEntry.last_section_id)
+            .outerjoin(Resource, Resource.id == LearningRecordEntry.last_resource_id)
+            .where(
+                LearningRecordEntry.user_id == user_id,
+                LearningRecordEntry.visible.is_(True),
+            )
         )
 
         cutoff: datetime | None = None
@@ -229,46 +197,179 @@ class UserService:
             cutoff = datetime.now(timezone.utc) - timedelta(days=30)
 
         if cutoff is not None:
-            query = query.where(ResourceProgress.updated_at >= cutoff)
+            query = query.where(LearningRecordEntry.last_learn_at >= cutoff)
+
+        count_query = select(func.count()).select_from(query.subquery())
+        total_result = await db.execute(count_query)
+        total = total_result.scalar() or 0
 
         query = query.order_by(
-            ResourceProgress.updated_at.desc(),
-            ResourceProgress.id.desc(),
-        )
+            LearningRecordEntry.last_learn_at.desc(),
+            LearningRecordEntry.id.desc(),
+        ).offset((page - 1) * page_size).limit(page_size)
 
         result = await db.execute(query)
-        latest_records: list[dict] = []
-        seen_course_ids: set[int] = set()
+        records: list[dict] = []
+        for record, progress, course_title, course_cover, course_total_duration, course_status, last_section_title in result.all():
+            current_progress = progress.progress if progress else record.course_progress_snapshot
+            completed_at = progress.completed_at if progress else None
+            records.append(
+                {
+                    "id": record.id,
+                    "course_id": record.course_id,
+                    "course_title": course_title,
+                    "course_name": course_title,
+                    "course_cover": course_cover,
+                    "progress": current_progress,
+                    "total_duration": course_total_duration or 0,
+                    "last_section_id": record.last_section_id,
+                    "last_section_title": last_section_title or "",
+                    "last_learn_at": record.last_learn_at,
+                    "course_status": course_status,
+                    "completed_at": completed_at,
+                    "created_at": record.created_at,
+                    "updated_at": record.last_learn_at,
+                }
+            )
 
-        for progress, course_title, course_cover, course_total_duration, course_status, last_section_title in result.all():
-            if progress.course_id in seen_course_ids:
+        any_entry_result = await db.execute(
+            select(func.count(LearningRecordEntry.id)).where(
+                LearningRecordEntry.user_id == user_id,
+            )
+        )
+        has_record_entries = (any_entry_result.scalar() or 0) > 0
+        if records or page != 1 or has_record_entries:
+            return records, total
+
+        return await self._get_legacy_learning_records(
+            db,
+            user_id,
+            time_range=time_range,
+            page=page,
+            page_size=page_size,
+        )
+
+    async def _get_legacy_learning_records(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        time_range: Literal["recent_7", "recent_30", "all"],
+        page: int,
+        page_size: int,
+    ) -> tuple[list[dict], int]:
+        latest_progress_at = func.max(ResourceProgress.last_play_at).label("last_learn_at")
+        legacy_query = (
+            select(
+                ResourceProgress.course_id.label("course_id"),
+                latest_progress_at,
+            )
+            .where(ResourceProgress.user_id == user_id)
+            .group_by(ResourceProgress.course_id)
+        )
+
+        cutoff: datetime | None = None
+        if time_range == "recent_7":
+            cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        elif time_range == "recent_30":
+            cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        if cutoff is not None:
+            legacy_query = legacy_query.having(latest_progress_at >= cutoff)
+
+        count_query = select(func.count()).select_from(legacy_query.subquery())
+        total_result = await db.execute(count_query)
+        total = total_result.scalar() or 0
+
+        legacy_query = legacy_query.order_by(latest_progress_at.desc()).offset((page - 1) * page_size).limit(page_size)
+        legacy_result = await db.execute(legacy_query)
+
+        records: list[dict] = []
+        for course_id, last_learn_at in legacy_result.all():
+            progress_query = (
+                select(
+                    ResourceProgress,
+                    LearningProgress,
+                    Course.title.label("course_title"),
+                    Course.cover_url.label("course_cover"),
+                    Course.total_duration.label("course_total_duration"),
+                    Course.status.label("course_status"),
+                    func.coalesce(Section.title, Resource.title).label("last_section_title"),
+                )
+                .join(Course, Course.id == ResourceProgress.course_id)
+                .outerjoin(
+                    LearningProgress,
+                    and_(
+                        LearningProgress.user_id == ResourceProgress.user_id,
+                        LearningProgress.course_id == ResourceProgress.course_id,
+                    ),
+                )
+                .outerjoin(Section, Section.id == ResourceProgress.section_id)
+                .outerjoin(Resource, Resource.id == ResourceProgress.resource_id)
+                .where(
+                    ResourceProgress.user_id == user_id,
+                    ResourceProgress.course_id == course_id,
+                    ResourceProgress.last_play_at == last_learn_at,
+                )
+                .order_by(ResourceProgress.id.desc())
+                .limit(1)
+            )
+            progress_result = await db.execute(progress_query)
+            row = progress_result.first()
+            if not row:
                 continue
 
-            seen_course_ids.add(progress.course_id)
-            last_learn_at = progress.last_play_at or progress.updated_at
-            latest_records.append(
+            progress, course_progress, course_title, course_cover, course_total_duration, course_status, last_section_title = row
+            current_progress = course_progress.progress if course_progress else progress.progress
+            completed_at = course_progress.completed_at if course_progress else progress.completed_at
+            records.append(
                 {
                     "id": progress.id,
                     "course_id": progress.course_id,
                     "course_title": course_title,
                     "course_name": course_title,
                     "course_cover": course_cover,
-                    "progress": progress.progress,
+                    "progress": current_progress,
                     "total_duration": course_total_duration or 0,
                     "last_section_id": progress.section_id,
                     "last_section_title": last_section_title or "",
-                    "last_learn_at": last_learn_at,
+                    "last_learn_at": progress.last_play_at,
                     "course_status": course_status,
-                    "completed_at": progress.completed_at,
+                    "completed_at": completed_at,
                     "created_at": progress.created_at,
-                    "updated_at": last_learn_at,
+                    "updated_at": progress.last_play_at,
                 }
             )
 
-        total = len(latest_records)
-        start = (page - 1) * page_size
-        end = start + page_size
-        return latest_records[start:end], total
+        return records, total
+
+    async def hide_learning_records(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        record_ids: list[int],
+    ) -> int:
+        """隐藏学习记录，所有 ID 必须属于当前用户且可见。"""
+        unique_ids = list(dict.fromkeys(record_ids))
+        if not unique_ids:
+            raise ValidationException("record_ids 不能为空")
+
+        result = await db.execute(
+            select(LearningRecordEntry).where(
+                LearningRecordEntry.id.in_(unique_ids),
+                LearningRecordEntry.user_id == user_id,
+                LearningRecordEntry.visible.is_(True),
+            )
+        )
+        records = list(result.scalars().all())
+        if len(records) != len(unique_ids):
+            raise ValidationException("学习记录不存在或不可删除")
+
+        now = datetime.now(timezone.utc)
+        for record in records:
+            record.visible = False
+            record.hidden_at = now
+
+        await db.flush()
+        return len(records)
 
     async def get_user_list(
         self,
@@ -295,11 +396,13 @@ class UserService:
         query = select(User)
 
         if keyword:
-            keyword = keyword.strip()
-            conditions = [User.username.ilike(f"%{keyword}%")]
-            if keyword.isdigit():
-                conditions.append(User.id == int(keyword))
-            query = query.where(or_(*conditions))
+            query = query.where(
+                or_(
+                    User.username.ilike(f"%{keyword}%"),
+                    User.email.ilike(f"%{keyword}%"),
+                    User.nickname.ilike(f"%{keyword}%"),
+                )
+            )
         if role:
             query = query.where(User.role == role)
         if status:
@@ -318,6 +421,28 @@ class UserService:
         users = list(result.scalars().all())
 
         return users, total
+
+    async def grant_username_change_opportunity(
+        self,
+        db: AsyncSession,
+        target_user_id: int,
+        operator_id: int,
+    ) -> User:
+        """为用户开放一次用户名修改机会。"""
+        operator = await db.get(User, operator_id)
+        if not operator or operator.role not in {"teacher", "admin"}:
+            raise ForbiddenException("仅老师或管理员可开放改名机会")
+
+        target_user = await db.get(User, target_user_id)
+        if not target_user:
+            raise NotFoundException("用户不存在")
+
+        if operator.role == "teacher" and target_user.role == "admin":
+            raise ForbiddenException("老师不能为管理员开放改名机会")
+
+        target_user.username_change_remaining += 1
+        await db.flush()
+        return target_user
 
     async def update_user_status(
         self,
@@ -390,17 +515,6 @@ class UserService:
 
         await db.delete(user)
 
-    async def _get_user_by_username(
-        self,
-        db: AsyncSession,
-        username: str,
-    ) -> User | None:
-        """通过用户名获取用户。"""
-        result = await db.execute(
-            select(User).where(User.username == username)
-        )
-        return result.scalar_one_or_none()
-
     async def _get_user_by_phone(
         self,
         db: AsyncSession,
@@ -409,6 +523,17 @@ class UserService:
         """通过手机号获取用户"""
         result = await db.execute(
             select(User).where(User.phone == phone)
+        )
+        return result.scalar_one_or_none()
+
+    async def _get_user_by_username(
+        self,
+        db: AsyncSession,
+        username: str,
+    ) -> User | None:
+        """通过用户名获取用户"""
+        result = await db.execute(
+            select(User).where(User.username == username)
         )
         return result.scalar_one_or_none()
 

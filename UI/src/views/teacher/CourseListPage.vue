@@ -104,7 +104,7 @@ function canPublishCourse(course: TeacherCourseItem) {
 
 function canArchiveCourse(course: TeacherCourseItem) {
   if (course.status !== 'published') return false
-  if (canViewPublishedAll.value && manageScope.value === 'published_all') return true
+  if (userStore.isAdmin && manageScope.value === 'published_all') return true
   return isOwnCourse(course)
 }
 

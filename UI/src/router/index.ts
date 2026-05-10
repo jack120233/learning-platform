@@ -2,6 +2,8 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useUserStore } from '@/store/user'
 
 const ADMIN_ROUTE_PERMISSIONS = [
+  { path: '/admin/learning-statistics', permissionCode: 'admin' },
+  { path: '/admin/courses', permissionCode: 'admin' },
   { path: '/admin/users', permissionCode: 'admin.user' },
   { path: '/admin/teacher-audits', permissionCode: 'admin.teacher_audit' },
   { path: '/admin/announcements', permissionCode: 'admin.announcement' },
@@ -90,7 +92,7 @@ const routes: RouteRecordRaw[] = [
         path: 'records',
         name: 'ProfileRecords',
         component: () => import('@/views/profile/LearningRecordsPage.vue'),
-        meta: { title: '学习记录' },
+        meta: { title: '学习统计' },
       },
       {
         path: 'messages',
@@ -137,6 +139,18 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '编辑课程' },
       },
       {
+        path: 'statistics',
+        name: 'TeacherStatistics',
+        component: () => import('@/views/teacher/CourseStatisticsPage.vue'),
+        meta: { title: '课程统计' },
+      },
+      {
+        path: 'statistics/courses/:courseId',
+        name: 'TeacherStatisticsDetail',
+        component: () => import('@/views/teacher/CourseStatisticsDetailPage.vue'),
+        meta: { title: '课程统计详情' },
+      },
+      {
         path: 'feedbacks',
         name: 'TeacherFeedbacks',
         component: () => import('@/views/teacher/FeedbackManagePage.vue'),
@@ -154,6 +168,18 @@ const routes: RouteRecordRaw[] = [
       permissionCode: 'admin',
     },
     children: [
+      {
+        path: 'learning-statistics',
+        name: 'AdminLearningStatistics',
+        component: () => import('@/views/admin/LearningStatisticsPage.vue'),
+        meta: { title: '学习统计', permissionCode: 'admin' },
+      },
+      {
+        path: 'courses',
+        name: 'AdminCourses',
+        component: () => import('@/views/admin/CourseManagePage.vue'),
+        meta: { title: '课程管理', permissionCode: 'admin' },
+      },
       {
         path: 'users',
         name: 'AdminUsers',

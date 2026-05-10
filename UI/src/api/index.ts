@@ -74,6 +74,10 @@ service.interceptors.request.use(
 // 响应拦截器
 service.interceptors.response.use(
   (response: AxiosResponse<ApiResponse>) => {
+    if (response.config.responseType === 'blob') {
+      return response.data as any
+    }
+
     const { code, message, data } = response.data
 
     if (code === 200) {

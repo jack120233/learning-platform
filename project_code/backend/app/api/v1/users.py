@@ -5,10 +5,10 @@
 
 import json
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import CurrentUser, DBSession, CurrentUserId
-from app.core.exceptions import ForbiddenException
 from app.schemas.common import ApiResponse, PageData
 from app.schemas.feedback import FeedbackResponse
 from app.schemas.user import (
@@ -16,6 +16,8 @@ from app.schemas.user import (
     AdminApplicationResponse,
     AdminApplicationReview,
     ChangePasswordRequest,
+    LearningRecordDeleteRequest,
+    LearningRecordDeleteResponse,
     LearningRecordResponse,
     TeacherAuditApply,
     TeacherAuditResponse,
@@ -126,21 +128,21 @@ async def get_learning_records(
 
 
 @router.post(
-    "/{target_user_id}/username-change-opportunity",
-    response_model=ApiResponse[UserResponse],
-    summary="开放改名机会",
-    description="老师或管理员为指定用户增加一次用户名修改机会",
+    "/me/learning-records/delete",
+    response_model=ApiResponse[LearningRecordDeleteResponse],
+    summary="删除学习记录",
+    description="隐藏当前用户的可见学习记录，不影响进度和统计",
 )
-async def grant_username_change_opportunity(
-    target_user_id: int,
+async def delete_learning_records(
+    data: LearningRecordDeleteRequest,
     db: DBSession,
-    current_user: CurrentUser,
-) -> ApiResponse[UserResponse]:
-    """为指定用户增加一次用户名修改机会。"""
-    user = await user_service.grant_username_change(db, target_user_id, current_user)
+    user_id: CurrentUserId,
+) -> ApiResponse[LearningRecordDeleteResponse]:
+    """隐藏学习记录接口。"""
+    deleted_count = await user_service.hide_learning_records(db, user_id, data.record_ids)
     return ApiResponse.success(
-        data=UserResponse.model_validate(user),
-        message="已开放一次改名机会",
+        data=LearningRecordDeleteResponse(deleted_count=deleted_count),
+        message="删除成功",
     )
 
 
@@ -226,16 +228,15 @@ async def get_user_list(
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=10, ge=1, le=100, description="每页数量"),
 ) -> ApiResponse[PageData[UserListResponse]]:
-    """获取用户列表接口（管理员/老师改名机会入口）"""
-    if current_user.role == "admin":
+    """获取用户列表接口（管理员）"""
+    if current_user.role != "teacher":
         await permission_service.ensure_permission(
             db,
             current_user.role,
             "admin.user",
             "无权查看用户列表",
         )
-    elif current_user.role != "teacher":
-        raise ForbiddenException("无权查看用户列表")
+        permission_service.ensure_admin(current_user.role, "仅管理员可查看用户列表")
     users, total = await user_service.get_user_list(
         db,
         keyword=keyword,
@@ -252,6 +253,22 @@ async def get_user_list(
             page_size=page_size,
         ),
     )
+
+
+@router.post(
+    "/{target_user_id}/username-change-opportunity",
+    response_model=ApiResponse[UserResponse],
+    summary="开放用户名修改机会",
+    description="老师或管理员为用户增加一次用户名修改机会",
+)
+async def grant_username_change_opportunity(
+    target_user_id: int,
+    db: DBSession,
+    user_id: CurrentUserId,
+) -> ApiResponse[UserResponse]:
+    """开放用户名修改机会接口。"""
+    user = await user_service.grant_username_change_opportunity(db, target_user_id, user_id)
+    return ApiResponse.success(data=UserResponse.model_validate(user), message="开放成功")
 
 
 @router.post(

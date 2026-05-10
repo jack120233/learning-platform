@@ -124,6 +124,7 @@ export interface ResourceItem {
   duration?: number
   resolution?: string
   thumbnail_url?: string
+  is_required?: boolean
 }
 
 /** 配套资料项 */
@@ -196,26 +197,27 @@ export interface ProcessTeacherFeedbackRequest {
   reply: string
 }
 
-export interface BatchTeacherFeedbackDeleteResponse {
-  count: number
-}
-
-export interface TeacherUserSearchItem {
-  user_id: number
-  username: string
-  role: 'student' | 'teacher' | 'admin'
-  status: 'active' | 'disabled' | 'pending'
-  original_username: string | null
-  username_change_remaining: number
-  can_change_username: boolean
-}
-
-export interface TeacherUserSearchParams {
+export interface TeacherUsersParams {
   keyword?: string
   role?: 'student' | 'teacher' | 'admin'
   status?: 'active' | 'disabled' | 'pending'
   page?: number
   page_size?: number
+}
+
+export interface TeacherUserSearchItem {
+  id: number
+  user_id: number
+  username: string
+  email: string
+  nickname: string | null
+  role: 'student' | 'teacher' | 'admin'
+  status: 'active' | 'disabled' | 'pending'
+  original_username: string | null
+  username_change_remaining: number
+  can_change_username: boolean
+  created_at: string
+  last_login_at: string | null
 }
 
 /** 章节表单数据 */
@@ -245,6 +247,7 @@ export interface ResourceUploadItem {
   thumbnail_url?: string
   sort_order?: number
   is_free?: boolean
+  is_required?: boolean
 }
 
 /** 分片上传初始化请求 */
@@ -273,6 +276,63 @@ export interface UploadFileResponse {
   file_url: string
   file_name: string
   file_size: number
+}
+
+// ==================== 讲师课程统计 ====================
+
+export type TeacherStatisticsPermissionType = 'all' | 'owner' | 'authorized'
+export type TeacherStatisticsStudentStatus = 'all' | 'inactive' | 'low_progress' | 'completed'
+
+export interface TeacherStatisticsCoursesParams {
+  keyword?: string
+  permission_type?: TeacherStatisticsPermissionType
+  status?: 'all' | CourseStatus
+  page?: number
+  page_size?: number
+}
+
+export interface TeacherCourseStatisticsItem {
+  course_id: number
+  course_title: string
+  course_cover?: string | null
+  course_status: CourseStatus
+  permission_type: 'owner' | 'authorized'
+  started_student_count: number
+  active_student_count_7d: number
+  avg_progress: number
+  completion_rate: number
+  total_duration_seconds: number
+  recent_learn_at?: string | null
+}
+
+export interface TeacherCourseStatisticsOverview {
+  course_id: number
+  course_title: string
+  range: '7d' | '30d'
+  started_student_count: number
+  active_student_count: number
+  avg_progress: number
+  completion_rate: number
+  avg_duration_seconds: number
+  total_duration_seconds: number
+  recent_learn_at?: string | null
+}
+
+export interface TeacherCourseStatisticsStudentsParams {
+  status?: TeacherStatisticsStudentStatus
+  keyword?: string
+  page?: number
+  page_size?: number
+}
+
+export interface TeacherCourseStudentStatisticsItem {
+  student_id: number
+  username: string
+  progress: number
+  total_duration_seconds: number
+  last_learn_at?: string | null
+  completed_at?: string | null
+  is_completed: boolean
 }
 
 // ==================== 标签管理 ====================
@@ -352,55 +412,6 @@ export function batchCourseAction(data: BatchCourseActionRequest) {
   return request.post<unknown, BatchCourseActionResponse>('/courses/batch-action', data)
 }
 
-function mapTeacherUser(item: BackendTeacherUserSearchItem): TeacherUserSearchItem {
-  const remaining = Math.max(item.username_change_remaining ?? 1, 0)
-
-  return {
-    user_id: item.user_id ?? item.id,
-    username: item.username,
-    role: item.role,
-    status: item.status,
-    original_username: item.original_username ?? null,
-    username_change_remaining: remaining,
-    can_change_username: item.can_change_username ?? remaining > 0,
-  }
-}
-
-interface BackendTeacherUserSearchItem {
-  id: number
-  user_id?: number
-  username: string
-  role: 'student' | 'teacher' | 'admin'
-  status: 'active' | 'disabled' | 'pending'
-  original_username?: string | null
-  username_change_remaining?: number | null
-  can_change_username?: boolean | null
-}
-
-/** 搜索用户用于开放改名机会 */
-export async function fetchTeacherUsers(params: TeacherUserSearchParams = {}) {
-  const data = await request.get<unknown, PaginatedData<BackendTeacherUserSearchItem>>('/users', {
-    params: {
-      keyword: params.keyword,
-      role: params.role,
-      status: params.status,
-      page: params.page ?? 1,
-      page_size: params.page_size ?? 10,
-    },
-  })
-
-  return {
-    ...data,
-    items: data.items.map(mapTeacherUser),
-  }
-}
-
-/** 老师/管理员开放一次用户改名机会 */
-export function grantUsernameChangeOpportunity(userId: number) {
-  return request.post<unknown, BackendTeacherUserSearchItem>(`/users/${userId}/username-change-opportunity`)
-    .then(mapTeacherUser)
-}
-
 /** 获取课程反馈列表 */
 export function fetchTeacherFeedbacks(params: TeacherFeedbacksParams = {}) {
   const normalizedStatus = params.status === 'all' ? undefined : params.status
@@ -431,14 +442,72 @@ export function deleteTeacherFeedback(feedbackId: number) {
 }
 
 /** 批量删除课程反馈 */
-export async function batchDeleteTeacherFeedbacks(feedbackIds: number[]): Promise<BatchTeacherFeedbackDeleteResponse> {
+export async function batchDeleteTeacherFeedbacks(feedbackIds: number[]) {
   const results = await Promise.allSettled(feedbackIds.map((feedbackId) => deleteTeacherFeedback(feedbackId)))
-  const count = results.filter((result) => result.status === 'fulfilled').length
-  const failureCount = results.length - count
-  if (failureCount > 0) {
-    throw new Error(`部分反馈删除失败：${failureCount} 条`)
+  return {
+    count: results.filter((result) => result.status === 'fulfilled').length,
   }
-  return { count }
+}
+
+/** 搜索用户列表 */
+export function fetchTeacherUsers(params: TeacherUsersParams = {}) {
+  return request.get<unknown, PaginatedData<TeacherUserSearchItem>>('/users', {
+    params: {
+      keyword: params.keyword,
+      role: params.role,
+      status: params.status,
+      page: params.page ?? 1,
+      page_size: params.page_size ?? 10,
+    },
+  })
+}
+
+export function fetchTeacherStatisticsCourses(params: TeacherStatisticsCoursesParams = {}) {
+  return request.get<unknown, PaginatedData<TeacherCourseStatisticsItem>>('/teacher/statistics/courses', {
+    params: {
+      keyword: params.keyword,
+      permission_type: params.permission_type,
+      status: params.status,
+      page: params.page ?? 1,
+      page_size: params.page_size ?? 10,
+    },
+  })
+}
+
+export function fetchTeacherStatisticsCourseOverview(courseId: number, range: '7d' | '30d' = '7d') {
+  return request.get<unknown, TeacherCourseStatisticsOverview>(`/teacher/statistics/courses/${courseId}/overview`, {
+    params: { range },
+  })
+}
+
+export function fetchTeacherStatisticsCourseStudents(courseId: number, params: TeacherCourseStatisticsStudentsParams = {}) {
+  return request.get<unknown, PaginatedData<TeacherCourseStudentStatisticsItem>>(`/teacher/statistics/courses/${courseId}/students`, {
+    params: {
+      status: params.status,
+      keyword: params.keyword,
+      page: params.page ?? 1,
+      page_size: params.page_size ?? 10,
+    },
+  })
+}
+
+export function exportTeacherStatisticsCourseStudents(courseId: number, params: TeacherCourseStatisticsStudentsParams = {}) {
+  return request.get<unknown, Blob>(`/teacher/statistics/courses/${courseId}/students/export`, {
+    params: {
+      status: params.status,
+      keyword: params.keyword,
+    },
+    responseType: 'blob',
+  })
+}
+
+// ---------- 标签管理 ----------
+
+/** 获取标签列表 */
+
+/** 开放用户名修改机会 */
+export function grantUsernameChangeOpportunity(userId: number) {
+  return request.post<unknown, TeacherUserSearchItem>(`/users/${userId}/username-change-opportunity`)
 }
 
 /** 获取课程章节列表 */

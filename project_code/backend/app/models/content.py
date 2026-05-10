@@ -212,6 +212,12 @@ class Resource(BaseModel):
         nullable=False,
         comment="是否免费试看",
     )
+    is_required: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+        comment="是否必修资源",
+    )
     view_count: Mapped[int] = mapped_column(
         Integer,
         default=0,

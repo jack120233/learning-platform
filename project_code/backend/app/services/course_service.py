@@ -37,7 +37,7 @@ class CourseService:
 
     def _can_archive_course(self, current_user: User, course: Course) -> bool:
         return course.status == "published" and (
-            current_user.role in {"teacher", "admin"} or course.teacher_id == current_user.id
+            current_user.role == "admin" or course.teacher_id == current_user.id
         )
 
     def _can_delete_course(self, current_user: User, course: Course) -> bool:
@@ -48,11 +48,23 @@ class CourseService:
             raise NotFoundException("课程不存在")
         return course
 
-    def _ensure_publishable(self, course: Course) -> None:
+    async def _ensure_publishable(self, db: AsyncSession, course: Course) -> None:
         if course.status == "published":
             raise ValidationException("课程已发布")
         if not course.title or not course.description:
             raise ValidationException("请完善课程信息后再发布")
+
+        required_count_result = await db.execute(
+            select(func.count())
+            .select_from(Resource)
+            .where(
+                Resource.course_id == course.id,
+                Resource.is_required.is_(True),
+            )
+        )
+        required_count = required_count_result.scalar() or 0
+        if required_count <= 0:
+            raise ValidationException("课程至少需要一个必修资源后才能发布")
 
     async def get_list(
         self,
@@ -274,7 +286,7 @@ class CourseService:
         course = self._ensure_course_exists(await self.get_by_id(db, course_id))
         if not self._can_publish_course(current_user, course):
             raise ForbiddenException("无权发布此课程")
-        self._ensure_publishable(course)
+        await self._ensure_publishable(db, course)
         course.status = "published"
         course.published_at = datetime.now(timezone.utc)
         await db.flush()
@@ -293,6 +305,8 @@ class CourseService:
         """删除课程"""
         course = self._ensure_course_exists(await self.get_by_id(db, course_id))
         if not self._can_delete_course(current_user, course):
+            if course.teacher_id != current_user.id:
+                raise ForbiddenException("无权删除此课程")
             if course.status == "published":
                 raise ValidationException("已发布的课程不能删除，请先下架")
             raise ForbiddenException("无权删除此课程")
@@ -319,7 +333,7 @@ class CourseService:
                 if action == "publish":
                     if not self._can_publish_course(current_user, course):
                         raise ForbiddenException("无权发布此课程")
-                    self._ensure_publishable(course)
+                    await self._ensure_publishable(db, course)
                     course.status = "published"
                     course.published_at = datetime.now(timezone.utc)
                 elif action == "archive":
@@ -328,6 +342,8 @@ class CourseService:
                     course.status = "archived"
                 else:
                     if not self._can_delete_course(current_user, course):
+                        if course.teacher_id != current_user.id:
+                            raise ForbiddenException("无权删除此课程")
                         if course.status == "published":
                             raise ValidationException("已发布课程需先下架后才能删除")
                         raise ForbiddenException("无权删除此课程")

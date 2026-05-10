@@ -6,7 +6,6 @@ import { useUserStore } from '@/store/user'
 import { useBreakpoint } from '@/composables/useBreakpoint'
 import { fetchUnreadCount } from '@/api/profile'
 import UnreadLabelBadge from '@/components/common/UnreadLabelBadge.vue'
-import UserIdentity from '@/components/common/UserIdentity.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -34,17 +33,16 @@ const handleSearch = () => {
 }
 
 // 用户下拉菜单
-const messageCenterPath = computed(() => '/profile/messages')
-
 const userDropdownItems = computed(() => {
   const items = [
     { label: '个人中心', path: '/profile', icon: 'User' },
     { label: '我的学习', path: '/profile/records', icon: 'Reading' },
-    { label: '消息中心', path: messageCenterPath.value, icon: 'Bell' },
+    { label: '消息中心', path: '/profile/messages', icon: 'Bell' },
   ]
 
   if (userStore.canAccessTeacherCenter) {
     items.push({ label: '课程管理', path: '/teacher/courses', icon: 'Notebook' })
+    items.push({ label: '课程统计', path: '/teacher/statistics', icon: 'TrendCharts' })
   }
 
   if (userStore.canAccessAdminCenter) {
@@ -185,13 +183,7 @@ watch(() => route.fullPath, () => {
                     {{ userStore.unreadMessageCount > 99 ? '99+' : userStore.unreadMessageCount }}
                   </span>
                 </div>
-                <UserIdentity
-                  class="username"
-                  :username="userStore.userInfo.username"
-                  :user-id="userStore.userInfo.userId"
-                  fallback="用户"
-                  compact
-                />
+                <span class="username">{{ userStore.userInfo.nickname || userStore.userInfo.username }}</span>
               </div>
               <template #dropdown>
                 <el-dropdown-menu>
@@ -202,7 +194,7 @@ watch(() => route.fullPath, () => {
                   >
                     <el-icon><component :is="item.icon" /></el-icon>
                     <UnreadLabelBadge
-                      v-if="item.path === messageCenterPath"
+                      v-if="item.path === '/profile/messages'"
                       :label="item.label"
                       :count="userStore.unreadMessageCount"
                       tone="light"
@@ -276,12 +268,7 @@ watch(() => route.fullPath, () => {
                 <el-icon :size="20"><User /></el-icon>
               </el-avatar>
               <div class="user-info-text">
-                <UserIdentity
-                  class="nickname"
-                  :username="userStore.userInfo.username"
-                  :user-id="userStore.userInfo.userId"
-                  fallback="用户"
-                />
+                <div class="nickname">{{ userStore.userInfo.nickname || userStore.userInfo.username }}</div>
                 <div class="role-tag">{{ userStore.isTeacher || userStore.isAdmin ? '讲师' : '学生' }}</div>
               </div>
             </div>
@@ -290,7 +277,7 @@ watch(() => route.fullPath, () => {
                 <el-icon><Reading /></el-icon>
                 <span>我的学习</span>
               </div>
-              <div class="menu-item" @click="handleMobileNavClick(messageCenterPath)">
+              <div class="menu-item" @click="handleMobileNavClick('/profile/messages')">
                 <el-icon><Bell /></el-icon>
                 <UnreadLabelBadge
                   label="消息中心"
@@ -302,6 +289,10 @@ watch(() => route.fullPath, () => {
               <div v-if="userStore.canAccessTeacherCenter" class="menu-item" @click="handleMobileNavClick('/teacher/courses')">
                 <el-icon><Notebook /></el-icon>
                 <span>课程管理</span>
+              </div>
+              <div v-if="userStore.canAccessTeacherCenter" class="menu-item" @click="handleMobileNavClick('/teacher/statistics')">
+                <el-icon><TrendCharts /></el-icon>
+                <span>课程统计</span>
               </div>
               <div v-if="userStore.canAccessAdminCenter" class="menu-item" @click="handleMobileNavClick('/admin')">
                 <el-icon><Setting /></el-icon>
@@ -475,9 +466,12 @@ watch(() => route.fullPath, () => {
   }
 
   .username {
-    max-width: 150px;
-    color: #333;
     font-size: 14px;
+    color: #333;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .user-avatar-wrap {
     position: relative;
@@ -640,7 +634,6 @@ watch(() => route.fullPath, () => {
 
     .user-info-text {
       .nickname {
-        max-width: 180px;
         font-size: 15px;
         font-weight: 500;
         color: #333;

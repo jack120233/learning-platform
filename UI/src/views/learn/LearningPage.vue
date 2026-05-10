@@ -29,6 +29,7 @@ import {
   type SectionResource,
 } from '@/api/learning'
 import { BREAKPOINT_VALUES, useBreakpoint } from '@/composables/useBreakpoint'
+import { useLearningSession } from '@/composables/useLearningSession'
 import { useProgressSync } from '@/composables/useProgressSync'
 import { formatDuration } from '@/utils/format'
 
@@ -46,6 +47,7 @@ const progressSync = useProgressSync({
   intervalMs: 30000,
   minDeltaSeconds: 5,
 })
+const learningSession = useLearningSession()
 
 // 侧边栏
 const sidebarTab = ref<'current-task' | 'directory'>('current-task')
@@ -359,8 +361,9 @@ async function switchResource(sectionId: number | null, resourceId: number, chap
   switchAbortController = new AbortController()
   const thisSwitchId = ++currentSwitchId
 
-  // 保存当前资源进度
+  // 保存当前资源进度和学习会话
   await progressSync.immediateSync()
+  await learningSession.finishSession('switch_resource')
 
   // 重置状态
   learnStore.setResourceLoadState('loading')
@@ -407,6 +410,16 @@ async function switchResource(sectionId: number | null, resourceId: number, chap
       learnStore.restoreProgress(progressRes.value.current_time, progressRes.value.is_completed)
     }
 
+    if (learnStore.activeResource.resourceType) {
+      learningSession.startSession({
+        resourceId: learnStore.activeResource.resourceId!,
+        resourceType: learnStore.activeResource.resourceType,
+        currentTime: learnStore.activeResource.currentTime,
+        totalTime: learnStore.activeResource.totalTime,
+        isCompleted: learnStore.activeResource.isCompleted,
+      })
+    }
+
     if (learnStore.activeResource.resourceType === 'document') {
       const extension = getDocumentExtension(learnStore.activeResource.fileUrl)
 
@@ -433,6 +446,7 @@ async function switchResource(sectionId: number | null, resourceId: number, chap
     // 自动标记非音视频资源为已完成
     if (learnStore.activeResource.resourceType && ['document', 'image'].includes(learnStore.activeResource.resourceType)) {
       learnStore.markResourceCompleted()
+      learningSession.updateSessionContext({ isCompleted: true })
       progressSync.immediateSync()
     }
 
@@ -457,22 +471,41 @@ async function switchResource(sectionId: number | null, resourceId: number, chap
 
 // 播放器事件处理
 function handleVideoTimeUpdate() {
-  if (!videoRef.value) return
-  progressSync.onTimeUpdate(videoRef.value.currentTime, videoRef.value.duration)
+  const mediaRef = videoRef.value || audioRef.value
+  if (!mediaRef) return
+  learningSession.recordMediaPlayingDelta()
+  progressSync.onTimeUpdate(mediaRef.currentTime, mediaRef.duration)
+  learningSession.updateSessionContext({
+    currentTime: mediaRef.currentTime,
+    totalTime: mediaRef.duration,
+    isCompleted: learnStore.activeResource.isCompleted,
+  })
 }
 
 function handleVideoPause() {
   learnStore.setPlayState('paused')
+  learningSession.recordMediaPause()
   progressSync.immediateSync()
 }
 
 function handleVideoPlay() {
   learnStore.setPlayState('playing')
+  learningSession.recordMediaPlay()
 }
 
-function handleVideoEnded() {
+async function handleVideoEnded() {
+  const mediaRef = videoRef.value || audioRef.value
+  if (mediaRef) {
+    progressSync.onTimeUpdate(mediaRef.currentTime, mediaRef.duration)
+  }
   learnStore.markResourceCompleted()
-  progressSync.immediateSync()
+  learningSession.updateSessionContext({
+    currentTime: mediaRef?.currentTime ?? learnStore.activeResource.currentTime,
+    totalTime: mediaRef?.duration ?? learnStore.activeResource.totalTime,
+    isCompleted: true,
+  })
+  await progressSync.immediateSync()
+  await learningSession.finishSession('completed')
   handleAutoNext()
 }
 
@@ -574,6 +607,8 @@ function handleKeydown(e: KeyboardEvent) {
 
   const mediaRef = videoRef.value || audioRef.value
 
+  learningSession.recordActivity()
+
   switch (e.code) {
     case 'Space':
       e.preventDefault()
@@ -616,6 +651,7 @@ function handleKeydown(e: KeyboardEvent) {
 function handleOnline() {
   ElMessage.success('网络已恢复')
   progressSync.handleOnline()
+  learningSession.flushSessionQueue()
 }
 
 function handleOffline() {
@@ -626,12 +662,17 @@ function handleOffline() {
 // 页面离开处理
 onBeforeRouteLeave(async (_to, _from, next) => {
   await progressSync.immediateSync()
+  await learningSession.finishSession('leave_page')
   progressSync.stopPeriodicSync()
   learnStore.cleanup()
   window.removeEventListener('beforeunload', progressSync.onBeforeUnload)
+  window.removeEventListener('beforeunload', learningSession.onBeforeUnloadSession)
   window.removeEventListener('online', handleOnline)
   window.removeEventListener('offline', handleOffline)
   document.removeEventListener('keydown', handleKeydown)
+  document.removeEventListener('mousemove', learningSession.recordActivity)
+  document.removeEventListener('scroll', learningSession.recordActivity, true)
+  document.removeEventListener('touchstart', learningSession.recordActivity)
   next()
 })
 
@@ -678,12 +719,17 @@ onMounted(async () => {
 
   // 启动进度上报定时器
   progressSync.startPeriodicSync()
+  learningSession.flushSessionQueue()
 
   // 注册事件监听
   window.addEventListener('beforeunload', progressSync.onBeforeUnload)
+  window.addEventListener('beforeunload', learningSession.onBeforeUnloadSession)
   window.addEventListener('online', handleOnline)
   window.addEventListener('offline', handleOffline)
   document.addEventListener('keydown', handleKeydown)
+  document.addEventListener('mousemove', learningSession.recordActivity)
+  document.addEventListener('scroll', learningSession.recordActivity, true)
+  document.addEventListener('touchstart', learningSession.recordActivity)
 
   // 监听全屏变化
   document.addEventListener('fullscreenchange', () => {
@@ -693,11 +739,16 @@ onMounted(async () => {
 
 // 清理
 onUnmounted(() => {
+  learningSession.finishSession('leave_page')
   progressSync.stopPeriodicSync()
   window.removeEventListener('beforeunload', progressSync.onBeforeUnload)
+  window.removeEventListener('beforeunload', learningSession.onBeforeUnloadSession)
   window.removeEventListener('online', handleOnline)
   window.removeEventListener('offline', handleOffline)
   document.removeEventListener('keydown', handleKeydown)
+  document.removeEventListener('mousemove', learningSession.recordActivity)
+  document.removeEventListener('scroll', learningSession.recordActivity, true)
+  document.removeEventListener('touchstart', learningSession.recordActivity)
   cancelAutoNext()
 })
 </script>

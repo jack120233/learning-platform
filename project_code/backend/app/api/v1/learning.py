@@ -7,18 +7,31 @@ from typing import Any
 
 from fastapi import APIRouter, Query
 
-from app.core.dependencies import DBSession, CurrentUserId
+from app.core.dependencies import CurrentUser, CurrentUserId, DBSession
+from app.core.exceptions import ForbiddenException, ValidationException
 from app.schemas.common import ApiResponse
 from app.schemas.learning import (
     ContinueLearningResponse,
+    LearningSessionRequest,
+    LearningSessionResponse,
     PlayUrlResponse,
     PreviewResponse,
     ProgressResponse,
     SaveProgressRequest,
+    StudentCourseDistributionResponse,
+    StudentStatisticsOverviewResponse,
+    StudentStatisticsTrendResponse,
 )
 from app.services.learning_service import learning_service
+from app.services.learning_statistics_service import learning_statistics_service
 
 router = APIRouter(prefix="/learning", tags=["学习模块"])
+
+
+def ensure_student_user(user: CurrentUser) -> None:
+    """确保当前用户是学生。"""
+    if user.role != "student":
+        raise ForbiddenException("仅学生可访问学习统计")
 
 
 @router.post(
@@ -55,6 +68,74 @@ async def save_progress(
         data=ProgressResponse(**learning_service._to_progress_payload(progress, total_time)),
         message="保存成功",
     )
+
+
+@router.post(
+    "/sessions",
+    response_model=ApiResponse[LearningSessionResponse],
+    summary="上报学习会话",
+    description="保存学习统计事实，不更新当前进度快照",
+)
+async def save_learning_session(
+    data: LearningSessionRequest,
+    db: DBSession,
+    user_id: CurrentUserId,
+) -> ApiResponse[LearningSessionResponse]:
+    """学习会话上报接口。"""
+    result = await learning_service.save_session(db, user_id, data)
+    return ApiResponse.success(data=LearningSessionResponse(**result), message="保存成功")
+
+
+@router.get(
+    "/statistics/me/overview",
+    response_model=ApiResponse[StudentStatisticsOverviewResponse],
+    summary="我的学习统计概览",
+    description="获取当前学生的个人学习统计概览",
+)
+async def get_my_statistics_overview(
+    db: DBSession,
+    current_user: CurrentUser,
+) -> ApiResponse[StudentStatisticsOverviewResponse]:
+    """学生个人学习统计概览接口。"""
+    ensure_student_user(current_user)
+    result = await learning_statistics_service.get_student_overview(db, current_user.id)
+    return ApiResponse.success(data=StudentStatisticsOverviewResponse(**result), message="获取成功")
+
+
+@router.get(
+    "/statistics/me/trend",
+    response_model=ApiResponse[StudentStatisticsTrendResponse],
+    summary="我的学习趋势",
+    description="获取当前学生 7 天或 30 天学习趋势",
+)
+async def get_my_statistics_trend(
+    db: DBSession,
+    current_user: CurrentUser,
+    range: str = Query(default="7d", pattern="^(7d|30d)$", description="统计范围：7d 或 30d"),
+) -> ApiResponse[StudentStatisticsTrendResponse]:
+    """学生个人学习趋势接口。"""
+    ensure_student_user(current_user)
+    try:
+        result = await learning_statistics_service.get_student_trend(db, current_user.id, range)
+    except ValueError as exc:
+        raise ValidationException(str(exc)) from exc
+    return ApiResponse.success(data=StudentStatisticsTrendResponse(**result), message="获取成功")
+
+
+@router.get(
+    "/statistics/me/course-distribution",
+    response_model=ApiResponse[StudentCourseDistributionResponse],
+    summary="我的课程状态分布",
+    description="获取当前学生在学/已完成课程数量",
+)
+async def get_my_course_distribution(
+    db: DBSession,
+    current_user: CurrentUser,
+) -> ApiResponse[StudentCourseDistributionResponse]:
+    """学生个人课程状态分布接口。"""
+    ensure_student_user(current_user)
+    result = await learning_statistics_service.get_student_course_distribution(db, current_user.id)
+    return ApiResponse.success(data=StudentCourseDistributionResponse(**result), message="获取成功")
 
 
 @router.get(

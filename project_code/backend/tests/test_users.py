@@ -4,7 +4,7 @@
 """
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import AsyncClient
@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.content import Chapter, Resource, Section
 from app.models.course import Course
-from app.models.learning import ResourceProgress
+from app.models.learning import LearningRecordEntry, LearningSession, ResourceProgress
+from app.models.learning_progress import LearningProgress
 from app.models.user import User
 from app.core.security import hash_password
 from app.models.permission import RolePermission
@@ -795,6 +796,169 @@ class TestLearningRecords:
         assert response.status_code == 200
         data = response.json()
         assert "items" in data["data"]
+
+    @pytest.mark.asyncio
+    async def test_delete_learning_records_all_or_nothing_and_preserves_learning_data(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+        test_teacher: User,
+        auth_headers: dict,
+    ):
+        """测试学习记录批量隐藏全量校验，且不影响进度、会话和继续学习。"""
+        category = await self._create_learning_record_category(db_session)
+        course = Course(
+            title=f"学习记录删除课程-{uuid.uuid4().hex[:8]}",
+            teacher_id=test_teacher.id,
+            category_id=category.id,
+            status="published",
+            price=0,
+            level="beginner",
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter = Chapter(course_id=course.id, title="章节", sort_order=1)
+        db_session.add(chapter)
+        await db_session.flush()
+
+        section = Section(course_id=course.id, chapter_id=chapter.id, title="小节", sort_order=1, duration=60)
+        db_session.add(section)
+        await db_session.flush()
+
+        resource = Resource(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            section_id=section.id,
+            title="视频.mp4",
+            type="video",
+            file_url="https://example.com/video.mp4",
+            file_size=1024,
+            duration=60,
+            sort_order=1,
+            is_required=True,
+        )
+        db_session.add(resource)
+        await db_session.flush()
+
+        learned_at = datetime.now(timezone.utc)
+        visible_record = LearningRecordEntry(
+            user_id=test_user.id,
+            course_id=course.id,
+            last_section_id=section.id,
+            last_resource_id=resource.id,
+            last_learn_at=learned_at,
+            course_progress_snapshot=50.0,
+            visible=True,
+        )
+        other_user = User(
+            username=f"other_{uuid.uuid4().hex[:8]}",
+            email=f"other_{uuid.uuid4().hex[:8]}@example.com",
+            password_hash="x",
+            username_change_remaining=1,
+            role="student",
+            status="active",
+        )
+        db_session.add(other_user)
+        await db_session.flush()
+        other_record = LearningRecordEntry(
+            user_id=other_user.id,
+            course_id=course.id,
+            last_section_id=section.id,
+            last_resource_id=resource.id,
+            last_learn_at=learned_at,
+            course_progress_snapshot=10.0,
+            visible=True,
+        )
+        progress = LearningProgress(
+            user_id=test_user.id,
+            course_id=course.id,
+            progress=50.0,
+            last_section_id=section.id,
+            last_resource_id=resource.id,
+            last_position=30,
+            total_duration=60,
+            last_learn_at=learned_at,
+        )
+        session = LearningSession(
+            session_id=f"record-delete-{uuid.uuid4().hex}",
+            user_id=test_user.id,
+            course_id=course.id,
+            chapter_id=chapter.id,
+            section_id=section.id,
+            resource_id=resource.id,
+            resource_type="video",
+            started_at=learned_at,
+            ended_at=learned_at + timedelta(seconds=60),
+            effective_duration_seconds=60,
+            is_completed_at_end=False,
+            end_reason="leave_page",
+        )
+        db_session.add_all([visible_record, other_record, progress, session])
+        await db_session.flush()
+
+        invalid_response = await client.post(
+            "/api/v1/users/me/learning-records/delete",
+            headers=auth_headers,
+            json={"record_ids": [visible_record.id, other_record.id]},
+        )
+        assert invalid_response.status_code == 422
+        await db_session.refresh(visible_record)
+        assert visible_record.visible is True
+
+        response = await client.post(
+            "/api/v1/users/me/learning-records/delete",
+            headers=auth_headers,
+            json={"record_ids": [visible_record.id]},
+        )
+        assert response.status_code == 200
+        assert response.json()["data"] == {"deleted_count": 1}
+        await db_session.refresh(visible_record)
+        await db_session.refresh(progress)
+        await db_session.refresh(session)
+        assert visible_record.visible is False
+        assert visible_record.hidden_at is not None
+        assert progress.progress == 50.0
+        assert progress.last_resource_id == resource.id
+        assert session.effective_duration_seconds == 60
+
+        repeat_response = await client.post(
+            "/api/v1/users/me/learning-records/delete",
+            headers=auth_headers,
+            json={"record_ids": [visible_record.id]},
+        )
+        assert repeat_response.status_code == 422
+
+        list_response = await client.get(
+            "/api/v1/users/me/learning-records",
+            headers=auth_headers,
+        )
+        assert list_response.status_code == 200
+        list_payload = list_response.json()["data"]
+        assert list_payload["items"] == []
+        assert list_payload["total"] == 0
+
+        continue_response = await client.get(
+            f"/api/v1/learning/courses/{course.id}/continue",
+            headers=auth_headers,
+        )
+        assert continue_response.status_code == 200
+        continue_payload = continue_response.json()["data"]
+        assert continue_payload["course_id"] == course.id
+        assert "last_learn_at" in continue_payload
+
+    async def _create_learning_record_category(self, db_session: AsyncSession):
+        from app.models.category import Category
+
+        category = Category(
+            name=f"学习记录分类-{uuid.uuid4().hex[:8]}",
+            slug=f"learning-record-{uuid.uuid4().hex[:8]}",
+            is_active=True,
+        )
+        db_session.add(category)
+        await db_session.flush()
+        return category
 
 
 class TestUserList:

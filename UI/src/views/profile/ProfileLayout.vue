@@ -25,7 +25,7 @@ const menuItems = computed(() => {
   const items = [
     { index: '/profile', title: '个人信息', icon: 'User' },
     { index: '/profile/password', title: '修改密码', icon: 'Lock' },
-    { index: '/profile/records', title: '学习记录', icon: 'Reading' },
+    { index: '/profile/records', title: '学习统计', icon: 'Reading' },
     { index: '/profile/messages', title: '消息中心', icon: 'Bell', badge: true },
   ]
 

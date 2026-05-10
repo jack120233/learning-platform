@@ -747,6 +747,72 @@ class TestSectionResourceAPI:
         assert data["resource_type"] == "document"
         assert data["file_name"] == "讲义.pdf"
         assert data["title"] == "讲义.pdf"
+        assert data["is_required"] is True
+
+    @pytest.mark.asyncio
+    async def test_create_section_resource_accepts_optional_required_flag(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试小节资源可显式创建为选修资源。"""
+        teacher, headers = await create_content_test_user(db_session, "teacher")
+
+        category = Category(
+            name="选修资源分类",
+            slug=f"optional-resource-{uuid.uuid4().hex[:8]}",
+            is_active=True,
+        )
+        db_session.add(category)
+        await db_session.flush()
+
+        course = Course(
+            title="选修资源课程",
+            teacher_id=teacher.id,
+            category_id=category.id,
+            status="draft",
+            price=0,
+            level="beginner",
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter = Chapter(course_id=course.id, title="章节", sort_order=1)
+        db_session.add(chapter)
+        await db_session.flush()
+
+        section = Section(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            title="小节",
+            sort_order=1,
+        )
+        db_session.add(section)
+        await db_session.flush()
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/sections/{section.id}/resources",
+            headers=headers,
+            json={
+                "resource_type": "document",
+                "file_name": "拓展阅读.pdf",
+                "file_url": "http://test/uploads/files/optional.pdf",
+                "file_size": 2048,
+                "sort_order": 0,
+                "is_free": False,
+                "is_required": False,
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["is_required"] is False
+
+        result = await db_session.execute(
+            select(Resource).where(Resource.id == data["resource_id"])
+        )
+        resource = result.scalar_one()
+        assert resource.is_required is False
 
     @pytest.mark.asyncio
     async def test_delete_section_resource_legacy_post_route(
@@ -869,6 +935,7 @@ class TestChapterResourceAPI:
         assert data["chapter_id"] == chapter.id
         assert data["section_id"] is None
         assert data["file_name"] == "章节讲义.pdf"
+        assert data["is_required"] is True
 
     @pytest.mark.asyncio
     async def test_delete_chapter_resource_legacy_post_route(

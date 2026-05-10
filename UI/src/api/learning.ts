@@ -49,6 +49,7 @@ export interface CourseResource {
   file_url?: string
   file_size?: number
   duration?: number
+  is_required?: boolean
 }
 
 /** 课程章节 */
@@ -111,11 +112,69 @@ export interface ResourcePlayInfo {
 
 /** 保存学习进度请求 */
 export interface SaveProgressRequest {
-  section_id?: number
+  course_id?: number
+  chapter_id?: number
+  section_id?: number | null
   resource_id: number
   current_time: number
   total_time: number
   is_completed: boolean
+}
+
+export type LearningSessionEndReason =
+  | 'switch_resource'
+  | 'leave_page'
+  | 'completed'
+  | 'timeout'
+  | 'beacon'
+  | 'offline_retry'
+  | 'manual_stop'
+  | 'error'
+
+export interface LearningSessionRequest {
+  session_id: string
+  resource_id: number
+  started_at: string
+  ended_at: string
+  effective_duration_seconds: number
+  start_position_seconds?: number | null
+  end_position_seconds?: number | null
+  progress_percent_at_end?: number | null
+  is_completed_at_end?: boolean
+  end_reason: LearningSessionEndReason
+}
+
+export interface LearningSessionResponse {
+  session_id: string
+  accepted: boolean
+  effective_duration_seconds: number
+  duplicate: boolean
+}
+
+export type LearningStatisticsTrendRange = '7d' | '30d'
+
+export interface LearningStatisticsOverview {
+  total_duration_seconds: number
+  last_7_days_duration_seconds: number
+  learning_course_count: number
+  completed_course_count: number
+  continuous_learning_days: number
+  active_learning_days: number
+}
+
+export interface LearningStatisticsTrendItem {
+  date: string
+  duration_seconds: number
+}
+
+export interface LearningStatisticsTrendResponse {
+  range: LearningStatisticsTrendRange
+  items: LearningStatisticsTrendItem[]
+}
+
+export interface LearningCourseDistribution {
+  learning_count: number
+  completed_count: number
 }
 
 /** 学习进度 */
@@ -203,8 +262,28 @@ export function getProgress(sectionId: number | null | undefined, resourceId: nu
 /**
  * 保存学习进度
  */
-export function saveProgress(data: SaveProgressRequest): Promise<{ success: boolean }> {
-  return request.post<unknown, { success: boolean }>('/learning/progress', data)
+export function saveProgress(data: SaveProgressRequest): Promise<LearningProgress> {
+  return request.post<unknown, LearningProgress>('/learning/progress', data)
+}
+
+export function saveLearningSession(data: LearningSessionRequest): Promise<LearningSessionResponse> {
+  return request.post<unknown, LearningSessionResponse>('/learning/sessions', data)
+}
+
+export function fetchMyLearningStatisticsOverview(): Promise<LearningStatisticsOverview> {
+  return request.get<unknown, LearningStatisticsOverview>('/learning/statistics/me/overview')
+}
+
+export function fetchMyLearningStatisticsTrend(
+  range: LearningStatisticsTrendRange = '7d'
+): Promise<LearningStatisticsTrendResponse> {
+  return request.get<unknown, LearningStatisticsTrendResponse>('/learning/statistics/me/trend', {
+    params: { range },
+  })
+}
+
+export function fetchMyLearningCourseDistribution(): Promise<LearningCourseDistribution> {
+  return request.get<unknown, LearningCourseDistribution>('/learning/statistics/me/course-distribution')
 }
 
 /**

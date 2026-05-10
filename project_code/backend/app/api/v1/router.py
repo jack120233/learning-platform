@@ -7,7 +7,8 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     auth, health, categories, tags, announcements, permissions,
-    users, courses, content, learning, feedbacks, messages, uploads
+    users, courses, content, learning, feedbacks, messages, uploads,
+    teacher_statistics, admin_learning_statistics
 )
 
 # v1 版本路由器
@@ -24,6 +25,8 @@ router.include_router(users.router, tags=["用户管理"])
 router.include_router(courses.router, tags=["课程管理"])
 router.include_router(uploads.router, tags=["文件上传"])
 router.include_router(content.router, tags=["课程内容"])
+router.include_router(teacher_statistics.router, tags=["讲师课程统计"])
+router.include_router(admin_learning_statistics.router, tags=["管理员学习统计"])
 router.include_router(learning.router, tags=["学习模块"])
 router.include_router(feedbacks.router, tags=["反馈管理"])
 router.include_router(messages.router, tags=["消息管理"])

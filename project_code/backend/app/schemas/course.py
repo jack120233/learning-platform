@@ -237,6 +237,33 @@ class BatchCourseActionResponse(BaseModel):
     message: str | None = Field(default=None, description="结果说明")
 
 
+# ==================== 统计授权模型 ====================
+
+class CourseStatisticsAuthorizationGrantRequest(BaseModel):
+    """课程统计授权请求。"""
+
+    teacher_ids: list[int] = Field(min_length=1, description="被授权老师ID列表")
+
+
+class CourseStatisticsAuthorizationResponse(BaseModel):
+    """课程统计授权响应。"""
+
+    teacher_id: int = Field(description="老师ID")
+    username: str = Field(description="用户名")
+    assigned_by: int = Field(description="授权管理员ID")
+    assigned_at: datetime = Field(description="授权时间")
+    is_active: bool = Field(description="是否生效")
+    revoked_at: datetime | None = Field(default=None, description="撤销时间")
+
+
+class CourseStatisticsAuthorizationCandidateResponse(BaseModel):
+    """课程统计授权候选老师响应。"""
+
+    teacher_id: int = Field(description="老师ID")
+    username: str = Field(description="用户名")
+    authorized: bool = Field(default=False, description="是否已授权")
+
+
 # ==================== 配套资料模型 ====================
 
 class MaterialCreate(BaseModel):

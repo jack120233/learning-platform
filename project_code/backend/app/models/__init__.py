@@ -14,9 +14,17 @@ from app.models.announcement import Announcement
 from app.models.teacher_audit import TeacherAudit
 from app.models.admin_application import AdminApplication
 from app.models.learning_progress import LearningProgress
-from app.models.course import Course, CourseMaterial, CourseTag
+from app.models.course import Course, CourseMaterial, CourseTag, CourseTeacherAssignment
 from app.models.content import Chapter, Section, Resource
-from app.models.learning import ResourceProgress
+from app.models.learning import (
+    CourseDailyLearningStats,
+    LearningRecordEntry,
+    LearningSession,
+    PlatformDailyLearningStats,
+    ResourceProgress,
+    StudentCourseDailyStats,
+    StudentDailyLearningStats,
+)
 from app.models.feedback import Feedback
 from app.models.message import Message
 from app.models.permission import Permission, RolePermission
@@ -26,9 +34,11 @@ __all__ = [
     "User", "CaptchaRecord", "EmailCode", "RefreshToken",
     "Category", "Tag", "Announcement",
     "TeacherAudit", "AdminApplication", "LearningProgress",
-    "Course", "CourseMaterial", "CourseTag",
+    "Course", "CourseMaterial", "CourseTag", "CourseTeacherAssignment",
     "Chapter", "Section", "Resource",
-    "ResourceProgress",
+    "ResourceProgress", "LearningSession", "LearningRecordEntry",
+    "StudentDailyLearningStats", "StudentCourseDailyStats",
+    "CourseDailyLearningStats", "PlatformDailyLearningStats",
     "Feedback", "Message",
     "Permission", "RolePermission",
 ]

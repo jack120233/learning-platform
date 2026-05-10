@@ -10,13 +10,14 @@ from urllib.parse import urlparse
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.security import create_access_token
 from app.models.category import Category
 from app.models.content import Chapter, Resource, Section
-from app.models.course import Course, CourseMaterial
+from app.models.course import Course, CourseMaterial, CourseTeacherAssignment
 from app.models.user import User
 
 
@@ -198,6 +199,192 @@ class TestCourseManageList:
         )
 
         assert response.status_code == 403
+
+
+class TestCourseStatisticsAuthorization:
+    """课程统计授权测试。"""
+
+    @pytest.mark.asyncio
+    async def test_admin_grants_lists_candidates_and_revokes_statistics_authorization(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """管理员可授权、候选排除负责人、重复授权幂等、撤销后失效。"""
+        owner, _ = await create_upload_test_user_with_user(db_session, "teacher")
+        candidate, _ = await create_upload_test_user_with_user(db_session, "teacher")
+        inactive_teacher = User(
+            username=unique_key("inactive_teacher"),
+            email=f"{unique_key('inactive_teacher')}@example.com",
+            password_hash="test-password-hash",
+            role="teacher",
+            status="disabled",
+        )
+        student, _student_headers = await create_upload_test_user_with_user(db_session, "student")
+        admin, admin_headers = await create_upload_test_user_with_user(db_session, "admin")
+        db_session.add(inactive_teacher)
+        await db_session.flush()
+        course = await create_course_with_status(db_session, owner.id, "published", "统计授权课程")
+
+        candidate_response = await client.get(
+            f"/api/v1/courses/{course.id}/statistics-authorizations/candidates",
+            headers=admin_headers,
+        )
+
+        assert candidate_response.status_code == 200
+        candidates = candidate_response.json()["data"]
+        candidate_ids = {item["teacher_id"] for item in candidates}
+        assert candidate.id in candidate_ids
+        assert owner.id not in candidate_ids
+        assert inactive_teacher.id not in candidate_ids
+        assert student.id not in candidate_ids
+        assert all("nickname" not in item and "email" not in item and "phone" not in item for item in candidates)
+
+        grant_response = await client.post(
+            f"/api/v1/courses/{course.id}/statistics-authorizations",
+            headers=admin_headers,
+            json={"teacher_ids": [candidate.id, candidate.id]},
+        )
+
+        assert grant_response.status_code == 200
+        grants = grant_response.json()["data"]
+        assert [item["teacher_id"] for item in grants].count(candidate.id) == 1
+        assert grants[0]["username"] == candidate.username
+        assert grants[0]["assigned_by"] == admin.id
+        assert grants[0]["is_active"] is True
+        assert "nickname" not in grants[0]
+
+        repeat_response = await client.post(
+            f"/api/v1/courses/{course.id}/statistics-authorizations",
+            headers=admin_headers,
+            json={"teacher_ids": [candidate.id]},
+        )
+        assert repeat_response.status_code == 200
+        assignment_count = await db_session.scalar(
+            select(func.count()).select_from(CourseTeacherAssignment).where(
+                CourseTeacherAssignment.course_id == course.id,
+                CourseTeacherAssignment.teacher_id == candidate.id,
+                CourseTeacherAssignment.permission_type == "statistics_viewer",
+            )
+        )
+        assert assignment_count == 1
+        active_count = await db_session.scalar(
+            select(func.count()).select_from(CourseTeacherAssignment).where(
+                CourseTeacherAssignment.course_id == course.id,
+                CourseTeacherAssignment.teacher_id == candidate.id,
+                CourseTeacherAssignment.permission_type == "statistics_viewer",
+                CourseTeacherAssignment.is_active.is_(True),
+            )
+        )
+        assert active_count == 1
+        assert len({item["teacher_id"] for item in repeat_response.json()["data"]}) == 1
+        assert repeat_response.json()["data"][0]["teacher_id"] == candidate.id
+
+        candidate_response_after_grant = await client.get(
+            f"/api/v1/courses/{course.id}/statistics-authorizations/candidates",
+            headers=admin_headers,
+        )
+        authorized_candidates = {
+            item["teacher_id"]: item["authorized"]
+            for item in candidate_response_after_grant.json()["data"]
+        }
+        assert authorized_candidates[candidate.id] is True
+
+        revoke_response = await client.delete(
+            f"/api/v1/courses/{course.id}/statistics-authorizations/{candidate.id}",
+            headers=admin_headers,
+        )
+        assert revoke_response.status_code == 200
+
+        list_response = await client.get(
+            f"/api/v1/courses/{course.id}/statistics-authorizations",
+            headers=admin_headers,
+        )
+        listed = [item for item in list_response.json()["data"] if item["teacher_id"] == candidate.id]
+        assert listed
+        assert listed[0]["is_active"] is False
+        assert listed[0]["revoked_at"] is not None
+
+    @pytest.mark.asyncio
+    async def test_statistics_authorization_is_admin_only_and_not_course_edit_permission(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """统计授权仅管理员可维护，且不授予课程编辑或下架权限。"""
+        owner, _owner_headers = await create_upload_test_user_with_user(db_session, "teacher")
+        authorized_teacher, authorized_headers = await create_upload_test_user_with_user(db_session, "teacher")
+        admin, admin_headers = await create_upload_test_user_with_user(db_session, "admin")
+        course = await create_course_with_status(db_session, owner.id, "published", "只读统计授权课程")
+
+        non_admin_response = await client.post(
+            f"/api/v1/courses/{course.id}/statistics-authorizations",
+            headers=authorized_headers,
+            json={"teacher_ids": [authorized_teacher.id]},
+        )
+        assert non_admin_response.status_code == 403
+
+        grant_response = await client.post(
+            f"/api/v1/courses/{course.id}/statistics-authorizations",
+            headers=admin_headers,
+            json={"teacher_ids": [authorized_teacher.id]},
+        )
+        assert grant_response.status_code == 200
+        assert grant_response.json()["data"][0]["assigned_by"] == admin.id
+
+        update_response = await client.post(
+            f"/api/v1/courses/{course.id}",
+            headers=authorized_headers,
+            json={"title": "被授权老师不能编辑课程"},
+        )
+        assert update_response.status_code == 403
+
+        archive_response = await client.post(
+            f"/api/v1/courses/{course.id}/archive",
+            headers=authorized_headers,
+        )
+        assert archive_response.status_code == 403
+
+        delete_response = await client.delete(
+            f"/api/v1/courses/{course.id}",
+            headers=authorized_headers,
+        )
+        assert delete_response.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_authorization_rejects_owner_and_ineligible_teacher(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """授权接口拒绝课程负责人、禁用老师和非老师用户。"""
+        owner, _ = await create_upload_test_user_with_user(db_session, "teacher")
+        inactive_teacher = User(
+            username=unique_key("inactive_teacher"),
+            email=f"{unique_key('inactive_teacher')}@example.com",
+            password_hash="test-password-hash",
+            role="teacher",
+            status="disabled",
+        )
+        student, _ = await create_upload_test_user_with_user(db_session, "student")
+        _admin, admin_headers = await create_upload_test_user_with_user(db_session, "admin")
+        db_session.add(inactive_teacher)
+        await db_session.flush()
+        course = await create_course_with_status(db_session, owner.id, "published", "授权校验课程")
+
+        owner_response = await client.post(
+            f"/api/v1/courses/{course.id}/statistics-authorizations",
+            headers=admin_headers,
+            json={"teacher_ids": [owner.id]},
+        )
+        assert owner_response.status_code == 422
+
+        ineligible_response = await client.post(
+            f"/api/v1/courses/{course.id}/statistics-authorizations",
+            headers=admin_headers,
+            json={"teacher_ids": [inactive_teacher.id, student.id]},
+        )
+        assert ineligible_response.status_code == 422
 
 
 class TestCourseDetail:
@@ -397,6 +584,26 @@ class TestCoursePublish:
             level="beginner",
         )
         db_session.add(course)
+        await db_session.flush()
+
+        chapter = Chapter(
+            course_id=course.id,
+            title="发布前置章节",
+            sort_order=1,
+        )
+        db_session.add(chapter)
+        await db_session.flush()
+
+        resource = Resource(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            title="发布前置必修资源",
+            type="video",
+            file_url="http://test/uploads/files/publish-required.mp4",
+            is_required=True,
+            sort_order=1,
+        )
+        db_session.add(resource)
         await db_session.flush()
 
         key = unique_key("publish")
@@ -838,6 +1045,36 @@ class TestBatchCourseAction:
         assert data["success_count"] == 0
         assert data["failed_count"] == 1
         assert data["failed_items"][0]["course_id"] == draft_course.id
+        assert "无权删除" in data["failed_items"][0]["reason"]
+
+    @pytest.mark.asyncio
+    async def test_teacher_batch_delete_other_teacher_published_course_returns_forbidden(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """讲师批量删除他人已发布课程返回越权失败，而非发布状态校验。"""
+        owner, _ = await create_upload_test_user_with_user(db_session, "teacher")
+        other_teacher, headers = await create_upload_test_user_with_user(db_session, "teacher")
+        published_course = await create_course_with_status(db_session, owner.id, "published", "他人已发布课程")
+
+        response = await client.post(
+            "/api/v1/courses/batch-action",
+            headers=headers,
+            json={
+                "action": "delete",
+                "course_ids": [published_course.id],
+            },
+        )
+
+        assert other_teacher.id != owner.id
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["success_count"] == 0
+        assert data["failed_count"] == 1
+        assert data["failed_items"][0]["course_id"] == published_course.id
+        assert "无权删除" in data["failed_items"][0]["reason"]
+        assert "先下架" not in data["failed_items"][0]["reason"]
 
     @pytest.mark.asyncio
     async def test_teacher_batch_delete_published_course_returns_failure(

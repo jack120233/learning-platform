@@ -5,7 +5,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import String, Text, DateTime, Integer, Float, Boolean
+from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import BaseModel
@@ -153,6 +153,72 @@ class Course(BaseModel):
     def is_published(self) -> bool:
         """检查课程是否已发布"""
         return self.status == "published"
+
+
+class CourseTeacherAssignment(BaseModel):
+    """课程统计授权模型。
+
+    管理员可授权非课程负责人老师查看、明细和导出单门课程学习统计。
+    该授权不参与课程编辑、发布、下架、删除或资源资料管理权限判断。
+    """
+
+    __tablename__ = "course_teacher_assignments"
+    __table_args__ = (
+        UniqueConstraint(
+            "course_id",
+            "teacher_id",
+            "permission_type",
+            name="uq_course_teacher_assignment_permission",
+        ),
+        Index("idx_course_teacher_assignment_teacher_active", "teacher_id", "is_active"),
+        Index("idx_course_teacher_assignment_course_active", "course_id", "is_active"),
+    )
+
+    course_id: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        index=True,
+        comment="课程ID",
+    )
+    teacher_id: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        index=True,
+        comment="被授权老师ID",
+    )
+    permission_type: Mapped[str] = mapped_column(
+        String(50),
+        default="statistics_viewer",
+        nullable=False,
+        comment="授权类型",
+    )
+    assigned_by: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="授权管理员ID",
+    )
+    assigned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        comment="授权时间",
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="撤销时间",
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+        comment="是否生效",
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<CourseTeacherAssignment(course_id={self.course_id}, "
+            f"teacher_id={self.teacher_id}, active={self.is_active})>"
+        )
 
 
 class CourseMaterial(BaseModel):

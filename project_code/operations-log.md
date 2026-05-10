@@ -549,188 +549,73 @@
   - 已执行：`cd "E:/video_project/proj_ui/project_code/backend" && python -m pytest tests/test_feedbacks.py -q`
   - 结果：`15 passed, 9 warnings`，警告为既有 `datetime.utcnow()` 和 `HTTP_422_UNPROCESSABLE_ENTITY` 废弃提示。
 
-## macOS 本地测试邮箱格式修正
-时间：2026-05-07
+## 讲师/管理员学习统计与课程统计授权
+时间：2026-05-10
 
-- 变更原因：测试用户邮箱需要使用更标准的邮箱格式，避免继续使用 `@test.com` 这类不合适的测试域。
+- 变更原因：需要为学生学习分析补齐讲师课程统计、管理员平台学习统计和课程统计授权能力，并确保统计授权只授予查看、明细和导出统计，不授予课程编辑、发布、下架、删除或资源管理权限。
 - 涉及文件：
-  - `backend/scripts/seed_data.py`
-  - `backend/tests/utils.py`
-  - `docs/test-plan.md`
+  - `backend/app/models/course.py`
+  - `backend/app/models/__init__.py`
+  - `backend/app/schemas/course.py`
+  - `backend/app/schemas/learning.py`
+  - `backend/app/api/v1/courses.py`
+  - `backend/app/api/v1/teacher_statistics.py`
+  - `backend/app/api/v1/admin_learning_statistics.py`
+  - `backend/app/api/v1/router.py`
+  - `backend/app/services/course_statistics_authorization_service.py`
+  - `backend/app/services/teacher_statistics_service.py`
+  - `backend/app/services/admin_learning_statistics_service.py`
+  - `backend/tests/test_courses.py`
+  - `backend/tests/test_learning.py`
   - `operations-log.md`
 - 核心改动：
-  - 将种子测试账号邮箱统一改为 `admin1@example.com`、`teacher1@example.com`、`student1@example.com`、`student2@example.com`。
-  - 将测试工具生成的随机邮箱后缀改为 `@example.com`。
-  - 同步更新测试计划文档中的测试用户邮箱示例。
-  - 已同步更新本机 MySQL `learning_platform.users` 中现有测试账号邮箱。
+  - 新增 `CourseTeacherAssignment` 统计授权模型和授权服务，支持管理员查询候选老师、授予统计授权、撤销授权和老师侧统计访问校验。
+  - 新增课程统计授权 API：`GET /courses/{course_id}/statistics-authorizations`、`GET /courses/{course_id}/statistics-authorizations/candidates`、`POST /courses/{course_id}/statistics-authorizations`、`DELETE /courses/{course_id}/statistics-authorizations/{teacher_id}`。
+  - 新增讲师统计 API：课程列表、课程概览、学生明细、学生明细 CSV 导出；统计仅包含学生学习行为，CSV 含 UTF-8 BOM，学生明细不暴露邮箱、手机号、昵称、头像、简介等隐私字段。
+  - 新增管理员学习统计 API：概览、趋势、热门课程和低完成率课程，支持按范围、分类、课程老师和课程状态筛选，并复用学习会话作为有效学习时长来源。
+  - 补充测试覆盖管理员授权边界、重复授权幂等、撤销后阻断、授权不赋予课程编辑权限、讲师统计隐私、CSV BOM、学生-only 统计和管理端趋势补零等场景。
 - 验证结果：
-  - 已执行：MySQL 查询确认 4 个测试账号邮箱均为 `example.com` 域。
-  - 已执行：`grep -R "@test\\.com" backend/scripts backend/tests docs/test-plan.md`，结果无残留。
-  - 已执行：`python -m pytest tests/test_auth.py -v`，结果 `19 passed, 1 failed`；失败用例为既有验证码断言 `test_register_invalid_captcha`，与邮箱格式修改无关。
+  - 已尝试：`pytest tests/test_courses.py -k CourseStatisticsAuthorization -q`，结果失败：当前环境未安装 `pytest` 命令。
+  - 已尝试：`python -m pytest tests/test_courses.py -k CourseStatisticsAuthorization -q`，结果失败：当前 Python 环境无 `pytest` 模块。
+  - 已执行：`python -m compileall` 针对本次新增/修改的后端路由、服务、schema、模型和测试文件做语法编译检查。
+  - 结果：compileall 通过。
+  - 待补充：在安装 pytest 的后端环境中执行 `pytest tests/test_courses.py -k CourseStatisticsAuthorization -q` 和 `pytest tests/test_learning.py -k "TeacherCourseStatistics or AdminLearningStatistics" -q`。
 
-## 测试账号文档化
-时间：2026-05-07
+## 课程统计授权权限边界自检修复
+时间：2026-05-10 08:58 CST
 
-- 变更原因：后续 AI 做 API、前端联调和浏览器测试时需要直接使用固定测试账号，避免反复要求用户手动输入账号密码。
+- 变更原因：复查讲师/管理员学习统计实现时发现课程归属权限边界存在回归风险：任意老师可下架他人已发布课程，且被授权统计老师删除他人已发布课程时返回发布状态校验而非越权。
 - 涉及文件：
-  - `../CLAUDE.md`
-  - `CLAUDE.md`
-  - `docs/api-testing-guide.md`
+  - `backend/app/services/course_service.py`
+  - `backend/tests/test_courses.py`
   - `operations-log.md`
 - 核心改动：
-  - 在根级协作说明中新增“联调测试账号”章节，列出管理员、教师、两个学生账号的用户名、密码和邮箱。
-  - 在后端协作说明的“测试账号”章节补齐 `student2` 和邮箱列，并明确 AI 测试应直接使用这些账号。
-  - 在 API 手动测试指南准备工作中新增测试账号表，方便人工和 AI 测试统一引用。
+  - 收紧课程下架权限：仅管理员或课程负责人可下架已发布课程，统计授权老师不能借由老师角色下架他人课程。
+  - 调整单课程和批量删除权限判断顺序：非课程负责人先返回无权删除，课程负责人删除已发布课程仍返回“需先下架”的业务校验。
+  - 补齐发布课程测试的必修资源前置数据，使测试用例符合当前发布校验规则：课程必须至少包含一个必修资源后才能发布。
+  - 增加批量删除他人已发布课程的越权断言，避免再次把非负责人误导为发布状态校验。
 - 验证结果：
-  - 已执行：只读核对三处文档已包含 `admin1`、`teacher1`、`student1`、`student2` 的账号、密码和邮箱。
-  - 未执行自动化测试：本次只改文档，不影响运行时代码。
+  - 已执行：`cd "/Users/jacob/Developer/a3.learn_platform/learning-platform/.claude/worktrees/agent-a8083faf62fda9abc/project_code/backend" && "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/.venv/bin/python" -m pytest tests/test_learning.py::TestTeacherCourseStatistics tests/test_learning.py::TestAdminLearningStatistics tests/test_courses.py::TestCourseStatisticsAuthorization tests/test_courses.py::TestCourseArchive::test_admin_can_archive_other_teacher_published_course tests/test_courses.py::TestBatchCourseAction::test_admin_batch_archive_other_teachers_published_courses tests/test_courses.py::TestBatchCourseAction::test_teacher_batch_delete_published_course_returns_failure -v`
+  - 结果：`8 passed, 13 warnings`，警告为既有 passlib `crypt`、FastAPI 422 常量废弃提示。
+  - 已执行：`cd "/Users/jacob/Developer/a3.learn_platform/learning-platform/.claude/worktrees/agent-a8083faf62fda9abc/project_code/backend" && "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/.venv/bin/python" -m pytest tests/test_learning.py tests/test_courses.py -v`
+  - 结果：`34 passed, 19 warnings`，警告为既有 passlib `crypt`、FastAPI 422 常量废弃提示。
 
-## 新增老师测试账号
-时间：2026-05-07
 
-- 变更原因：联调反馈、课程归属和老师侧权限时需要更多老师账号，便于 AI 自动化测试不同老师之间的可见性和越权场景。
+## 教师/管理员学习统计真实浏览器联调
+时间：2026-05-10 09:14
+
+- 变更原因：完成 teacher/admin learning statistics 后，按真实浏览器执行管理员授权与教师查看统计的完整业务流程，确认后端统计授权、教师统计、CSV 导出和权限撤销链路可用。
 - 涉及文件：
-  - `backend/scripts/seed_data.py`
-  - `../CLAUDE.md`
-  - `CLAUDE.md`
-  - `docs/api-testing-guide.md`
-  - `docs/test-plan.md`
+  - `backend/app/api/v1/courses.py`
+  - `backend/app/api/v1/teacher_statistics.py`
+  - `backend/app/api/v1/admin_learning_statistics.py`
+  - `backend/app/services/course_statistics_authorization_service.py`
+  - `backend/app/services/teacher_statistics_service.py`
+  - `backend/app/services/admin_learning_statistics_service.py`
   - `operations-log.md`
 - 核心改动：
-  - 在种子数据脚本中新增 `teacher2`、`teacher3`、`teacher4`、`teacher5`、`teacher6` 五个 active 老师账号，统一密码 `Test123456`。
-  - 同步更新根级协作说明、后端协作说明、API 测试指南和测试计划中的测试账号列表。
-  - 已同步写入本机 MySQL `learning_platform.users` 表。
+  - 本次仅追加联调验证记录；未修改后端业务逻辑。
+  - 使用真实前端页面触发后端接口：管理员授权课程统计给 `teacher6#9`，教师访问课程统计列表/详情，触发学生明细 CSV 导出，并在管理员撤销授权后验证教师无权访问。
 - 验证结果：
-  - 已执行：MySQL 查询确认 `teacher1` 到 `teacher6` 共 6 个老师账号均为 `active`。
-  - 已执行：调用 `POST /api/v1/auth/login` 验证 `teacher2 / Test123456` 登录成功。
-
-## macOS 开发环境一键启动脚本
-时间：2026-05-07
-
-- 变更原因：macOS 开发时需要同时启动 MySQL、Redis、FastAPI 后端和 Vite 前端，手动分多条命令启动不方便，且不希望设置开机启动。
-- 涉及文件：
-  - `../start-dev-macos.sh`
-  - `../README.md`
-  - `operations-log.md`
-- 核心改动：
-  - 新增根目录 `start-dev-macos.sh`，一键手动启动 MySQL 8.4、Redis、后端和前端。
-  - 脚本不会调用 `brew services start`，不会设置开机启动；如果服务已存在则复用，退出时只停止本脚本启动的服务。
-  - 支持 `./start-dev-macos.sh --status` 查看 3306、6379、8000、3000 当前监听状态。
-  - README 补充 macOS 启动脚本的使用方式、访问地址和日志目录。
-- 验证结果：
-  - 已执行：`bash -n start-dev-macos.sh`，语法检查通过。
-  - 已执行：`./start-dev-macos.sh --status`，确认 MySQL、Redis、Backend、Frontend 状态可读。
-  - 已执行：`curl http://127.0.0.1:8000/api/v1/health`，返回服务运行正常。
-  - 已执行：`curl -I http://127.0.0.1:3000/login`，返回 200。
-  - 已执行：`mysqladmin -u root ping` 和 `redis-cli ping`，分别返回 `mysqld is alive` 与 `PONG`。
-
-## 学生到管理员平台反馈闭环检查
-时间：2026-05-08
-
-- 变更原因：需要确认学生提交 `system` 平台反馈后，管理员可在消息中心查看、回复并处理，学生可在我的反馈页看到回复与状态。
-- 涉及文件：
-  - `backend/tests/test_feedbacks.py`
-  - `operations-log.md`
-- 核心改动：
-  - 新增平台反馈闭环后端测试，覆盖 `system` 反馈提交时不传 `course_id`/`target_user_id`、管理员按 `feedback_type=system` 查到反馈、管理员处理写入 `reply`/`replied_at`/`processed_at`、学生通过 `/users/me/feedbacks` 回显已处理状态和回复。
-  - 复核现有 schema/service 已允许平台反馈缺省课程和目标用户，仅课程反馈强制校验两项字段。
-- 验证结果：
-  - 已执行：`python -m pytest --version`
-  - 结果：失败，当前环境 Python 缺少 `pytest` 模块（`No module named pytest`），未按用户提示重新安装。
-  - 已执行：前端 `npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" run build`
-  - 结果：通过；构建仍提示既有大体积 chunk 警告。
-
-## 管理员用户列表支持按用户 ID 搜索
-时间：2026-05-08 19:45:00
-
-- 变更原因：管理员发送站内消息时需要通过用户名或用户 ID 精准定位重名用户，昵称不再作为身份识别字段。
-- 涉及文件：
-  - `backend/app/services/user_service.py`
-  - `operations-log.md`
-- 核心改动：
-  - 管理员用户列表关键词搜索调整为用户名模糊匹配。
-  - 当关键词为纯数字时，同时按 `User.id` 精确匹配，支持在收件人选择中输入用户 ID 查找用户。
-  - 不再把昵称作为管理员用户列表关键词匹配条件。
-- 验证结果：
-  - 已执行：`python3 -m py_compile "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend/app/services/user_service.py"`。
-  - 结果：通过。
-
-## 一次性用户名修改与老师开放改名机会
-时间：2026-05-09
-
-- 变更原因：用户需要在个人信息页自助修改用户名一次，后端强制一次性限制并记录原用户名；老师需要有完整入口为用户追加一次改名机会。
-- 涉及文件：
-  - `backend/app/models/user.py`
-  - `backend/app/core/db_schema.py`
-  - `backend/app/schemas/user.py`
-  - `backend/app/services/user_service.py`
-  - `backend/app/api/v1/users.py`
-  - `backend/tests/test_users.py`
-  - `operations-log.md`
-- 核心改动：
-  - `User` 新增 `original_username` 与 `username_change_remaining` 字段，并在数据库兼容检查中为旧库补列。
-  - 个人资料更新支持 `username`，后端校验字母数字格式、唯一性、剩余次数，首次改名记录原用户名并扣减机会。
-  - 用户响应和用户列表响应暴露 `user_id`、`original_username`、`username_change_remaining`、`can_change_username`，供前端控制状态。
-  - 新增 `POST /api/v1/users/{target_user_id}/username-change-opportunity`，允许老师/管理员为用户增加一次改名机会，老师不能为管理员开放机会。
-  - 用户列表允许老师搜索用户，用于老师端开放改名机会入口；学生仍不能访问用户列表。
-  - 补充用户测试覆盖首次改名、重复改名、重名冲突、老师开放机会、学生无权开放、老师不能给管理员开放、开放后再次改名成功。
-- 验证结果：
-  - 已执行：`PYTHONPATH="/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend" "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/.venv/bin/python" -m pytest "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend/tests/test_users.py" -v`。
-  - 结果：`24 passed, 11 warnings`；警告为既有 passlib `crypt` 与 FastAPI 422 常量弃用提示。
-
-## 管理员改名次数规则豁免
-时间：2026-05-09
-
-- 变更原因：用户名修改次数限制已要求不适用于老师和管理员，但后端 schema/service 只对老师做了豁免，管理员仍可能被剩余次数字段限制；正式用户管理文档也需要同步数据库字段和接口规则。
-- 涉及文件：
-  - `backend/app/services/user_service.py`
-  - `backend/app/schemas/user.py`
-  - `backend/tests/test_users.py`
-  - `3.用户管理模块详情.md`
-  - `docs/api-endpoint-inventory.md`
-  - `operations-log.md`
-- 核心改动：
-  - 将用户名修改免次数角色统一为 `teacher` 和 `admin`。
-  - `can_change_username` 对老师和管理员恒为 true，修改用户名时不扣减 `username_change_remaining`。
-  - 增加管理员剩余次数为 0 时仍可改名且不消耗次数的后端测试。
-  - 补充文档说明 `users.username_change_remaining`、`users.original_username` 和 `can_change_username` 派生规则，并更新用户管理接口条目。
-- 验证结果：
-  - 已执行：`"project_code/.venv/bin/python" -m pytest "project_code/backend/tests/test_users.py" -q`
-  - 结果：`26 passed, 11 warnings`
-
-## 反馈提交人删除权限补齐
-时间：2026-05-09
-
-- 变更原因：个人中心需要支持所有登录角色管理自己提交过的反馈历史，后端删除接口原先在路由层只允许管理员或老师进入，导致反馈提交人无法删除自己的反馈。
-- 涉及文件：
-  - `backend/app/api/v1/feedbacks.py`
-  - `backend/app/services/feedback_service.py`
-  - `backend/tests/test_feedbacks.py`
-  - `operations-log.md`
-- 核心改动：
-  - 移除反馈删除路由中对非管理员、非老师用户的提前拒绝，让服务层统一执行所有权判断。
-  - 反馈软删除服务允许 `Feedback.user_id` 等于当前操作者时删除，同时保留管理员全局删除和目标老师删除能力。
-  - 补充提交人可软删除自己反馈、普通学生不能删除他人反馈的回归测试，并验证软删除后列表和详情隐藏。
-- 验证结果：
-  - 已执行：`/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/.venv/bin/python -m pytest /Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend/tests/test_feedbacks.py -v`
-  - 结果：`21 passed, 11 warnings`。
-  - 备注：警告为既有 passlib `crypt` 与 FastAPI 422 常量弃用提示，本次未扩大处理范围。
-
-## 用户名历史多次修改追加记录
-时间：2026-05-09
-
-- 变更原因：`users.original_username` 原先只记录首次改名前用户名，用户被开放额外改名机会后再次改名会丢失中间用户名历史。
-- 涉及文件：
-  - `backend/app/models/user.py`
-  - `backend/app/core/db_schema.py`
-  - `backend/app/schemas/user.py`
-  - `backend/app/services/user_service.py`
-  - `backend/tests/test_users.py`
-  - `operations-log.md`
-- 核心改动：
-  - 将 `User.original_username` 从单个 `String(50)` 调整为 `Text` 历史字段，并更新 schema 描述、旧库补列类型和 MySQL 既有短文本字段扩容兼容逻辑。
-  - 用户名变更时使用 ` -> ` 分隔符追加“本次变更前的当前用户名”，当历史最后一项已等于旧用户名时避免重复追加。
-  - 更新老师开放改名机会后的二次改名测试，验证 `testuser -> first` 历史会随第二次改名返回并落库。
-- 验证结果：
-  - 已执行：`PYTHONPATH="/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend" "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/.venv/bin/python" -m pytest "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend/tests/test_users.py" -v`
-  - 结果：`26 passed, 11 warnings`；警告为既有 passlib `crypt` 与 FastAPI 422 常量弃用提示。
+  - 已执行：真实浏览器联调业务流（Playwright，经 Vite `/api` 代理访问本地 FastAPI）。
+  - 结果：通过。授权、教师统计列表、详情、CSV 导出、管理员学习统计概览页面均可用；CSV 下载包含 UTF-8 BOM；撤销授权后教师访问课程统计详情被拒绝。

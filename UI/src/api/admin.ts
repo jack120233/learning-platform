@@ -2,18 +2,6 @@ import request, { type PaginatedData } from './index'
 
 // ==================== 用户管理 ====================
 
-interface BackendAdminUserItem {
-  id: number
-  username: string
-  email: string
-  phone?: string | null
-  nickname?: string | null
-  role: 'student' | 'teacher' | 'admin'
-  status: 'active' | 'disabled' | 'pending'
-  created_at: string
-  last_login_at: string | null
-}
-
 /** 管理端用户列表项 */
 export interface AdminUserItem {
   user_id: number
@@ -185,14 +173,90 @@ export interface AdminTagBatchDeleteResult {
   message?: string | null
 }
 
+// ==================== 学习统计与课程统计授权 ====================
+
+export type AdminLearningStatisticsRange = '7d' | '30d' | 'all'
+export type AdminLearningStatisticsTrendRange = '7d' | '30d'
+export type AdminLearningStatisticsMetric = 'duration' | 'active_students' | 'completed_courses'
+export type AdminCourseStatus = 'all' | 'draft' | 'published' | 'archived'
+
+export interface AdminLearningStatisticsFilters {
+  range?: AdminLearningStatisticsRange
+  category_id?: number
+  teacher_id?: number
+  course_status?: AdminCourseStatus
+}
+
+export interface AdminLearningStatisticsOverview {
+  range: AdminLearningStatisticsRange
+  total_student_count: number
+  active_student_count: number
+  total_duration_seconds: number
+  active_course_count: number
+  new_started_course_count: number
+  new_completed_course_count: number
+}
+
+export interface AdminLearningStatisticsTrendItem {
+  date: string
+  value: number
+}
+
+export interface AdminLearningStatisticsTrend {
+  range: AdminLearningStatisticsTrendRange
+  metric: AdminLearningStatisticsMetric
+  items: AdminLearningStatisticsTrendItem[]
+}
+
+export interface AdminPopularCourseStatisticsItem {
+  course_id: number
+  course_title: string
+  category_id?: number | null
+  category_name?: string | null
+  teacher_id: number
+  teacher_username: string
+  active_student_count: number
+  total_duration_seconds: number
+  completion_rate: number
+  recent_learn_at?: string | null
+}
+
+export interface AdminLowCompletionCourseStatisticsItem {
+  course_id: number
+  course_title: string
+  teacher_id: number
+  teacher_username: string
+  started_student_count: number
+  completed_student_count: number
+  completion_rate: number
+  avg_progress: number
+  recent_learn_at?: string | null
+}
+
+export interface CourseStatisticsAuthorizationItem {
+  teacher_id: number
+  username: string
+  assigned_by: number
+  assigned_at: string
+  is_active: boolean
+  revoked_at?: string | null
+}
+
+export interface CourseStatisticsAuthorizationCandidate {
+  teacher_id: number
+  username: string
+  authorized: boolean
+}
+
 // ==================== 系统消息管理 ====================
 
 /** 系统消息表单数据 */
 export interface AdminMessageFormData {
   user_id: number | null
-  type: 'announcement' | 'notification' | 'system' | 'course'
+  type: 'announcement' | 'notification' | 'system' | 'course' | 'interaction'
   title: string
   content: string
+  link?: string
 }
 
 // ==================== 公告管理 ====================
@@ -297,7 +361,7 @@ interface BackendAnnouncementPayload {
 export interface AdminFeedbackItem {
   feedback_id: number
   user_id: number
-  username: string | null
+  username: string
   feedback_type: 'system' | 'course'
   course_id: number | null
   course_title: string | null
@@ -315,8 +379,8 @@ export interface AdminFeedbackItem {
 
 /** 反馈详情 */
 export interface AdminFeedbackDetail extends AdminFeedbackItem {
-  user_email: string | null
-  user_phone: string | null
+  user_email: string
+  user_phone: string
 }
 
 /** 反馈处理请求 */
@@ -337,28 +401,11 @@ export interface AdminFeedbacksParams {
 
 // ---------- 用户管理 ----------
 
-function mapAdminUserItem(item: BackendAdminUserItem): AdminUserItem {
-  return {
-    user_id: item.id,
-    username: item.username,
-    email: item.email,
-    phone: item.phone || '',
-    nickname: item.nickname || '',
-    role: item.role,
-    status: item.status,
-    created_at: item.created_at,
-    last_login_at: item.last_login_at || '',
-  }
-}
-
 /** 获取用户列表 */
 export function fetchUsers(params: AdminUsersParams = {}) {
-  return request.get<unknown, PaginatedData<BackendAdminUserItem>>('/users', {
+  return request.get<unknown, PaginatedData<AdminUserItem>>('/users', {
     params: { page: 1, page_size: 10, ...params },
-  }).then((data) => ({
-    ...data,
-    items: data.items.map(mapAdminUserItem),
-  }))
+  })
 }
 
 /** 获取用户详情 */
@@ -448,6 +495,52 @@ export function fetchAdminTags(params: AdminTagsParams = {}) {
     ...data,
     items: data.items.map(mapTagItem),
   }))
+}
+
+export function fetchAdminLearningStatisticsOverview(filters: AdminLearningStatisticsFilters = {}) {
+  return request.get<unknown, AdminLearningStatisticsOverview>('/admin/learning-statistics/overview', {
+    params: filters,
+  })
+}
+
+export function fetchAdminLearningStatisticsTrend(
+  filters: Omit<AdminLearningStatisticsFilters, 'range'> & { range?: AdminLearningStatisticsTrendRange; metric?: AdminLearningStatisticsMetric } = {}
+) {
+  return request.get<unknown, AdminLearningStatisticsTrend>('/admin/learning-statistics/trend', {
+    params: filters,
+  })
+}
+
+export function fetchAdminPopularCourses(filters: AdminLearningStatisticsFilters & { limit?: number } = {}) {
+  return request.get<unknown, AdminPopularCourseStatisticsItem[]>('/admin/learning-statistics/popular-courses', {
+    params: filters,
+  })
+}
+
+export function fetchAdminLowCompletionCourses(filters: AdminLearningStatisticsFilters & { limit?: number } = {}) {
+  return request.get<unknown, AdminLowCompletionCourseStatisticsItem[]>('/admin/learning-statistics/low-completion-courses', {
+    params: filters,
+  })
+}
+
+export function fetchCourseStatisticsAuthorizations(courseId: number) {
+  return request.get<unknown, CourseStatisticsAuthorizationItem[]>(`/courses/${courseId}/statistics-authorizations`)
+}
+
+export function fetchCourseStatisticsAuthorizationCandidates(courseId: number, keyword?: string) {
+  return request.get<unknown, CourseStatisticsAuthorizationCandidate[]>(`/courses/${courseId}/statistics-authorizations/candidates`, {
+    params: { keyword },
+  })
+}
+
+export function grantCourseStatisticsAuthorizations(courseId: number, teacherIds: number[]) {
+  return request.post<unknown, CourseStatisticsAuthorizationItem[]>(`/courses/${courseId}/statistics-authorizations`, {
+    teacher_ids: teacherIds,
+  })
+}
+
+export function revokeCourseStatisticsAuthorization(courseId: number, teacherId: number) {
+  return request.delete<unknown, void>(`/courses/${courseId}/statistics-authorizations/${teacherId}`)
 }
 
 /** 创建标签 */

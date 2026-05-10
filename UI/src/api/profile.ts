@@ -70,13 +70,20 @@ export interface SendEmailCodeRequest {
 
 /** 学习记录项 */
 export interface LearningRecordItem {
+  id: number
   course_id: number
   course_title: string
-  course_cover: string
+  course_name?: string | null
+  course_cover: string | null
+  progress: number
+  total_duration: number
   last_section_id: number | null
   last_section_title: string | null
   last_learn_at: string
-  course_status: 'published' | 'archived'
+  course_status: 'published' | 'archived' | string
+  completed_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 /** 学习记录请求参数 */
@@ -197,6 +204,15 @@ export function sendEmailCode(data: SendEmailCodeRequest): Promise<{ success: bo
 export function fetchLearningRecords(params: LearningRecordsParams): Promise<PaginatedData<LearningRecordItem>> {
   return request.get<unknown, PaginatedData<LearningRecordItem>>('/users/me/learning-records', {
     params: { page: 1, page_size: 10, ...params },
+  })
+}
+
+/**
+ * 删除/隐藏学习记录
+ */
+export function deleteLearningRecords(recordIds: number[]): Promise<{ deleted_count: number }> {
+  return request.post<unknown, { deleted_count: number }>('/users/me/learning-records/delete', {
+    record_ids: recordIds,
   })
 }
 

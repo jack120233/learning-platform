@@ -7,6 +7,8 @@
 from collections.abc import Callable
 
 from sqlalchemy import inspect, text
+
+from app.models import Base
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.services.permission_service import DEFAULT_ROLE_PERMISSION_IDS
@@ -44,6 +46,8 @@ async def ensure_database_compatibility(conn: AsyncConnection) -> list[str]:
         messages.append(success_message)
         return True
 
+    await conn.run_sync(lambda sync_conn: Base.metadata.create_all(bind=sync_conn))
+
     await ensure_column(
         "courses",
         "summary",
@@ -52,37 +56,27 @@ async def ensure_database_compatibility(conn: AsyncConnection) -> list[str]:
     )
 
     await ensure_column(
-        "users",
-        "original_username",
+        "resources",
+        "is_required",
         lambda dialect: (
-            "ALTER TABLE users ADD COLUMN original_username TEXT"
+            "ALTER TABLE resources ADD COLUMN is_required BOOLEAN NOT NULL DEFAULT 1"
             if dialect == "sqlite"
-            else "ALTER TABLE users ADD COLUMN original_username TEXT COMMENT '历史用户名记录'"
+            else "ALTER TABLE resources ADD COLUMN is_required BOOLEAN NOT NULL DEFAULT TRUE COMMENT '是否必修资源'"
         ),
-        "已为 users 表补充 original_username 字段",
+        "已为 resources 表补充 is_required 字段",
     )
-    if await conn.run_sync(has_table, "users"):
-        user_columns = await conn.run_sync(get_columns, "users")
-        original_username_column = next(
-            (column for column in user_columns if column["name"] == "original_username"),
-            None,
-        )
-        if original_username_column and conn.dialect.name == "mysql":
-            column_type = original_username_column["type"]
-            if getattr(column_type, "length", None):
-                await conn.execute(
-                    text("ALTER TABLE users MODIFY COLUMN original_username TEXT COMMENT '历史用户名记录'")
-                )
-                messages.append("已将 users.original_username 调整为历史用户名记录字段")
+
     await ensure_column(
-        "users",
-        "username_change_remaining",
-        lambda dialect: (
-            "ALTER TABLE users ADD COLUMN username_change_remaining INTEGER NOT NULL DEFAULT 1"
-            if dialect == "sqlite"
-            else "ALTER TABLE users ADD COLUMN username_change_remaining INTEGER NOT NULL DEFAULT 1 COMMENT '剩余用户名修改次数'"
-        ),
-        "已为 users 表补充 username_change_remaining 字段",
+        "learning_progress",
+        "last_resource_id",
+        lambda _: "ALTER TABLE learning_progress ADD COLUMN last_resource_id INTEGER",
+        "已为 learning_progress 表补充 last_resource_id 字段",
+    )
+    await ensure_column(
+        "learning_progress",
+        "last_learn_at",
+        lambda _: "ALTER TABLE learning_progress ADD COLUMN last_learn_at DATETIME",
+        "已为 learning_progress 表补充 last_learn_at 字段",
     )
 
     if await conn.run_sync(has_table, "resources"):
@@ -176,38 +170,6 @@ async def ensure_database_compatibility(conn: AsyncConnection) -> list[str]:
         "target_user_id",
         lambda _: "ALTER TABLE feedbacks ADD COLUMN target_user_id INTEGER",
         "已为 feedbacks 表补充 target_user_id 字段",
-    )
-    await ensure_column(
-        "feedbacks",
-        "is_deleted",
-        lambda dialect: (
-            "ALTER TABLE feedbacks ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT 0"
-            if dialect == "sqlite"
-            else "ALTER TABLE feedbacks ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否软删除'"
-        ),
-        "已为 feedbacks 表补充 is_deleted 字段",
-    )
-    await ensure_column(
-        "feedbacks",
-        "deleted_at",
-        lambda _: "ALTER TABLE feedbacks ADD COLUMN deleted_at DATETIME",
-        "已为 feedbacks 表补充 deleted_at 字段",
-    )
-    await ensure_column(
-        "messages",
-        "is_deleted",
-        lambda dialect: (
-            "ALTER TABLE messages ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT 0"
-            if dialect == "sqlite"
-            else "ALTER TABLE messages ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否软删除'"
-        ),
-        "已为 messages 表补充 is_deleted 字段",
-    )
-    await ensure_column(
-        "messages",
-        "deleted_at",
-        lambda _: "ALTER TABLE messages ADD COLUMN deleted_at DATETIME",
-        "已为 messages 表补充 deleted_at 字段",
     )
 
     if await conn.run_sync(has_table, "permissions") and await conn.run_sync(has_table, "role_permissions"):

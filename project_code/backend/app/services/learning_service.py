@@ -5,20 +5,25 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select, and_
+from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundException, ValidationException
+from app.core.exceptions import ForbiddenException, NotFoundException, ValidationException
 from app.core.resource_types import normalize_resource_type
 from app.models.content import Resource, Section
-from app.models.learning import ResourceProgress
-from app.schemas.learning import (
-    SaveProgressRequest,
-)
+from app.models.learning import LearningRecordEntry, LearningSession, ResourceProgress
+from app.models.learning_progress import LearningProgress
+from app.schemas.learning import LearningSessionRequest, SaveProgressRequest
 
 
 class LearningService:
     """学习服务类"""
+
+    ANALYTICS_RESOURCE_TYPES = {"video", "audio", "document", "image"}
+    RESOURCE_TYPE_CAPS = {
+        "document": 20 * 60,
+        "image": 5 * 60,
+    }
 
     @staticmethod
     def _to_progress_payload(progress: ResourceProgress, total_time: int = 0) -> dict:
@@ -153,7 +158,201 @@ class LearningService:
             db.add(progress)
 
         await db.flush()
+        await self._sync_course_progress_and_record(db, user_id, progress, now)
+        await db.flush()
         return progress
+
+    async def _sync_course_progress_and_record(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        resource_progress: ResourceProgress,
+        learned_at: datetime,
+    ) -> LearningProgress:
+        """同步课程级进度和学生可见学习记录。"""
+        required_resource_result = await db.execute(
+            select(Resource.id)
+            .where(
+                Resource.course_id == resource_progress.course_id,
+                Resource.is_required.is_(True),
+            )
+        )
+        required_resource_ids = [row[0] for row in required_resource_result.all()]
+        required_count = len(required_resource_ids)
+        completed_count = 0
+        if required_resource_ids:
+            completed_result = await db.execute(
+                select(func.count(func.distinct(ResourceProgress.resource_id)))
+                .select_from(ResourceProgress)
+                .where(
+                    ResourceProgress.user_id == user_id,
+                    ResourceProgress.resource_id.in_(required_resource_ids),
+                    ResourceProgress.is_completed.is_(True),
+                )
+            )
+            completed_count = completed_result.scalar() or 0
+
+        course_progress = round((completed_count / required_count) * 100, 2) if required_count else 0.0
+        is_course_completed = required_count > 0 and completed_count >= required_count
+
+        result = await db.execute(
+            select(LearningProgress).where(
+                LearningProgress.user_id == user_id,
+                LearningProgress.course_id == resource_progress.course_id,
+            )
+        )
+        learning_progress = result.scalar_one_or_none()
+        if not learning_progress:
+            learning_progress = LearningProgress(
+                user_id=user_id,
+                course_id=resource_progress.course_id,
+            )
+            db.add(learning_progress)
+
+        learning_progress.progress = course_progress
+        learning_progress.last_section_id = resource_progress.section_id
+        learning_progress.last_resource_id = resource_progress.resource_id
+        learning_progress.last_position = resource_progress.position
+        learning_progress.last_learn_at = learned_at
+        if is_course_completed and learning_progress.completed_at is None:
+            learning_progress.completed_at = learned_at
+
+        record_result = await db.execute(
+            select(LearningRecordEntry).where(
+                LearningRecordEntry.user_id == user_id,
+                LearningRecordEntry.course_id == resource_progress.course_id,
+                LearningRecordEntry.visible.is_(True),
+            )
+        )
+        record = record_result.scalar_one_or_none()
+        if not record:
+            record = LearningRecordEntry(
+                user_id=user_id,
+                course_id=resource_progress.course_id,
+                last_resource_id=resource_progress.resource_id,
+                last_learn_at=learned_at,
+            )
+            db.add(record)
+
+        record.last_section_id = resource_progress.section_id
+        record.last_resource_id = resource_progress.resource_id
+        record.last_learn_at = learned_at
+        record.course_progress_snapshot = course_progress
+        record.course_completed_snapshot = is_course_completed
+        record.visible = True
+        return learning_progress
+
+    async def _ensure_resource_learning_access(self, db: AsyncSession, user_id: int, course_id: int) -> None:
+        """复用当前课程学习边界：仅允许访问已发布课程或自己创建的课程。"""
+        from app.models.course import Course
+        from app.models.user import User
+
+        course = await db.get(Course, course_id)
+        if not course:
+            raise NotFoundException("课程不存在")
+
+        if course.status == "published" or course.teacher_id == user_id:
+            return
+        user = await db.get(User, user_id)
+        if user and user.role == "admin":
+            return
+        raise ForbiddenException("无权学习该资源")
+
+    def _normalize_session_duration(self, data: LearningSessionRequest, resource: Resource, resource_type: str) -> int:
+        started_at = data.started_at.replace(tzinfo=None) if data.started_at.tzinfo else data.started_at
+        ended_at = data.ended_at.replace(tzinfo=None) if data.ended_at.tzinfo else data.ended_at
+        if ended_at < started_at:
+            raise ValidationException("结束时间不能早于开始时间")
+        if data.effective_duration_seconds < 0:
+            raise ValidationException("有效学习时长不能为负数")
+        if resource_type not in self.ANALYTICS_RESOURCE_TYPES:
+            raise ValidationException("暂不支持该资源类型的学习会话统计")
+
+        wall_clock_seconds = int((ended_at - started_at).total_seconds())
+        caps = [data.effective_duration_seconds, wall_clock_seconds]
+        type_cap = self.RESOURCE_TYPE_CAPS.get(resource_type)
+        if type_cap is not None:
+            caps.append(type_cap)
+        if resource_type in {"video", "audio"} and resource.duration > 0:
+            caps.append(resource.duration)
+        return max(0, min(caps))
+
+    async def save_session(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        data: LearningSessionRequest,
+    ) -> dict:
+        """保存学习会话事实，按 session_id 幂等。"""
+        resource = await db.get(Resource, data.resource_id)
+        if not resource:
+            raise NotFoundException("资源不存在")
+        await self._ensure_resource_learning_access(db, user_id, resource.course_id)
+
+        resource_type = normalize_resource_type(
+            resource.type,
+            file_url=resource.file_url,
+            file_name=resource.title,
+        )
+        accepted_duration = self._normalize_session_duration(data, resource, resource_type)
+
+        result = await db.execute(
+            select(LearningSession).where(LearningSession.session_id == data.session_id)
+        )
+        session = result.scalar_one_or_none()
+        duplicate = session is not None
+
+        if session:
+            if session.user_id != user_id:
+                raise ValidationException("session_id 已被使用")
+            if session.resource_id != data.resource_id:
+                raise ValidationException("session_id 对应的资源不一致")
+
+            previous_reason = session.end_reason
+            previous_completed = session.is_completed_at_end
+            previous_duration = session.effective_duration_seconds
+            previous_ended_at = session.ended_at
+            data_ended_at = data.ended_at.replace(tzinfo=None) if data.ended_at.tzinfo else data.ended_at
+            session_ended_at = session.ended_at.replace(tzinfo=None) if session.ended_at.tzinfo else session.ended_at
+            previous_ended_at_compare = previous_ended_at.replace(tzinfo=None) if previous_ended_at.tzinfo else previous_ended_at
+            session.ended_at = data.ended_at if data_ended_at > session_ended_at else session.ended_at
+            session.effective_duration_seconds = max(session.effective_duration_seconds, accepted_duration)
+            if data.end_position_seconds is not None:
+                session.end_position_seconds = max(session.end_position_seconds or 0, data.end_position_seconds)
+            if data.progress_percent_at_end is not None:
+                session.progress_percent_at_end = max(session.progress_percent_at_end or 0.0, data.progress_percent_at_end)
+            session.is_completed_at_end = session.is_completed_at_end or data.is_completed_at_end
+            if data.is_completed_at_end or accepted_duration > previous_duration or data_ended_at > previous_ended_at_compare:
+                session.end_reason = data.end_reason
+            if previous_completed and not data.is_completed_at_end:
+                session.end_reason = previous_reason
+        else:
+            session = LearningSession(
+                session_id=data.session_id,
+                user_id=user_id,
+                course_id=resource.course_id,
+                chapter_id=resource.chapter_id,
+                section_id=resource.section_id,
+                resource_id=resource.id,
+                resource_type=resource_type,
+                started_at=data.started_at,
+                ended_at=data.ended_at,
+                effective_duration_seconds=accepted_duration,
+                start_position_seconds=data.start_position_seconds,
+                end_position_seconds=data.end_position_seconds,
+                progress_percent_at_end=data.progress_percent_at_end,
+                is_completed_at_end=data.is_completed_at_end,
+                end_reason=data.end_reason,
+            )
+            db.add(session)
+
+        await db.flush()
+        return {
+            "session_id": session.session_id,
+            "accepted": True,
+            "effective_duration_seconds": session.effective_duration_seconds,
+            "duplicate": duplicate,
+        }
 
     async def get_progress(
         self,

@@ -5,7 +5,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, Integer, Float
+from sqlalchemy import DateTime, Float, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import BaseModel
@@ -27,6 +27,9 @@ class LearningProgress(BaseModel):
     """
 
     __tablename__ = "learning_progress"
+    __table_args__ = (
+        UniqueConstraint("user_id", "course_id", name="uq_learning_progress_user_course"),
+    )
 
     user_id: Mapped[int] = mapped_column(
         nullable=False,
@@ -48,6 +51,11 @@ class LearningProgress(BaseModel):
         nullable=True,
         comment="最后学习的小节ID",
     )
+    last_resource_id: Mapped[int | None] = mapped_column(
+        nullable=True,
+        index=True,
+        comment="最后学习的资源ID",
+    )
     last_position: Mapped[int] = mapped_column(
         Integer,
         default=0,
@@ -59,6 +67,12 @@ class LearningProgress(BaseModel):
         default=0,
         nullable=False,
         comment="累计学习时长（秒）",
+    )
+    last_learn_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+        comment="最后学习时间",
     )
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),

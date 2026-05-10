@@ -45,9 +45,13 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [],
+  "children": [
+    "05-09-learning-statistics-foundation",
+    "05-09-student-self-statistics",
+    "05-09-teacher-admin-learning-statistics"
+  ],
   "parent": null,
   "relatedFiles": [],
-  "notes": "",
+  "notes": "Child progress: 2/3 completed. Completed 05-09-learning-statistics-foundation and 05-09-student-self-statistics. Student self-statistics includes student-only statistics APIs, 学习统计 profile page, real PC/mobile validation, real learning-record single/batch delete validation, and a backend regression fix preventing hidden records from reappearing through legacy fallback. Remaining child: 05-09-teacher-admin-learning-statistics.",
   "meta": {}
 }

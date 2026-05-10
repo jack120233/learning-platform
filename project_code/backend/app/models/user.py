@@ -119,6 +119,14 @@ class User(BaseModel):
         return f"<User(id={self.id}, username={self.username}, role={self.role})>"
 
     @property
+    def user_id(self) -> int:
+        return self.id
+
+    @property
+    def can_change_username(self) -> bool:
+        return self.role != "student" or self.username_change_remaining > 0
+
+    @property
     def is_locked(self) -> bool:
         """检查账户是否被锁定"""
         if self.locked_until is None:

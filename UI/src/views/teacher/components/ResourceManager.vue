@@ -192,6 +192,7 @@ async function handleUpload(options: { file: File }) {
       file_size: file.size,
       sort_order: localResources.value.length,
       is_free: false,
+      is_required: true,
     }
 
     const newResource = props.parentType === 'chapter'
@@ -318,6 +319,9 @@ async function handleDelete(resource: ResourceItem) {
               <div class="file-meta">
                 <span>{{ formatFileSize(resource.file_size) }}</span>
                 <span v-if="resource.duration">{{ formatDuration(resource.duration) }}</span>
+                <el-tag size="small" :type="resource.is_required === false ? 'info' : 'success'">
+                  {{ resource.is_required === false ? '选修' : '必修' }}
+                </el-tag>
               </div>
             </div>
             <el-button text size="small" type="danger" :icon="Delete" @click="handleDelete(resource)">
@@ -365,6 +369,9 @@ async function handleDelete(resource: ResourceItem) {
               <div class="file-meta">
                 <span>{{ resourceTypeMap[resource.resource_type]?.text || '文件' }}</span>
                 <span>{{ formatFileSize(resource.file_size) }}</span>
+                <el-tag size="small" :type="resource.is_required === false ? 'info' : 'success'">
+                  {{ resource.is_required === false ? '选修' : '必修' }}
+                </el-tag>
               </div>
             </div>
             <el-button text size="small" type="danger" :icon="Delete" @click="handleDelete(resource)">

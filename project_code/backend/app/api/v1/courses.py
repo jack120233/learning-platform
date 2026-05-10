@@ -21,11 +21,15 @@ from app.schemas.course import (
     CourseManageScope,
     CourseResponse,
     CourseSearchParams,
+    CourseStatisticsAuthorizationCandidateResponse,
+    CourseStatisticsAuthorizationGrantRequest,
+    CourseStatisticsAuthorizationResponse,
     CourseUpdate,
     MaterialCreate,
     MaterialResponse,
 )
 from app.services.course_service import course_service, material_service
+from app.services.course_statistics_authorization_service import course_statistics_authorization_service
 from app.services.upload_service import upload_service
 
 router = APIRouter(prefix="/courses", tags=["课程管理"])
@@ -418,3 +422,79 @@ async def delete_material_legacy(
     """兼容旧前端的资料删除接口。"""
     await material_service.delete(db, material_id, user_id)
     return ApiResponse.success(message="删除成功")
+
+
+@router.get(
+    "/{course_id}/statistics-authorizations",
+    response_model=ApiResponse[list[CourseStatisticsAuthorizationResponse]],
+    summary="课程统计授权列表",
+    description="获取课程统计授权列表",
+)
+async def get_course_statistics_authorizations(
+    course_id: int,
+    db: DBSession,
+    current_user: CurrentUser,
+) -> ApiResponse[list[CourseStatisticsAuthorizationResponse]]:
+    """获取课程统计授权列表。"""
+    rows = await course_statistics_authorization_service.list_authorizations(db, course_id, current_user)
+    return ApiResponse.success(
+        data=[CourseStatisticsAuthorizationResponse(**row) for row in rows],
+        message="获取成功",
+    )
+
+
+@router.get(
+    "/{course_id}/statistics-authorizations/candidates",
+    response_model=ApiResponse[list[CourseStatisticsAuthorizationCandidateResponse]],
+    summary="课程统计授权候选老师",
+    description="获取可授权老师列表",
+)
+async def get_course_statistics_authorization_candidates(
+    course_id: int,
+    db: DBSession,
+    current_user: CurrentUser,
+    keyword: str | None = Query(default=None, description="搜索关键词"),
+) -> ApiResponse[list[CourseStatisticsAuthorizationCandidateResponse]]:
+    """获取课程统计授权候选老师。"""
+    rows = await course_statistics_authorization_service.list_candidates(db, course_id, current_user, keyword=keyword)
+    return ApiResponse.success(
+        data=[CourseStatisticsAuthorizationCandidateResponse(**row) for row in rows],
+        message="获取成功",
+    )
+
+
+@router.post(
+    "/{course_id}/statistics-authorizations",
+    response_model=ApiResponse[list[CourseStatisticsAuthorizationResponse]],
+    summary="授予课程统计授权",
+    description="为课程批量授予统计查看权限",
+)
+async def grant_course_statistics_authorizations(
+    course_id: int,
+    data: CourseStatisticsAuthorizationGrantRequest,
+    db: DBSession,
+    current_user: CurrentUser,
+) -> ApiResponse[list[CourseStatisticsAuthorizationResponse]]:
+    """授予课程统计授权。"""
+    rows = await course_statistics_authorization_service.grant_authorizations(db, course_id, data.teacher_ids, current_user)
+    return ApiResponse.success(
+        data=[CourseStatisticsAuthorizationResponse(**row) for row in rows],
+        message="授权成功",
+    )
+
+
+@router.delete(
+    "/{course_id}/statistics-authorizations/{teacher_id}",
+    response_model=ApiResponse[None],
+    summary="撤销课程统计授权",
+    description="撤销指定老师的课程统计查看权限",
+)
+async def revoke_course_statistics_authorization(
+    course_id: int,
+    teacher_id: int,
+    db: DBSession,
+    current_user: CurrentUser,
+) -> ApiResponse[None]:
+    """撤销课程统计授权。"""
+    await course_statistics_authorization_service.revoke_authorization(db, course_id, teacher_id, current_user)
+    return ApiResponse.success(message="撤销成功")

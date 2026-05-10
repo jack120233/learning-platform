@@ -218,6 +218,10 @@ class ResourceCreate(BaseModel):
         default=False,
         description="是否免费试看",
     )
+    is_required: bool = Field(
+        default=True,
+        description="是否必修资源",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -251,6 +255,7 @@ class ResourceResponse(BaseModel):
     duration: int = Field(description="视频时长（秒）")
     sort_order: int = Field(description="排序序号")
     is_free: bool = Field(description="是否免费试看")
+    is_required: bool = Field(default=True, description="是否必修资源")
     view_count: int = Field(description="观看次数")
     created_at: datetime = Field(description="创建时间")
 

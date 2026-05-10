@@ -468,6 +468,7 @@ class ResourceService:
             duration=data.duration,
             sort_order=data.sort_order,
             is_free=data.is_free,
+            is_required=data.is_required,
         )
         db.add(resource)
 
@@ -517,6 +518,7 @@ class ResourceService:
             duration=data.duration,
             sort_order=data.sort_order,
             is_free=data.is_free,
+            is_required=data.is_required,
         )
         db.add(resource)
 
