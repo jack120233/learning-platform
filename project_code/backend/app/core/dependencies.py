@@ -26,6 +26,7 @@ engine = create_async_engine(
     settings.async_database_url,
     echo=settings.database_echo,
     pool_pre_ping=True,
+    connect_args=settings.sqlalchemy_connect_args,
 )
 install_sql_logging(engine)
 

@@ -10,6 +10,10 @@ Frontend changes must preserve the Vue 3 + TypeScript + Vite + Pinia + Vue Route
 
 The most important project rule is that authentication and permission state must flow through `useUserStore()`. API calls must use the shared Axios instance in `UI/src/api/index.ts` and continue to target `/api/v1` through the Vite proxy/dev environment.
 
+Before frontend changes, confirm the current git branch matches the target edition: shared Windows foundation changes belong on `future/windows-base`, single-machine UI and packaging changes belong on `future/windows-local`, and classroom/LAN UI changes belong on `future/windows-classroom`. Do not mix the two edition-specific tracks on the wrong branch.
+
+If a shared frontend change applies to both Windows editions, land it on `future/windows-base` first and then propagate it into the edition branches.
+
 ---
 
 ## Required Patterns

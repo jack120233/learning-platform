@@ -3,29 +3,32 @@
 初始化 FastAPI 应用，配置中间件、路由和异常处理。
 """
 
-import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import router as api_v1_router
 from app.config import settings
-from app.core.db_schema import ensure_database_compatibility
-from app.core.dependencies import engine
+from app.core.dependencies import AsyncSessionLocal, engine
 from app.core.exceptions import AppException, app_exception_to_http_exception
 from app.core.logging import get_logger, setup_logging
+from app.core.runtime import (
+    configure_sqlite_runtime,
+    ensure_runtime_directories,
+    ensure_windows_local_startup,
+    initialize_database_schema,
+)
 from app.middleware import RequestLoggingMiddleware
 from app.schemas.common import ApiResponse
 
 # 初始化日志
 setup_logging(
     level=settings.log_level,
-    log_dir=settings.log_dir,
+    log_dir=str(settings.resolved_log_dir),
     log_to_console=settings.log_to_console,
     log_to_file=settings.log_to_file,
     log_file_prefix=settings.log_file_prefix,
@@ -33,7 +36,7 @@ setup_logging(
 )
 
 logger = get_logger(__name__)
-Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
+ensure_runtime_directories()
 
 
 @asynccontextmanager
@@ -46,15 +49,30 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"🚀 {settings.app_name} v{settings.app_version} 启动中...")
     logger.info(f"📝 环境: {settings.environment}")
     logger.info(f"🌐 API 文档: http://{settings.host}:{settings.port}/docs")
-    logger.info(f"📁 日志目录: {settings.log_dir}")
-    logger.info(f"🖼️ 上传目录: {settings.upload_dir}")
-    async with engine.begin() as conn:
-        schema_messages = await ensure_database_compatibility(conn)
-    for message in schema_messages:
-        if "请手动检查" in message:
-            logger.warning(message)
-        else:
-            logger.info(message)
+    logger.info(f"📁 日志目录: {settings.resolved_log_dir}")
+    logger.info(f"🖼️ 上传目录: {settings.resolved_upload_dir}")
+    if settings.is_windows_edition:
+        logger.info(f"🗂️ 本地数据目录: {settings.resolved_local_database_path.parent}")
+        logger.info(f"🧰 缓存后端: {settings.effective_cache_backend}")
+    if settings.is_sqlite_file_database:
+        logger.info(f"🛢️ SQLite 数据库: {settings.async_database_url}")
+    if settings.app_edition == "windows_local":
+        _, startup_messages, seeded = await ensure_windows_local_startup(engine, AsyncSessionLocal)
+        for message in startup_messages:
+            if "请手动检查" in message:
+                logger.warning(message)
+            else:
+                logger.info(message)
+        logger.info("已导入 Windows 单机版种子数据" if seeded else "Windows 单机版种子数据已存在，跳过导入")
+    else:
+        async with engine.begin() as conn:
+            startup_messages = await configure_sqlite_runtime(conn)
+            startup_messages.extend(await initialize_database_schema(conn))
+        for message in startup_messages:
+            if "请手动检查" in message:
+                logger.warning(message)
+            else:
+                logger.info(message)
 
     yield
 
@@ -101,14 +119,43 @@ async def app_exception_handler(request: Request, exc: AppException) -> JSONResp
 app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
 app.mount(
     settings.upload_url_prefix,
-    StaticFiles(directory=settings.upload_dir),
+    StaticFiles(directory=settings.resolved_upload_dir),
     name="uploads",
 )
 
+frontend_dist_dir = settings.parsed_frontend_dist_dir
+frontend_index_path = settings.parsed_frontend_index_path
+if settings.app_edition == "windows_local" and frontend_index_path.is_file():
+    app.mount(
+        "/assets",
+        StaticFiles(directory=frontend_dist_dir / "assets"),
+        name="frontend-assets",
+    )
+
+
+def _path_matches_prefix(path: str, prefix: str) -> bool:
+    normalized_path = f"/{path.lstrip('/')}"
+    normalized_prefix = f"/{prefix.strip('/')}"
+    return normalized_path == normalized_prefix or normalized_path.startswith(f"{normalized_prefix}/")
+
+
+def should_serve_frontend_spa(frontend_path: str, api_prefix: str, upload_prefix: str) -> bool:
+    """Return whether an unmatched path may be handled by the SPA fallback."""
+    api_root = api_prefix.strip("/").split("/", 1)[0]
+    reserved_prefixes = [api_prefix, upload_prefix]
+    if api_root:
+        reserved_prefixes.append(f"/{api_root}")
+
+    return not any(
+        _path_matches_prefix(frontend_path, prefix)
+        for prefix in reserved_prefixes
+        if prefix.strip("/")
+    )
+
 
 # 根路径
-@app.get("/", summary="根路径")
-async def root() -> ApiResponse:
+@app.get("/", summary="根路径", response_model=None)
+async def root():
     """根路径接口
 
     返回服务基本信息。
@@ -116,6 +163,9 @@ async def root() -> ApiResponse:
     Returns:
         服务信息
     """
+    if settings.app_edition == "windows_local" and settings.parsed_frontend_index_path.is_file():
+        return FileResponse(settings.parsed_frontend_index_path)
+
     return ApiResponse.success(
         data={
             "name": settings.app_name,
@@ -124,6 +174,21 @@ async def root() -> ApiResponse:
         },
         message="欢迎访问在线学习平台 API",
     )
+
+
+@app.get("/{frontend_path:path}", response_model=None, include_in_schema=False)
+async def frontend_spa_fallback(frontend_path: str):
+    if (
+        settings.app_edition != "windows_local"
+        or not settings.parsed_frontend_index_path.is_file()
+        or not should_serve_frontend_spa(
+            frontend_path,
+            settings.api_v1_prefix,
+            settings.upload_url_prefix,
+        )
+    ):
+        raise HTTPException(status_code=404, detail="Not Found")
+    return FileResponse(settings.parsed_frontend_index_path)
 
 
 # 全局异常处理（兜底）

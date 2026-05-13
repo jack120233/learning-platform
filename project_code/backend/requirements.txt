@@ -23,6 +23,7 @@ python-multipart>=0.0.6
 httpx>=0.26.0
 
 # 缓存
+diskcache>=5.6.3
 redis>=5.0.0
 
 # 测试

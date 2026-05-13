@@ -665,3 +665,88 @@
   - 结果：`3 passed`。
   - 已执行：真实 API `POST /api/v1/auth/login` + `GET /api/v1/messages/unread-count`。
   - 结果：管理员未读统计返回 `total=0`，`announcement=0`。
+
+
+## Windows 单机/课堂版基础运行层落地
+时间：2026-05-13
+
+- 变更原因：为 Windows 单机版和 Windows 局域网课堂版建立后端基础运行层，支持本地 SQLite、diskcache、本地目录自动创建和启动时 SQLite 运行参数配置，同时保留服务器版默认行为。
+- 涉及文件：
+  - `backend/app/config.py`
+  - `backend/app/core/dependencies.py`
+  - `backend/app/core/cache.py`
+  - `backend/app/core/runtime.py`
+  - `backend/app/main.py`
+  - `backend/requirements.txt`
+  - `backend/tests/test_runtime_config.py`
+  - `operations-log.md`
+- 核心改动：
+  - 新增 `app_edition` 运行版本配置，支持 `development`、`windows_local`、`windows_classroom`、`server` 四种模式。
+  - Windows 版本默认回落到本地 SQLite 文件数据库，并为文件型 SQLite 注入 SQLAlchemy `timeout` 连接参数。
+  - 新增 `InMemoryCache`、`DiskCacheAdapter`、`RedisCachePlaceholder` 缓存抽象，Windows 版本默认解析为 `diskcache`，服务器版默认解析为 `redis`，开发环境默认内存缓存。
+  - 新增运行时目录创建和 SQLite pragma 初始化逻辑，Windows 课堂版启用 `journal_mode=WAL`，并在应用启动时统一执行。
+  - 后端依赖新增 `diskcache`，并补充运行版本、缓存和 SQLite 运行配置的测试。
+- 验证结果：
+  - 已执行：`project_code/.venv/bin/python -m pytest project_code/backend/tests/test_runtime_config.py -q`
+  - 结果：`6 passed`，仅有 `passlib` 相关的既有弃用警告 1 条。
+
+## 新增人工功能测试计划文档
+时间：2026-05-13 00:00:00
+
+- 变更原因：根据已确认的联合开发资料，补充一份面向测试人员的中文人工功能测试文档，便于按“测试清单 + 测试用例表”方式安排执行，集中验证在线学习平台主流程是否正常。
+- 涉及文件：
+  - `docs/manual-functional-test-plan.md`
+- 核心改动：
+  - 新增人工功能测试文档，覆盖文档目的、测试范围与角色说明、测试环境与账号、正常功能测试总清单、详细测试用例表、异常与边界补充项、验收标准、常见问题与处理建议。
+  - 测试用例表统一使用“用例ID / 模块 / 优先级 / 前置条件 / 操作步骤 / 预期结果 / 备注”字段，并按健康检查、认证与路由权限、首页/课程浏览、课程详情、学习页与进度、个人中心、消息、反馈、教师课程管理、课程内容与资源上传、管理员后台、分类/标签/公告、文件上传等模块整理。
+  - 文档账号口径改为种子数据账号 `admin1/Admin123456`、`teacher1~teacher6/Test123456`、`student1~student2/Test123456`，并补充前后端 URL 与基本验收标准。
+- 验证结果：
+  - 已执行：人工核对文档结构、账号口径、模块覆盖范围与接口路径引用是否与现有资料一致。
+  - 未执行：未运行代码测试；本次仅新增/修改文档。
+
+## 新增人工功能测试表格版文档
+时间：2026-05-13
+
+- 变更原因：用户要求将人工功能测试计划进一步整理成表格版，便于测试负责人直接分配人员、记录执行结果、登记问题和复测结论。
+- 涉及文件：
+  - `docs/manual-functional-test-table.md`
+  - `operations-log.md`
+- 核心改动：
+  - 新增表格版人工测试文档，包含测试环境表、账号表、测试任务分配总表、详细测试用例执行表、异常与边界抽测表、验收结论表和问题记录模板。
+  - 在详细执行表中补充“推荐账号、执行结果、问题编号、复测结果”等列，方便复制到在线表格后直接安排人员执行。
+  - 保留原 `docs/manual-functional-test-plan.md` 作为完整说明版，表格版作为测试执行和记录用版本。
+- 验证结果：
+  - 已执行：人工核对表格版文档覆盖健康检查、认证、课程、学习、个人中心、消息、反馈、教师端、管理员端、上传和异常边界等测试范围。
+  - 未执行：未运行代码测试；本次仅新增文档。
+
+## Windows 单机版 SPA fallback 与启动命令收口
+时间：2026-05-13
+
+- 变更原因：Windows 单机版后端 SPA fallback 会把未知 `/api/...` 与 `/uploads/...` 路径返回前端 `index.html`，掩盖真实 404；同时根级启动脚本中 uvicorn 启动命令存在嵌套引号风险，路径包含空格时容易被 `cmd` 错误解析。
+- 涉及文件：
+  - `backend/app/main.py`
+  - `backend/tests/test_runtime_config.py`
+  - `../start-windows-local.cmd`
+  - `operations-log.md`
+- 核心改动：
+  - 在 `app.main` 中新增纯 helper 判断 SPA fallback 是否应处理未命中路径，明确排除 `/api`、`/api/v1` 和 `/uploads` 路径，真实前端路由仍回落到 `index.html`。
+  - 在 Windows 单机版 fallback 路由中接入该 helper，避免未知 API 或上传静态资源路径被前端页面吞掉。
+  - 为 fallback 决策补充聚焦单元测试，覆盖真实前端路由允许回落、API 与上传路径拒绝回落。
+  - 调整 `start-windows-local.cmd` 的新窗口 uvicorn 启动命令，改用继承当前脚本环境并对 Python、日志和工作目录路径分别加引号的 `cmd /d /s /c` 形式，保留配置加载、UI 构建、端口检查、日志重定向、健康检查与打开浏览器流程。
+- 验证结果：
+  - 已执行：`/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/.venv/bin/python -m pytest /Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend/tests/test_runtime_config.py -q`
+  - 结果：`16 passed, 1 warning`，警告为既有 `passlib` 依赖使用 Python `crypt` 的弃用提示。
+
+## Windows 单机版实机测试检查清单文档
+时间：2026-05-13
+
+- 变更原因：将 Windows 单机版实机测试检查项整理成独立文档，方便同事在真实 Windows 环境按步骤验证启动、登录、核心页面、上传、路由刷新、重启保留和异常场景。
+- 涉及文件：
+  - `../docs/windows-local-real-machine-test-checklist.md`
+  - `operations-log.md`
+- 核心改动：
+  - 新增 Windows 单机版实机测试检查清单，覆盖环境记录、首次启动、种子账号登录、核心功能冒烟、上传与静态文件、SPA 路由刷新/API 404、重启数据保留、端口占用、异常场景和反馈模板。
+  - 明确需要同事回传控制台截图、启动日志、错误日志和浏览器 Console/Network 截图，便于后续定位真实环境问题。
+- 验证结果：
+  - 已执行：人工核对文档结构、路径口径、账号口径和日志收集项。
+  - 未执行：未在真实 Windows 环境运行；后续由同事实机测试。
