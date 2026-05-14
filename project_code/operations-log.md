@@ -665,3 +665,19 @@
   - 结果：`3 passed`。
   - 已执行：真实 API `POST /api/v1/auth/login` + `GET /api/v1/messages/unread-count`。
   - 结果：管理员未读统计返回 `total=0`，`announcement=0`。
+
+## 教师创建标签权限修复
+时间：2026-05-14
+
+- 变更原因：教师发布或编辑课程时需要能创建标签，但不能获得分类创建或标签删除/批量删除能力。
+- 涉及文件：
+  - `backend/app/api/v1/tags.py`
+  - `backend/tests/test_system.py`
+  - `operations-log.md`
+- 核心改动：
+  - `POST /api/v1/tags` 对教师改用既有 `teacher.course` 权限校验，管理员继续使用 `admin.tag`，学生仍返回“无权创建标签”。
+  - `DELETE /api/v1/tags/{tag_id}` 与 `POST /api/v1/tags/batch-delete` 保持 `admin.tag` 权限校验，默认教师不能删除标签。
+  - 补充默认教师可创建标签、默认教师不可创建分类、默认教师不可删除/批量删除标签的回归测试。
+- 验证结果：
+  - 已执行：`/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/.venv/bin/python -m pytest /Users/jacob/Developer/a3.learn_platform/learning-platform/.claude/worktrees/20250514_Fix_bug-backend-tags/project_code/backend/tests/test_system.py -k "tag or category" -v`。
+  - 结果：`29 passed, 11 warnings`，警告为既有 passlib `crypt` 与 FastAPI 422 常量弃用提示。
