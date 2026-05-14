@@ -838,3 +838,23 @@
   - 备注：构建仍提示大体积 chunk 警告，但不影响本次课程管理合并改动。
   - 已执行：在本地 Vite + 后端服务下用 Playwright 通过真实登录页登录 `admin1@example.com`，检查 `/admin/courses` 标题、已发布筛选、搜索框、表格选择列、下架按钮、授权按钮、无教师创建课程入口，以及授权抽屉标题、当前授权老师、添加授权、候选老师搜索和授予统计授权按钮。
   - 结果：浏览器断言全部通过，控制台无 error/warning。
+
+## 教师端消息与资源入口逻辑修复
+时间：2026-05-14
+
+- 变更原因：修复教师端反馈页缺少返回课程管理入口、Header 角标未计入待处理学生反馈、章节资源入口文案误导，以及教师消息中心通知详情展示多余相关链接的问题。
+- 涉及文件：
+  - `src/views/teacher/FeedbackManagePage.vue`
+  - `src/components/layout/AppHeader.vue`
+  - `src/views/teacher/TeacherMessageCenterPage.vue`
+  - `src/views/teacher/components/ChapterManager.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 课程反馈页头部新增“返回课程管理”按钮，点击返回 `/teacher/courses`，并补充移动端纵向排列。
+  - Header 教师角标改为平台通知未读数加待处理学生反馈总数；教师消息中心刷新统计时同步写入合并后的角标数量。
+  - 教师消息中心“平台通知详情”移除“查看相关链接”展示，保留通知内容和删除操作。
+  - 章节目录中“整体资源管理”更名为“章节直属资源”，保持现有章节直属资源管理语义，不聚合小节资源。
+- 验证结果：
+  - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/.claude/worktrees/20250514_Fix_bug-ui/UI" run build`。
+  - 结果：通过；构建仍提示既有大体积 chunk 警告，并提示 `AdminMessagePage.vue` 既被动态导入又被静态导入，本次未扩大处理范围。
+  - 备注：首次构建因 worktree 依赖缺失失败，已在该 worktree 执行 `npm install` 补齐依赖；`npm audit` 提示 1 个既有 high severity 依赖审计项，本次未自动升级依赖。

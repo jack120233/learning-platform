@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { ChatDotRound, Search } from '@element-plus/icons-vue'
+import { Back, ChatDotRound, Search } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
 import { usePagination } from '@/composables/usePagination'
 import { useUserStore } from '@/store/user'
 import {
@@ -14,6 +15,7 @@ import {
 } from '@/api/teacher'
 import UserIdentity from '@/components/common/UserIdentity.vue'
 
+const router = useRouter()
 const userStore = useUserStore()
 const statusFilter = ref<'all' | 'pending' | 'processed'>('all')
 const keyword = ref('')
@@ -70,6 +72,10 @@ function formatTime(time: string | null | undefined) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function handleBackToCourses() {
+  router.push('/teacher/courses')
 }
 
 async function loadFeedbackDetail(feedbackId: number) {
@@ -159,7 +165,10 @@ onMounted(() => {
         <h2 class="page-title">课程反馈</h2>
         <p class="page-desc">处理学生提交到你负责课程的视频、学习和课程问题。</p>
       </div>
-      <el-tag v-if="pendingCount > 0" type="warning">{{ pendingCount }} 条待处理</el-tag>
+      <div class="page-actions">
+        <el-button :icon="Back" @click="handleBackToCourses">返回课程管理</el-button>
+        <el-tag v-if="pendingCount > 0" type="warning">{{ pendingCount }} 条待处理</el-tag>
+      </div>
     </div>
 
     <div class="filter-bar">
@@ -437,6 +446,14 @@ onMounted(() => {
     color: $text-secondary;
     font-size: $font-size-sm;
   }
+
+  .page-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
 }
 
 .filter-bar {
@@ -635,6 +652,7 @@ onMounted(() => {
 
 @media (max-width: 768px) {
   .teacher-feedback-page .page-header,
+  .teacher-feedback-page .page-actions,
   .filter-bar,
   .filter-right {
     align-items: stretch;

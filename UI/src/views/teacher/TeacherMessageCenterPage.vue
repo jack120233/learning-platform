@@ -177,19 +177,25 @@ function formatTime(time: string | null | undefined) {
   })
 }
 
+function syncHeaderUnreadCount() {
+  userStore.setUnreadCount(unreadNoticeTotal.value + pendingFeedbackTotal.value)
+}
+
 async function syncUnreadCount() {
   const data = await fetchUnreadCount()
   unreadNoticeTotal.value = data.unread_count
-  userStore.setUnreadCount(data.unread_count)
+  syncHeaderUnreadCount()
 }
 
 async function loadStats() {
   try {
-    const [pendingData] = await Promise.all([
+    const [pendingData, unreadData] = await Promise.all([
       fetchTeacherFeedbacks({ status: 'pending', page: 1, page_size: 1 }),
-      syncUnreadCount(),
+      fetchUnreadCount(),
     ])
     pendingFeedbackTotal.value = pendingData.total
+    unreadNoticeTotal.value = unreadData.unread_count
+    syncHeaderUnreadCount()
   } catch {
     ElMessage.warning('统计数据加载不完整')
   }
@@ -1097,9 +1103,6 @@ watch(notices, (currentNotices) => {
         </div>
         <h3 class="notice-detail-title">{{ currentNotice.title }}</h3>
         <div class="rich-content notice-detail-content">{{ currentNotice.content }}</div>
-        <el-link v-if="currentNotice.link" :href="currentNotice.link" type="primary" target="_blank" rel="noopener noreferrer">
-          查看相关链接
-        </el-link>
         <div class="drawer-action-area">
           <div class="soft-action-surface">
             <el-button

@@ -5,6 +5,7 @@ import { ElMessageBox, ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { useBreakpoint } from '@/composables/useBreakpoint'
 import { fetchUnreadCount } from '@/api/profile'
+import { fetchTeacherFeedbacks } from '@/api/teacher'
 import UnreadLabelBadge from '@/components/common/UnreadLabelBadge.vue'
 import UserIdentity from '@/components/common/UserIdentity.vue'
 
@@ -99,7 +100,14 @@ async function syncUnreadCount() {
 
   try {
     const response = await fetchUnreadCount()
-    userStore.setUnreadCount(response.unread_count)
+    let unreadCount = response.unread_count
+
+    if (userStore.isTeacher && userStore.canAccessTeacherCenter) {
+      const pendingFeedbacks = await fetchTeacherFeedbacks({ status: 'pending', page: 1, page_size: 1 })
+      unreadCount += pendingFeedbacks.total
+    }
+
+    userStore.setUnreadCount(unreadCount)
   } catch (error) {
     // 头部角标同步失败时不阻断页面使用
   }
