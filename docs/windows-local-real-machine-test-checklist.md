@@ -18,7 +18,28 @@
 - 普通路径：`D:\learning-platform`
 - 含空格路径：`D:\Test Folder\learning-platform`
 
-## 2. 首次启动测试
+## 2. 交付包完整性检查
+
+### 操作
+
+在一个全新的解压目录中检查交付包，优先覆盖普通路径和含空格路径。
+
+必须存在：
+
+- `start-windows-local.cmd`
+- `config\windows-local.env`
+- `project_code\.venv\Scripts\python.exe` 或等价后端运行环境
+- `UI\dist\index.html`，或 `UI\package.json` + 可用 npm 构建环境
+
+### 预期结果
+
+- 不需要用户安装 MySQL。
+- 不需要用户安装 Redis。
+- 不需要用户手动执行 `init_db.py` 或 `seed_data.py`。
+- 如果是 `zip + launcher` 形态，解压后应能直接进入首次启动测试。
+- 如果后续改为安装器形态，安装器必须默认保留用户数据，并明确说明卸载/升级行为。
+
+## 3. 首次启动测试
 
 ### 操作
 

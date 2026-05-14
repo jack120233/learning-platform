@@ -12,9 +12,12 @@
 | 了解当前项目总体架构 | [`current-architecture.md`](./current-architecture.md) |
 | 了解 Windows 单机版目标、边界、配置和验收 | [`windows-local-implementation-details.md`](./windows-local-implementation-details.md) |
 | 直接推进 Windows 单机版开发 | [`windows-local-development-checklist.md`](./windows-local-development-checklist.md) |
+| 安排 Windows 单机版真实环境测试 | [`windows-local-real-machine-test-checklist.md`](./windows-local-real-machine-test-checklist.md) |
 | 了解 Windows 局域网课堂版目标、边界、配置和验收 | [`windows-classroom-implementation-details.md`](./windows-classroom-implementation-details.md) |
 | 直接推进 Windows 局域网课堂版开发 | [`windows-classroom-development-checklist.md`](./windows-classroom-development-checklist.md) |
 | 确认开发时应该在哪个分支 | [`.trellis/spec/backend/runtime-editions.md`](../.trellis/spec/backend/runtime-editions.md) |
+
+推荐阅读顺序：先读本索引确认版本和分支，再读对应版本的实施细则，随后按开发任务清单推进；单机版实机测试看 `windows-local-real-machine-test-checklist.md`，课堂版规模验证看 `windows-classroom-development-checklist.md` 的课堂规模验证章节。
 
 ## 2. 分支与版本对应关系
 
