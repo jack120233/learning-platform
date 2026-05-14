@@ -666,6 +666,30 @@
   - 已执行：真实 API `POST /api/v1/auth/login` + `GET /api/v1/messages/unread-count`。
   - 结果：管理员未读统计返回 `total=0`，`announcement=0`。
 
+## 上传文件 URL 改为相对路径
+时间：2026-05-14 15:36:33
+
+- 变更原因：历史 upload_service 把 `request.base_url` 拼到上传文件 URL 前面写入数据库，导致 DB 里存的形如 `http://localhost:8000/uploads/files/xxx.pdf` 是绝对 URL。前端从 `127.0.0.1:3000` 或 `localhost:3000` 访问时，浏览器看到绝对 URL 就直接打到 8000 端口，绕过 Vite `/api`、`/uploads` 代理并触发跨域，学习页 vue-office-pdf 无法加载 PDF。
+- 涉及文件：
+  - `backend/app/services/upload_service.py`
+  - `backend/app/api/v1/uploads.py`
+  - `backend/app/api/v1/courses.py`
+  - `backend/scripts/migrate_strip_upload_prefix.py`（新增）
+  - `backend/tests/test_uploads.py`
+  - `backend/tests/test_courses.py`
+  - `operations-log.md`
+- 核心改动：
+  - `_save_upload_file` / `complete_chunk_upload` 不再拼接 `base_url`，直接返回 `/<upload_url_prefix>/<subdir>/<saved_name>` 相对路径；`save_file` / `save_avatar` / `save_feedback_image` / `complete_chunk_upload` 公共方法删掉 `base_url` 参数。
+  - `uploads.py` 四个上传路由删掉 `Request` 依赖和 `base_url=str(request.base_url)` 透传；`courses.py:376` 课程资料上传同步去掉 `base_url=`。
+  - 新增 `scripts/migrate_strip_upload_prefix.py` 数据迁移脚本，只对解析得到的 path 以 `upload_url_prefix` 开头的绝对 URL 做剥离，外部 URL（例如种子数据 `https://example.com/...`）保持原样；覆盖 `courses.cover_url`、`resources.file_url`、`course_materials.file_url`、`users.avatar` 及 JSON 列 `feedbacks.images`、`teacher_audits.certificate_urls`。
+  - `tests/test_uploads.py` / `tests/test_courses.py` 上传响应断言由 `http://test/uploads/...` 改成 `/uploads/...`，其他用作 DB fixture 数据的字段保留原值，不影响测试。
+- 验证结果：
+  - 已执行：`cd "/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/backend" && ../.venv/bin/python -m pytest tests/test_uploads.py tests/test_courses.py tests/test_content.py tests/test_learning.py --tb=short`
+  - 结果：`14 passed`（uploads）和 `51 passed`（courses + content + learning）；警告为既有 passlib `crypt` 与 FastAPI 422 常量弃用警告。
+  - 未执行：本地真实数据库 `scripts/migrate_strip_upload_prefix.py` 跑批，留待部署阶段执行；脚本会逐表逐行只更新需要剥离的记录，不动外部 URL。
+  - 未执行：浏览器端 PDF 实测，需重启后端 + 跑迁移 + 重启 Vite dev server 后由用户访问 `http://127.0.0.1:3000/learn/1?sectionId=9&resourceId=20` 复测。
+
+
 
 ## Windows 单机/课堂版基础运行层落地
 时间：2026-05-13

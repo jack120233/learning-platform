@@ -838,3 +838,25 @@
   - 备注：构建仍提示大体积 chunk 警告，但不影响本次课程管理合并改动。
   - 已执行：在本地 Vite + 后端服务下用 Playwright 通过真实登录页登录 `admin1@example.com`，检查 `/admin/courses` 标题、已发布筛选、搜索框、表格选择列、下架按钮、授权按钮、无教师创建课程入口，以及授权抽屉标题、当前授权老师、添加授权、候选老师搜索和授予统计授权按钮。
   - 结果：浏览器断言全部通过，控制台无 error/warning。
+
+
+## 上传文件 URL 改走 Vite 代理并兜底剥离绝对前缀
+时间：2026-05-14 15:36:33
+
+- 变更原因：学习页 `LearningPage.vue` 中 vue-office-pdf 直接用后端返回的绝对 URL（例如 `http://localhost:8000/uploads/files/xxx.pdf`）加载 PDF，浏览器从 `127.0.0.1:3000` 或 `localhost:3000` 访问时会绕过 Vite 的 `/api`、`/uploads` 代理并触发跨域，导致 PDF 打不开。需要让前端走当前 origin + Vite 代理，并对历史数据里残留的绝对 URL 做兜底剥离。
+- 涉及文件：
+  - `vite.config.ts`
+  - `src/utils/url.ts`（新增）
+  - `src/views/learn/LearningPage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - `vite.config.ts` 的 `server.proxy` 在 `/api` 之外新增 `/uploads`，同样转发到 `http://localhost:8000`，使浏览器对 `/uploads/...` 的请求直接走 Vite dev server。
+  - 新增 `src/utils/url.ts` 暴露 `normalizeUploadUrl(value)`：当传入值是绝对 URL 且 path 以 `/uploads/` 开头时，剥成 `pathname + search + hash`；其它绝对 URL（外部 CDN/资源）与纯相对路径保持原样。
+  - `LearningPage.vue` 在 `setActiveResource` 写入 `fileUrl` 之前调用 `normalizeUploadUrl(playInfo.file_url)`，兜底处理后端尚未走完数据迁移时残留的绝对 URL，保证 PDF/视频/音频/图片/文档统一走当前 origin。
+- 验证结果：
+  - 已执行：`cd "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" && npx vue-tsc --noEmit -p tsconfig.app.json`
+  - 结果：退出码 0，无类型错误。
+  - 已执行：`cd "/Users/jacob/Developer/a3.learn_platform/learning-platform/UI" && npx vue-tsc -b --force`
+  - 结果：退出码 0。
+  - 未执行：浏览器实测。需要重启 Vite dev server 让 `vite.config.ts` 生效，并由用户访问 `http://127.0.0.1:3000/learn/1?sectionId=9&resourceId=20` 复测 PDF；后端侧请配套运行 `project_code/backend/scripts/migrate_strip_upload_prefix.py` 把存量 file_url 改成相对路径。
+
