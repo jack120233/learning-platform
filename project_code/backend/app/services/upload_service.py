@@ -72,26 +72,23 @@ class UploadService:
     async def save_file(
         self,
         file: UploadFile,
-        base_url: str,
     ) -> dict[str, str | int | None]:
         """保存上传文件并返回访问信息。"""
         subdir, max_size = self._resolve_storage(
             Path(file.filename or "").suffix.lower(),
             file.content_type.lower() if file.content_type else None,
         )
-        return await self._save_upload_file(file, base_url, subdir, max_size)
+        return await self._save_upload_file(file, subdir, max_size)
 
     async def save_avatar(
         self,
         file: UploadFile,
-        base_url: str,
     ) -> dict[str, str | int | None]:
         """保存头像文件并返回访问信息。"""
         self._validate_avatar_image(file, "仅支持 JPG/PNG/GIF 格式头像")
 
         return await self._save_upload_file(
             file,
-            base_url,
             settings.avatar_subdir,
             settings.course_cover_max_size,
         )
@@ -99,14 +96,12 @@ class UploadService:
     async def save_feedback_image(
         self,
         file: UploadFile,
-        base_url: str,
     ) -> dict[str, str | int | None]:
         """保存反馈截图并返回访问信息。"""
         self._validate_feedback_image(file)
 
         return await self._save_upload_file(
             file,
-            base_url,
             settings.feedback_image_subdir,
             settings.course_cover_max_size,
         )
@@ -132,7 +127,6 @@ class UploadService:
     async def _save_upload_file(
         self,
         file: UploadFile,
-        base_url: str,
         subdir: str,
         max_size: int,
     ) -> dict[str, str | int | None]:
@@ -156,8 +150,7 @@ class UploadService:
         with save_path.open("wb") as output_file:
             output_file.write(content)
 
-        relative_url = f"{settings.upload_url_prefix.rstrip('/')}/{subdir}/{saved_name}"
-        file_url = f"{base_url.rstrip('/')}{relative_url}"
+        file_url = f"{settings.upload_url_prefix.rstrip('/')}/{subdir}/{saved_name}"
 
         await file.close()
 
@@ -247,7 +240,6 @@ class UploadService:
     async def complete_chunk_upload(
         self,
         data: ChunkUploadCompleteRequest,
-        base_url: str,
     ) -> dict[str, str | int | None]:
         """合并并完成分片上传。"""
         lock = self._get_upload_lock(data.upload_id)
@@ -302,8 +294,7 @@ class UploadService:
                     save_path.unlink(missing_ok=True)
                     raise ValidationException("合并后的文件大小校验失败")
 
-                relative_url = f"{settings.upload_url_prefix.rstrip('/')}/{subdir}/{saved_name}"
-                file_url = f"{base_url.rstrip('/')}{relative_url}"
+                file_url = f"{settings.upload_url_prefix.rstrip('/')}/{subdir}/{saved_name}"
 
                 shutil.rmtree(session_dir, ignore_errors=True)
 

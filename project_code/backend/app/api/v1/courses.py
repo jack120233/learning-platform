@@ -373,7 +373,7 @@ async def create_material(
         if upload_file is None or not hasattr(upload_file, "filename"):
             raise ValidationException("请上传资料文件")
 
-        upload_result = await upload_service.save_file(file=upload_file, base_url=str(request.base_url))
+        upload_result = await upload_service.save_file(file=upload_file)
         file_name = str(upload_result["file_name"])
         data = MaterialCreate(
             name=file_name,

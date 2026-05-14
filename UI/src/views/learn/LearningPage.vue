@@ -32,6 +32,7 @@ import { BREAKPOINT_VALUES, useBreakpoint } from '@/composables/useBreakpoint'
 import { useLearningSession } from '@/composables/useLearningSession'
 import { useProgressSync } from '@/composables/useProgressSync'
 import { formatDuration } from '@/utils/format'
+import { normalizeUploadUrl } from '@/utils/url'
 
 const route = useRoute()
 const router = useRouter()
@@ -397,7 +398,7 @@ async function switchResource(sectionId: number | null, resourceId: number, chap
         resourceType: playInfo.resource_type,
         sectionId,
         chapterId,
-        fileUrl: playInfo.file_url,
+        fileUrl: normalizeUploadUrl(playInfo.file_url),
         totalTime: playInfo.duration,
       })
     } else {

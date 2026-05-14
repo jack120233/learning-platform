@@ -683,7 +683,7 @@ class TestCourseCoverUpload:
         assert data["data"]["file_name"] == "course-cover.png"
         assert data["data"]["file_size"] == len(file_content)
         assert data["data"]["url"] == data["data"]["file_url"]
-        assert data["data"]["file_url"].startswith("http://test/uploads/course-covers/")
+        assert data["data"]["file_url"].startswith("/uploads/course-covers/")
 
         upload_path = urlparse(data["data"]["file_url"]).path
         file_path = Path(settings.upload_dir) / Path(upload_path.lstrip("/")).relative_to("uploads")
@@ -821,7 +821,7 @@ class TestCourseMaterials:
         assert data["material_id"] > 0
         assert data["file_name"] == "lesson-outline.pdf"
         assert data["file_type"] == "pdf"
-        assert data["file_url"].startswith("http://test/uploads/files/")
+        assert data["file_url"].startswith("/uploads/files/")
 
         upload_path = urlparse(data["file_url"]).path
         file_path = Path(settings.upload_dir) / Path(upload_path.lstrip("/")).relative_to("uploads")

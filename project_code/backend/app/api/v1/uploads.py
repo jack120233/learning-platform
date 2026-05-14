@@ -1,6 +1,6 @@
 """文件上传 API 路由。"""
 
-from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi import APIRouter, File, Form, UploadFile
 
 from app.core.dependencies import CurrentUserId, DBSession
 from app.core.exceptions import ForbiddenException, NotFoundException
@@ -55,7 +55,6 @@ async def _ensure_feedback_image_upload_permission(db: DBSession, user_id: Curre
     description="上传课程封面、文档或常见音视频资源，返回统一文件信息",
 )
 async def upload_file(
-    request: Request,
     db: DBSession,
     user_id: CurrentUserId,
     file: UploadFile = File(..., description="上传文件"),
@@ -63,10 +62,7 @@ async def upload_file(
     """统一文件上传接口。"""
     await _ensure_upload_permission(db, user_id)
 
-    upload_result = await upload_service.save_file(
-        file=file,
-        base_url=str(request.base_url),
-    )
+    upload_result = await upload_service.save_file(file=file)
 
     return ApiResponse.success(
         data=UploadFileResponse(**upload_result),
@@ -81,7 +77,6 @@ async def upload_file(
     description="上传当前登录用户的头像，返回统一文件信息",
 )
 async def upload_avatar(
-    request: Request,
     db: DBSession,
     user_id: CurrentUserId,
     file: UploadFile = File(..., description="头像文件"),
@@ -89,10 +84,7 @@ async def upload_avatar(
     """头像上传接口。"""
     await _ensure_avatar_upload_permission(db, user_id)
 
-    upload_result = await upload_service.save_avatar(
-        file=file,
-        base_url=str(request.base_url),
-    )
+    upload_result = await upload_service.save_avatar(file=file)
 
     return ApiResponse.success(
         data=UploadFileResponse(**upload_result),
@@ -107,7 +99,6 @@ async def upload_avatar(
     description="上传当前登录用户提交反馈时使用的截图，返回统一文件信息",
 )
 async def upload_feedback_image(
-    request: Request,
     db: DBSession,
     user_id: CurrentUserId,
     file: UploadFile = File(..., description="反馈截图文件"),
@@ -115,10 +106,7 @@ async def upload_feedback_image(
     """反馈截图上传接口。"""
     await _ensure_feedback_image_upload_permission(db, user_id)
 
-    upload_result = await upload_service.save_feedback_image(
-        file=file,
-        base_url=str(request.base_url),
-    )
+    upload_result = await upload_service.save_feedback_image(file=file)
 
     return ApiResponse.success(
         data=UploadFileResponse(**upload_result),
@@ -179,17 +167,13 @@ async def upload_chunk(
     description="校验并合并所有分片，返回统一文件信息",
 )
 async def complete_chunk_upload(
-    request: Request,
     data: ChunkUploadCompleteRequest,
     db: DBSession,
     user_id: CurrentUserId,
 ) -> ApiResponse[UploadFileResponse]:
     """完成分片上传。"""
     await _ensure_upload_permission(db, user_id)
-    result = await upload_service.complete_chunk_upload(
-        data=data,
-        base_url=str(request.base_url),
-    )
+    result = await upload_service.complete_chunk_upload(data=data)
     return ApiResponse.success(
         data=UploadFileResponse(**result),
         message="上传成功",
