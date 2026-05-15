@@ -25,7 +25,7 @@ const userStore = useUserStore()
 const { isMobile } = useBreakpoint()
 const TeacherMessageCenter = defineAsyncComponent(() => import('@/views/teacher/TeacherMessageCenterPage.vue'))
 const AdminMessageCenter = defineAsyncComponent(() => import('@/views/admin/AdminMessagePage.vue'))
-const isTeacherMessageCenter = computed(() => userStore.isTeacher && !userStore.isAdmin)
+const isTeacherMessageCenter = computed(() => userStore.isTeacher && !userStore.isAdmin && !userStore.isPendingTeacher)
 const isAdminMessageCenter = computed(() => userStore.isAdmin)
 
 // 筛选状态
