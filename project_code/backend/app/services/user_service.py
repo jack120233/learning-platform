@@ -1,6 +1,6 @@
 """用户管理服务模块
 
-提供用户信息管理、讲师审核、管理员申请等业务逻辑。
+提供用户信息管理、老师审核、管理员申请等业务逻辑。
 """
 
 import json
@@ -400,7 +400,6 @@ class UserService:
                 or_(
                     User.username.ilike(f"%{keyword}%"),
                     User.email.ilike(f"%{keyword}%"),
-                    User.nickname.ilike(f"%{keyword}%"),
                 )
             )
         if role:
@@ -539,7 +538,7 @@ class UserService:
 
 
 class TeacherAuditService:
-    """讲师审核服务类"""
+    """老师审核服务类"""
 
     async def apply(
         self,
@@ -547,7 +546,7 @@ class TeacherAuditService:
         user_id: int,
         data: TeacherAuditApply,
     ) -> TeacherAudit:
-        """申请成为讲师
+        """申请成为老师
 
         Args:
             db: 数据库会话
@@ -558,15 +557,15 @@ class TeacherAuditService:
             申请记录
 
         Raises:
-            ConflictException: 已有待审核的申请或已是讲师
+            ConflictException: 已有待审核的申请或已是老师
         """
         user = await db.get(User, user_id)
         if not user:
             raise NotFoundException("用户不存在")
 
-        # 检查是否已是讲师
+        # 检查是否已是老师
         if user.role == "teacher":
-            raise ConflictException("您已是讲师")
+            raise ConflictException("您已是老师")
 
         # 检查是否有待审核的申请
         pending = await self._get_pending_application(db, user_id)
@@ -632,7 +631,7 @@ class TeacherAuditService:
         data: TeacherAuditReview,
         reviewer_id: int,
     ) -> TeacherAudit:
-        """审核讲师申请（管理员）
+        """审核老师申请（管理员）
 
         Args:
             db: 数据库会话
@@ -660,11 +659,17 @@ class TeacherAuditService:
         audit.review_comment = data.comment
         audit.reviewed_at = datetime.now(timezone.utc)
 
-        # 如果通过，更新用户角色
+        # 如果通过，更新用户角色与状态
         if data.approve:
             user = await db.get(User, audit.user_id)
             if user:
                 user.role = "teacher"
+                user.status = "active"
+        else:
+            user = await db.get(User, audit.user_id)
+            if user:
+                user.role = "student"
+                user.status = "active"
 
         await db.flush()
         return audit

@@ -6,11 +6,14 @@
 import json
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import CurrentUser, DBSession, CurrentUserId
 from app.schemas.common import ApiResponse, PageData
 from app.schemas.feedback import FeedbackResponse
+from app.models.teacher_audit import TeacherAudit
+from app.models.user import User
 from app.schemas.user import (
     AdminApplicationCreate,
     AdminApplicationResponse,
@@ -172,8 +175,6 @@ async def get_teacher_options(
             TeacherOptionResponse(
                 teacher_id=teacher.id,
                 username=teacher.username,
-                nickname=teacher.nickname,
-                avatar=teacher.avatar,
             )
             for teacher in teachers
         ]
@@ -321,13 +322,13 @@ async def delete_user(
     return ApiResponse.success(message="删除成功")
 
 
-# ==================== 讲师审核 ====================
+# ==================== 老师审核 ====================
 
 @router.get(
     "/teacher-audits",
     response_model=ApiResponse[PageData[TeacherAuditResponse]],
-    summary="讲师审核列表",
-    description="获取讲师申请审核列表（管理员权限）",
+    summary="老师审核列表",
+    description="获取老师申请审核列表（管理员权限）",
 )
 async def get_teacher_audits(
     db: DBSession,
@@ -336,49 +337,46 @@ async def get_teacher_audits(
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=10, ge=1, le=50, description="每页数量"),
 ) -> ApiResponse[PageData[TeacherAuditResponse]]:
-    """获取讲师审核列表接口"""
+    """获取老师审核列表接口"""
     await permission_service.ensure_permission(
         db,
         current_user.role,
         "admin.teacher_audit",
-        "无权查看讲师审核列表",
+        "无权查看老师审核列表",
     )
-    permission_service.ensure_admin(current_user.role, "仅管理员可查看讲师审核列表")
-    audits, total = await teacher_audit_service.get_list(
-        db,
-        status=status,
-        page=page,
-        page_size=page_size,
+    permission_service.ensure_admin(current_user.role, "仅管理员可查看老师审核列表")
+    base_query = select(TeacherAudit, User.username).outerjoin(User, User.id == TeacherAudit.user_id)
+    if status:
+        base_query = base_query.where(TeacherAudit.status == status)
+
+    count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
+    total = count_result.scalar() or 0
+
+    result = await db.execute(
+        base_query
+        .order_by(TeacherAudit.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
 
-    # 转换并添加用户名
     items = []
-    for audit in audits:
-        audit_dict = {
-            "id": audit.id,
-            "user_id": audit.user_id,
-            "real_name": audit.real_name,
-            "phone": audit.phone,
-            "email": audit.email,
-            "organization": audit.organization,
-            "title": audit.title,
-            "introduction": audit.introduction,
-            "certificate_urls": json.loads(audit.certificate_urls) if audit.certificate_urls else None,
-            "status": audit.status,
-            "review_comment": audit.review_comment,
-            "created_at": audit.created_at,
-            "reviewed_at": audit.reviewed_at,
-        }
-        # 获取用户名
-        user = await db.get(User, audit.user_id) if hasattr(db, 'get') else None
-        if user:
-            from app.models.user import User
-            result = await db.execute(
-                __import__('sqlalchemy', fromlist=['select']).select(User.username).where(User.id == audit.user_id)
-            )
-            username = result.scalar_one_or_none()
-            audit_dict["username"] = username
-        items.append(TeacherAuditResponse(**audit_dict))
+    for audit, username in result.all():
+        items.append(TeacherAuditResponse(
+            id=audit.id,
+            user_id=audit.user_id,
+            username=username,
+            real_name=audit.real_name,
+            phone=audit.phone,
+            email=audit.email,
+            organization=audit.organization,
+            title=audit.title,
+            introduction=audit.introduction,
+            certificate_urls=json.loads(audit.certificate_urls) if audit.certificate_urls else None,
+            status=audit.status,
+            review_comment=audit.review_comment,
+            created_at=audit.created_at,
+            reviewed_at=audit.reviewed_at,
+        ))
 
     return ApiResponse.success(
         data=PageData.create(
@@ -393,8 +391,8 @@ async def get_teacher_audits(
 @router.post(
     "/teacher-audits/{audit_id}/review",
     response_model=ApiResponse[TeacherAuditResponse],
-    summary="审核讲师",
-    description="审核讲师申请（管理员权限）",
+    summary="审核老师",
+    description="审核老师申请（管理员权限）",
 )
 async def review_teacher_audit(
     audit_id: int,
@@ -402,14 +400,14 @@ async def review_teacher_audit(
     db: DBSession,
     current_user: CurrentUser,
 ) -> ApiResponse[TeacherAuditResponse]:
-    """审核讲师申请接口"""
+    """审核老师申请接口"""
     await permission_service.ensure_permission(
         db,
         current_user.role,
         "admin.teacher_audit",
-        "无权审核讲师申请",
+        "无权审核老师申请",
     )
-    permission_service.ensure_admin(current_user.role, "仅管理员可审核讲师申请")
+    permission_service.ensure_admin(current_user.role, "仅管理员可审核老师申请")
     audit = await teacher_audit_service.review(db, audit_id, data, current_user.id)
     return ApiResponse.success(
         data=TeacherAuditResponse.model_validate(audit),

@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { useCountdown } from '@/composables/useCountdown'
-import { fetchProfile, updateProfile, sendEmailCode, uploadAvatar } from '@/api/profile'
+import { fetchProfile, updateProfile, sendEmailCode } from '@/api/profile'
 import type { UserProfile, UpdateProfileRequest } from '@/api/profile'
 import UserIdentity from '@/components/common/UserIdentity.vue'
 
@@ -14,7 +14,6 @@ const { countdown, isActive: isCountdownActive, start: startCountdown } = useCou
 const profile = ref<UserProfile | null>(null)
 const isLoading = ref(false)
 const isSaving = ref(false)
-const isUploading = ref(false)
 
 // 表单数据
 const form = ref<UpdateProfileRequest>({
@@ -82,7 +81,7 @@ const rules = {
 // 角色映射
 const roleMap: Record<string, string> = {
   student: '学生',
-  teacher: '讲师',
+  teacher: '老师',
   admin: '管理员',
 }
 
@@ -137,42 +136,6 @@ async function handleSendCode() {
   }
 }
 
-// 上传头像
-async function handleUploadAvatar(options: { file: File }) {
-  const { file } = options
-
-  // 校验文件类型
-  const validTypes = ['image/jpeg', 'image/png', 'image/gif']
-  if (!validTypes.includes(file.type)) {
-    ElMessage.warning('仅支持 JPG/PNG/GIF 格式')
-    return
-  }
-
-  // 校验文件大小（最大 10MB）
-  if (file.size > 10 * 1024 * 1024) {
-    ElMessage.warning('图片最大 10MB')
-    return
-  }
-
-  isUploading.value = true
-  try {
-    const result = await uploadAvatar(file)
-    // 更新头像
-    await updateProfile({ avatar: result.file_url })
-    // 更新本地状态
-    if (profile.value) {
-      profile.value.avatar = result.file_url
-    }
-    // 更新 userStore
-    userStore.setUserInfo({ avatarUrl: result.file_url })
-    ElMessage.success('头像更新成功')
-  } catch (error) {
-    // 错误已由拦截器处理
-  } finally {
-    isUploading.value = false
-  }
-}
-
 // 保存修改
 async function handleSave() {
   try {
@@ -217,7 +180,6 @@ async function handleSave() {
   try {
     const data: UpdateProfileRequest = {
       phone: form.value.phone || undefined,
-      avatar: profile.value?.avatar,
     }
 
     if (usernameChanged.value) {
@@ -242,7 +204,6 @@ async function handleSave() {
     userStore.setUserInfo({
       username: result.username,
       email: result.email,
-      avatarUrl: result.avatar,
     })
 
     // 清空验证码
@@ -269,27 +230,6 @@ onMounted(() => {
     </div>
 
     <template v-if="profile">
-      <!-- 头像区域 -->
-      <div class="avatar-section soft-action-surface--card">
-        <el-avatar :src="profile.avatar" :size="80" class="avatar">
-          <el-icon :size="40"><User /></el-icon>
-        </el-avatar>
-        <div class="avatar-copy">
-          <div class="avatar-title">个人头像</div>
-          <div class="avatar-tip">支持 JPG/PNG/GIF，最大 10MB</div>
-        </div>
-        <el-upload
-          :show-file-list="false"
-          :http-request="handleUploadAvatar"
-          accept=".jpg,.jpeg,.png,.gif"
-        >
-          <el-button class="soft-action-btn soft-action-btn--primary" type="primary" :loading="isUploading">
-            <el-icon><Upload /></el-icon>
-            更换头像
-          </el-button>
-        </el-upload>
-      </div>
-
       <!-- 只读信息展示 -->
       <div class="info-section">
         <div class="info-row info-row--identity">
@@ -302,14 +242,30 @@ onMounted(() => {
         <div class="info-row info-row--role">
           <span class="info-label">角色</span>
           <span class="info-value info-value--tags">
-            <el-tag effect="light" size="large">{{ roleMap[profile.role] || profile.role }}</el-tag>
+            <el-tag v-if="profile.role === 'student'" effect="light" size="large">{{ roleMap[profile.role] }}</el-tag>
             <el-tag
               v-if="profile.role === 'teacher' && profile.status === 'pending'"
               :type="statusMap[profile.status]?.type"
               effect="light"
               size="large"
             >
-              {{ statusMap[profile.status]?.text }}
+              老师（{{ statusMap[profile.status]?.text }}）
+            </el-tag>
+            <el-tag
+              v-else-if="profile.role === 'teacher'"
+              :type="statusMap[profile.status]?.type || 'success'"
+              effect="light"
+              size="large"
+            >
+              老师
+            </el-tag>
+            <el-tag
+              v-else-if="profile.role === 'admin'"
+              :type="statusMap[profile.status]?.type || 'warning'"
+              effect="light"
+              size="large"
+            >
+              管理员
             </el-tag>
           </span>
         </div>
@@ -412,33 +368,6 @@ onMounted(() => {
   }
 }
 
-.avatar-section {
-  margin-bottom: 32px;
-  justify-content: flex-start;
-}
-
-.avatar {
-  flex-shrink: 0;
-  background: #e6f7ff;
-  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
-}
-
-.avatar-copy {
-  flex: 1;
-  min-width: 0;
-}
-
-.avatar-title {
-  color: #1e293b;
-  font-weight: 600;
-}
-
-.avatar-tip {
-  margin-top: 4px;
-  color: #64748b;
-  font-size: 13px;
-}
-
 .info-section {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -506,10 +435,6 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
-  .avatar-section {
-    align-items: stretch;
-  }
-
   .info-section {
     grid-template-columns: 1fr;
     padding: 12px;

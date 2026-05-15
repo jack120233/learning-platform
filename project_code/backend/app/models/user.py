@@ -123,6 +123,16 @@ class User(BaseModel):
         return self.id
 
     @property
+    def effective_role(self) -> str:
+        if self.role == "teacher" and self.status == "pending":
+            return "student"
+        return self.role
+
+    @property
+    def is_pending_teacher(self) -> bool:
+        return self.role == "teacher" and self.status == "pending"
+
+    @property
     def can_change_username(self) -> bool:
         return self.role != "student" or self.username_change_remaining > 0
 

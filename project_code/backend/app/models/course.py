@@ -22,7 +22,7 @@ class Course(BaseModel):
         summary: 课程简介
         description: 课程描述
         cover_url: 封面图片URL
-        teacher_id: 讲师ID
+        teacher_id: 老师ID
         category_id: 分类ID
         price: 课程价格
         original_price: 原价
@@ -68,7 +68,7 @@ class Course(BaseModel):
     teacher_id: Mapped[int] = mapped_column(
         nullable=False,
         index=True,
-        comment="讲师ID",
+        comment="老师ID",
     )
     author: Mapped[str | None] = mapped_column(
         String(100),

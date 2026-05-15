@@ -1,4 +1,4 @@
-"""讲师课程学习统计 API 路由。"""
+"""老师课程学习统计 API 路由。"""
 
 from fastapi import APIRouter, Query
 from fastapi.responses import Response
@@ -12,14 +12,14 @@ from app.schemas.learning import (
 )
 from app.services.teacher_statistics_service import teacher_statistics_service
 
-router = APIRouter(prefix="/teacher/statistics", tags=["讲师课程统计"])
+router = APIRouter(prefix="/teacher/statistics", tags=["老师课程统计"])
 
 
 @router.get(
     "/courses",
     response_model=ApiResponse[PageData[TeacherCourseStatisticsItem]],
-    summary="讲师可查看统计课程列表",
-    description="获取当前讲师负责或被授权查看统计的课程列表",
+    summary="老师可查看统计课程列表",
+    description="获取当前老师负责或被授权查看统计的课程列表",
 )
 async def get_teacher_statistics_courses(
     db: DBSession,
@@ -30,7 +30,7 @@ async def get_teacher_statistics_courses(
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=10, ge=1, le=50, description="每页数量"),
 ) -> ApiResponse[PageData[TeacherCourseStatisticsItem]]:
-    """讲师可查看统计课程列表。"""
+    """老师可查看统计课程列表。"""
     items, total = await teacher_statistics_service.list_courses(
         db,
         current_user,
@@ -53,7 +53,7 @@ async def get_teacher_statistics_courses(
 @router.get(
     "/courses/{course_id}/overview",
     response_model=ApiResponse[TeacherCourseStatisticsOverviewResponse],
-    summary="讲师课程统计概览",
+    summary="老师课程统计概览",
     description="获取单门课程学习统计概览",
 )
 async def get_teacher_course_statistics_overview(
@@ -62,7 +62,7 @@ async def get_teacher_course_statistics_overview(
     current_user: CurrentUser,
     range: str = Query(default="7d", description="7d/30d"),
 ) -> ApiResponse[TeacherCourseStatisticsOverviewResponse]:
-    """讲师课程统计概览。"""
+    """老师课程统计概览。"""
     data = await teacher_statistics_service.get_overview(db, course_id, current_user, trend_range=range)
     return ApiResponse.success(data=TeacherCourseStatisticsOverviewResponse(**data))
 
@@ -70,7 +70,7 @@ async def get_teacher_course_statistics_overview(
 @router.get(
     "/courses/{course_id}/students",
     response_model=ApiResponse[PageData[TeacherCourseStudentStatisticsItem]],
-    summary="讲师课程学生学习明细",
+    summary="老师课程学生学习明细",
     description="分页获取课程学生学习明细",
 )
 async def get_teacher_course_statistics_students(
@@ -82,7 +82,7 @@ async def get_teacher_course_statistics_students(
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=10, ge=1, le=100, description="每页数量"),
 ) -> ApiResponse[PageData[TeacherCourseStudentStatisticsItem]]:
-    """讲师课程学生学习明细。"""
+    """老师课程学生学习明细。"""
     items, total = await teacher_statistics_service.list_students(
         db,
         course_id,
@@ -104,7 +104,7 @@ async def get_teacher_course_statistics_students(
 
 @router.get(
     "/courses/{course_id}/students/export",
-    summary="导出讲师课程学生学习明细",
+    summary="导出老师课程学生学习明细",
     description="按当前筛选条件导出 CSV",
 )
 async def export_teacher_course_statistics_students(
@@ -114,7 +114,7 @@ async def export_teacher_course_statistics_students(
     status: str = Query(default="all", description="all/inactive/low_progress/completed"),
     keyword: str | None = Query(default=None, description="学生用户名关键词"),
 ) -> Response:
-    """导出讲师课程学生学习明细。"""
+    """导出老师课程学生学习明细。"""
     csv_text = await teacher_statistics_service.export_students_csv(
         db,
         course_id,

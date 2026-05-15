@@ -191,7 +191,7 @@ const routes: RouteRecordRaw[] = [
         path: 'teacher-audits',
         name: 'AdminTeacherAudits',
         component: () => import('@/views/admin/TeacherAuditPage.vue'),
-        meta: { title: '讲师审核', permissionCode: 'admin.teacher_audit' },
+        meta: { title: '老师审核', permissionCode: 'admin.teacher_audit' },
       },
       {
         path: 'announcements',

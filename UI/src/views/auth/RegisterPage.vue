@@ -5,16 +5,12 @@ import { ElMessage } from 'element-plus'
 import { User, Edit, Lock, Phone, Message, Clock } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useUserStore } from '@/store/user'
-import { register, getCaptcha, sendEmailCode } from '@/api/auth'
-import { useCountdown } from '@/composables/useCountdown'
+import { register } from '@/api/auth'
 import {
-  usernameRules,
   passwordRules,
   createConfirmPasswordRules,
   phoneRules,
   emailRules,
-  emailCodeRules,
-  captchaRules,
 } from '@/utils/validators'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 
@@ -32,22 +28,13 @@ const formData = ref({
   confirmPassword: '',
   phone: '',
   email: '',
-  captcha: '',
-  captchaId: '',
-  emailCode: '',
 })
 
 // UI 状态
 const isSubmitting = ref(false)
-const isSendingCode = ref(false)
-const captchaImage = ref('')
-const isRefreshingCaptcha = ref(false)
 
 // 弹窗控制
 const showTeacherPendingDialog = ref(false)
-
-// 倒计时
-const { countdown, isActive: isCountdownActive, start: startCountdown } = useCountdown(60)
 
 // 角色选项
 const roleOptions: { value: 'student' | 'teacher'; label: string; desc: string }[] = [
@@ -56,75 +43,19 @@ const roleOptions: { value: 'student' | 'teacher'; label: string; desc: string }
 ]
 
 // 表单校验规则
+const realNameRules = [
+  { required: true, message: '请输入真实姓名', trigger: 'blur' },
+  { min: 2, max: 50, message: '真实姓名长度需在 2-50 个字符之间', trigger: 'blur' },
+]
+
 const formRules = computed<FormRules>(() => ({
   role: [{ required: true, message: '请选择角色', trigger: 'change' }],
-  username: usernameRules,
+  username: realNameRules,
   password: passwordRules,
   confirmPassword: createConfirmPasswordRules(() => formData.value.password),
   phone: phoneRules,
   email: emailRules,
-  captcha: captchaRules,
-  emailCode: emailCodeRules,
 }))
-
-// 加载图形验证码
-const loadCaptcha = async () => {
-  isRefreshingCaptcha.value = true
-  try {
-    const response = await getCaptcha()
-    captchaImage.value = response.captcha_image
-    formData.value.captchaId = response.captcha_id
-    formData.value.captcha = ''
-  } catch (error) {
-    ElMessage.error('加载验证码失败')
-    captchaImage.value = ''
-  } finally {
-    isRefreshingCaptcha.value = false
-  }
-}
-
-// 刷新图形验证码
-const handleRefreshCaptcha = async () => {
-  if (isRefreshingCaptcha.value) return
-  await loadCaptcha()
-}
-
-// 发送邮箱验证码
-const handleSendEmailCode = async () => {
-  // 先校验邮箱格式
-  if (!formData.value.email) {
-    ElMessage.warning('请先输入邮箱')
-    return
-  }
-
-  // 简单校验邮箱格式
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(formData.value.email)) {
-    ElMessage.warning('请输入正确的邮箱地址')
-    return
-  }
-
-  isSendingCode.value = true
-
-  try {
-    await sendEmailCode({
-      email: formData.value.email,
-      purpose: 'register',
-    })
-
-    startCountdown()
-    ElMessage.success('验证码已发送')
-  } catch (error: any) {
-    const message = error.message || '发送失败'
-    if (message.includes('频繁') || error.code === 429) {
-      ElMessage.warning('发送过于频繁，请 60 秒后重试')
-    } else {
-      ElMessage.error(message)
-    }
-  } finally {
-    isSendingCode.value = false
-  }
-}
 
 // 角色切换
 const handleRoleChange = () => {
@@ -138,7 +69,6 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate()
   } catch {
-    // 滚动到第一个错误字段
     const firstError = document.querySelector('.el-form-item.is-error')
     firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     return
@@ -148,18 +78,15 @@ const handleSubmit = async () => {
 
   try {
     const response = await register({
-      username: formData.value.username,
-      email: formData.value.email,
-      phone: formData.value.phone,
+      username: formData.value.username.trim(),
+      email: formData.value.email.trim(),
+      phone: formData.value.phone.trim() || undefined,
       password: formData.value.password,
       confirm_password: formData.value.confirmPassword,
       role: formData.value.role,
-      captcha: formData.value.captcha,
-      captcha_id: formData.value.captchaId,
-      email_code: formData.value.emailCode,
+      real_name: formData.value.username.trim(),
     })
 
-    // 存储登录信息
     userStore.setLoginInfo({
       user_id: response.user_id,
       username: response.username,
@@ -172,7 +99,6 @@ const handleSubmit = async () => {
 
     await userStore.loadMyPermissions(true).catch(() => [])
 
-    // 根据角色处理
     if (response.role === 'teacher' && response.status === 'pending') {
       showTeacherPendingDialog.value = true
     } else {
@@ -183,26 +109,20 @@ const handleSubmit = async () => {
     const message = error.message || '注册失败'
 
     if (message.includes('用户名')) {
-      ElMessage.error('该用户名已被使用')
+      ElMessage.error('该真实姓名已被使用')
     } else if (message.includes('手机号')) {
       ElMessage.error('该手机号已被使用')
     } else if (message.includes('邮箱')) {
       ElMessage.error('该邮箱已被使用')
-    } else if (message.includes('验证码')) {
-      ElMessage.error('验证码错误')
-      // 自动刷新图形验证码
-      loadCaptcha()
     } else {
       ElMessage.error(message)
-      // 其他错误也刷新验证码
-      loadCaptcha()
     }
   } finally {
     isSubmitting.value = false
   }
 }
 
-// 讲师弹窗关闭
+// 老师申请弹窗关闭
 const handleTeacherDialogClose = () => {
   showTeacherPendingDialog.value = false
   router.push('/')
@@ -210,14 +130,9 @@ const handleTeacherDialogClose = () => {
 
 // 初始化
 onMounted(() => {
-  // 检查登录态
   if (userStore.isLoggedIn) {
     router.replace('/')
-    return
   }
-
-  // 加载图形验证码
-  loadCaptcha()
 })
 </script>
 
@@ -255,11 +170,11 @@ onMounted(() => {
           </el-radio-group>
         </el-form-item>
 
-        <!-- 用户名 -->
-        <el-form-item label="用户名" prop="username">
+        <!-- 真实姓名 -->
+        <el-form-item label="真实姓名" prop="username">
           <el-input
             v-model="formData.username"
-            placeholder="请输入用户名（4-20位字母、数字、下划线）"
+            placeholder="请输入真实姓名"
             :prefix-icon="User"
             clearable
           />
@@ -307,53 +222,6 @@ onMounted(() => {
           />
         </el-form-item>
 
-        <!-- 图形验证码 -->
-        <el-form-item label="图形验证码" prop="captcha">
-          <div class="captcha-row">
-            <el-input
-              v-model="formData.captcha"
-              placeholder="请输入 4 位验证码"
-              maxlength="4"
-              clearable
-            />
-            <button
-              type="button"
-              class="captcha-image"
-              :class="{ loading: isRefreshingCaptcha }"
-              :disabled="isRefreshingCaptcha"
-              aria-label="图形验证码，点击刷新"
-              @click="handleRefreshCaptcha"
-            >
-              <img
-                v-if="captchaImage"
-                :src="captchaImage"
-                alt="验证码"
-              />
-              <span v-else class="placeholder">点击刷新</span>
-            </button>
-          </div>
-        </el-form-item>
-
-        <!-- 邮箱验证码 -->
-        <el-form-item label="邮箱验证码" prop="emailCode">
-          <div class="code-input-row">
-            <el-input
-              v-model="formData.emailCode"
-              placeholder="请输入 6 位验证码"
-              maxlength="6"
-              clearable
-            />
-            <el-button
-              class="soft-action-btn soft-action-btn--secondary soft-action-btn--small"
-              :disabled="isCountdownActive"
-              :loading="isSendingCode"
-              @click="handleSendEmailCode"
-            >
-              {{ isCountdownActive ? `${countdown}s 后重发` : '发送验证码' }}
-            </el-button>
-          </div>
-        </el-form-item>
-
         <!-- 注册按钮 -->
         <el-form-item>
           <div class="auth-submit-surface soft-action-surface">
@@ -375,7 +243,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 讲师审核中弹窗 -->
+    <!-- 老师审核中弹窗 -->
     <el-dialog
       v-model="showTeacherPendingDialog"
       title="申请已提交"
@@ -474,62 +342,6 @@ onMounted(() => {
   text-align: center;
 }
 
-.captcha-row {
-  display: flex;
-  gap: 12px;
-
-  .el-input {
-    flex: 1;
-  }
-
-  .captcha-image {
-    width: 120px;
-    height: 40px;
-    border: 1px solid $border-color;
-    border-radius: $radius-sm;
-    overflow: hidden;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: $bg-color;
-    padding: 0;
-    font-family: inherit;
-
-    &:disabled {
-      cursor: not-allowed;
-    }
-
-    &.loading {
-      opacity: 0.6;
-    }
-
-    img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-    }
-
-    .placeholder {
-      font-size: 12px;
-      color: $text-tertiary;
-    }
-  }
-}
-
-.code-input-row {
-  display: flex;
-  gap: 12px;
-
-  .el-input {
-    flex: 1;
-  }
-
-  .el-button {
-    width: 120px;
-  }
-}
-
 .auth-submit-surface,
 .dialog-action-surface {
   width: 100%;
@@ -573,20 +385,6 @@ onMounted(() => {
 @media (max-width: $breakpoint-sm) {
   .role-picker {
     flex-direction: column;
-  }
-
-  .captcha-row {
-    .captcha-image {
-      width: 100px;
-    }
-  }
-
-  .code-input-row {
-    flex-direction: column;
-
-    .el-button {
-      width: 100%;
-    }
   }
 }
 </style>

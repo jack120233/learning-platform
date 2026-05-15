@@ -224,7 +224,7 @@ class TestLearningProgress:
 
 
 class TestTeacherCourseStatistics:
-    """讲师课程统计测试。"""
+    """老师课程统计测试。"""
 
     @pytest.mark.asyncio
     async def test_teacher_course_statistics_access_control_and_export_privacy(

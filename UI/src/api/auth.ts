@@ -6,14 +6,20 @@ import request from './index'
 export interface RegisterRequest {
   username: string
   email: string
-  phone: string
+  phone?: string
   password: string
-  confirm_password: string
-  role: 'student' | 'teacher' | 'admin'
-  captcha: string
-  captcha_id: string
-  email_code: string
+  confirm_password?: string
+  role: 'student' | 'teacher'
+  real_name?: string
   referrer_email?: string
+}
+
+interface BackendRegisterResponse {
+  access_token: string
+  refresh_token: string
+  token_type: string
+  expires_in: number
+  user: LoginUser
 }
 
 /** 注册响应 */
@@ -21,8 +27,8 @@ export interface RegisterResponse {
   user_id: number
   username: string
   email: string
-  role: string
-  status: 'active' | 'pending'
+  role: 'student' | 'teacher' | 'admin'
+  status: 'active' | 'pending' | 'disabled'
   access_token: string
   refresh_token: string
   token_type: string
@@ -41,8 +47,6 @@ export interface LoginUser {
   id: number
   username: string
   email: string
-  nickname: string
-  avatar: string | null
   role: 'student' | 'teacher' | 'admin'
   status: 'active' | 'pending' | 'disabled'
   created_at: string
@@ -109,7 +113,17 @@ export function login(data: LoginRequest): Promise<LoginResponse> {
  * 用户注册
  */
 export function register(data: RegisterRequest): Promise<RegisterResponse> {
-  return request.post('/auth/register', data)
+  return request.post<unknown, BackendRegisterResponse>('/auth/register', data).then((response) => ({
+    user_id: response.user.id,
+    username: response.user.username,
+    email: response.user.email,
+    role: response.user.role,
+    status: response.user.status,
+    access_token: response.access_token,
+    refresh_token: response.refresh_token,
+    token_type: response.token_type,
+    expires_in: response.expires_in,
+  }))
 }
 
 /**

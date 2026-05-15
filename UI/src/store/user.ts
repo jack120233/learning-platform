@@ -9,8 +9,6 @@ export interface UserInfo {
   userId: number | null
   username: string
   email: string
-  nickname: string
-  avatarUrl: string
   role: UserRole
   status: UserStatus
 }
@@ -19,8 +17,6 @@ interface LoginInfo {
   user_id: number
   username: string
   email: string
-  nickname?: string
-  avatar_url?: string
   role: UserRole
   status?: UserStatus
   access_token: string
@@ -29,7 +25,6 @@ interface LoginInfo {
 
 type UserInfoInput = Partial<UserInfo> & {
   user_id?: unknown
-  avatar_url?: unknown
 }
 
 const STORAGE_KEYS = {
@@ -44,8 +39,6 @@ const EMPTY_USER_INFO: UserInfo = {
   userId: null,
   username: '',
   email: '',
-  nickname: '',
-  avatarUrl: '',
   role: null,
   status: null,
 }
@@ -102,15 +95,10 @@ function normalizeStatus(value: unknown): UserStatus {
 }
 
 function normalizeUserInfo(info?: UserInfoInput | null): UserInfo {
-  const userId = normalizeUserId(info?.userId ?? info?.user_id)
-  const username = normalizeString(info?.username)
-
   return {
-    userId,
-    username,
+    userId: normalizeUserId(info?.userId ?? info?.user_id),
+    username: normalizeString(info?.username),
     email: normalizeString(info?.email),
-    nickname: normalizeString(info?.nickname) || username,
-    avatarUrl: normalizeString(info?.avatarUrl ?? info?.avatar_url ?? (info as any)?.avatar),
     role: normalizeRole(info?.role),
     status: normalizeStatus(info?.status),
   }
@@ -280,8 +268,6 @@ export const useUserStore = defineStore('user', () => {
       user_id: data.user_id,
       username: data.username,
       email: data.email,
-      nickname: data.nickname,
-      avatar_url: data.avatar_url,
       role: data.role,
       status: data.status || 'active',
     })

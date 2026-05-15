@@ -22,11 +22,11 @@ async def _get_author_name_map(db: DBSession, author_ids: set[int]) -> dict[int,
         return {}
 
     result = await db.execute(
-        select(User.id, User.nickname, User.username).where(User.id.in_(author_ids))
+        select(User.id, User.username).where(User.id.in_(author_ids))
     )
     return {
-        user_id: (nickname or username)
-        for user_id, nickname, username in result.all()
+        user_id: username
+        for user_id, username in result.all()
     }
 
 
@@ -147,7 +147,7 @@ async def create_announcement(
     return ApiResponse.success(
         data=_build_announcement_response(
             announcement,
-            current_user.nickname or current_user.username,
+            current_user.username,
         ),
         message="创建成功",
     )

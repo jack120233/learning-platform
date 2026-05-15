@@ -24,8 +24,8 @@ async def _ensure_upload_permission(db: DBSession, user_id: CurrentUserId) -> No
     if not user:
         raise NotFoundException("用户不存在")
 
-    if user.status != "active" or user.role not in {"teacher", "admin"}:
-        raise ForbiddenException("仅讲师或管理员可上传课程封面")
+    if user.status != "active" or user.effective_role not in {"teacher", "admin"}:
+        raise ForbiddenException("仅老师或管理员可上传课程封面")
 
 
 async def _ensure_avatar_upload_permission(db: DBSession, user_id: CurrentUserId) -> None:

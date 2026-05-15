@@ -166,10 +166,10 @@ class StudentCourseDistributionResponse(BaseModel):
     completed_count: int = Field(description="已完成课程数")
 
 
-# ==================== 讲师课程统计模型 ====================
+# ==================== 老师课程统计模型 ====================
 
 class TeacherCourseStatisticsItem(BaseModel):
-    """讲师课程统计列表项。"""
+    """老师课程统计列表项。"""
 
     course_id: int = Field(description="课程ID")
     course_title: str = Field(description="课程标题")
@@ -185,7 +185,7 @@ class TeacherCourseStatisticsItem(BaseModel):
 
 
 class TeacherCourseStatisticsOverviewResponse(BaseModel):
-    """讲师单门课程统计概览。"""
+    """老师单门课程统计概览。"""
 
     course_id: int = Field(description="课程ID")
     course_title: str = Field(description="课程标题")
@@ -200,7 +200,7 @@ class TeacherCourseStatisticsOverviewResponse(BaseModel):
 
 
 class TeacherCourseStudentStatisticsItem(BaseModel):
-    """讲师课程学生学习明细项。"""
+    """老师课程学生学习明细项。"""
 
     student_id: int = Field(description="学生ID")
     username: str = Field(description="用户名")
@@ -247,8 +247,8 @@ class AdminPopularCourseStatisticsItem(BaseModel):
     course_title: str = Field(description="课程标题")
     category_id: int | None = Field(default=None, description="分类ID")
     category_name: str | None = Field(default=None, description="分类名称")
-    teacher_id: int = Field(description="讲师ID")
-    teacher_username: str = Field(description="讲师用户名")
+    teacher_id: int = Field(description="老师ID")
+    teacher_username: str = Field(description="老师用户名")
     active_student_count: int = Field(description="活跃学生数")
     total_duration_seconds: int = Field(description="有效学习时长（秒）")
     completion_rate: float = Field(description="完成率")
@@ -260,8 +260,8 @@ class AdminLowCompletionCourseStatisticsItem(BaseModel):
 
     course_id: int = Field(description="课程ID")
     course_title: str = Field(description="课程标题")
-    teacher_id: int = Field(description="讲师ID")
-    teacher_username: str = Field(description="讲师用户名")
+    teacher_id: int = Field(description="老师ID")
+    teacher_username: str = Field(description="老师用户名")
     started_student_count: int = Field(description="开始学习学生数")
     completed_student_count: int = Field(description="完成学习学生数")
     completion_rate: float = Field(description="完成率")

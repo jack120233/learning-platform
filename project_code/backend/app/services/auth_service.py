@@ -30,6 +30,7 @@ from app.core.security import (
 from app.models.captcha import CaptchaRecord
 from app.models.email_code import EmailCode
 from app.models.refresh_token import RefreshToken
+from app.models.teacher_audit import TeacherAudit
 from app.models.user import User
 from app.schemas.auth import (
     CaptchaResponse,
@@ -53,60 +54,47 @@ class AuthService:
         self,
         db: AsyncSession,
         request: RegisterRequest,
-    ) -> User:
-        """用户注册
-
-        Args:
-            db: 数据库会话
-            request: 注册请求
-
-        Returns:
-            创建的用户对象
-
-        Raises:
-            ValidationException: 验证码无效
-            ConflictException: 用户名或邮箱已存在
-        """
-        # 验证图形验证码
-        # TODO: 暂时注释掉图形验证码校验，后续单独测试
-        # await self._verify_captcha(db, request.captcha_key, request.captcha_text)
-
-        # 检查用户名是否已存在
+    ) -> LoginResponse:
+        """用户注册。"""
         existing_user = await self._get_user_by_username(db, request.username)
         if existing_user:
             raise ConflictException("用户名已被使用")
 
-        # 检查邮箱是否已存在
         existing_email = await self._get_user_by_email(db, request.email)
         if existing_email:
             raise ConflictException("邮箱已被注册")
 
-        # 验证邮箱验证码
-        # TODO: 暂时注释掉邮箱验证码校验，后续单独测试
-        # email_code = await self._get_valid_email_code(
-        #     db, request.email, "register"
-        # )
-        # if not email_code:
-        #     raise ValidationException("邮箱验证码无效或已过期")
+        if request.phone:
+            existing_phone = await self._get_user_by_phone(db, request.phone)
+            if existing_phone:
+                raise ConflictException("手机号已被使用")
 
-        # 标记邮箱验证码为已使用
-        # email_code.is_used = True
-
-        # 创建用户
+        status = "pending" if request.role == "teacher" else "active"
         user = User(
             username=request.username,
-            email=request.email,
+            email=str(request.email).lower(),
+            phone=request.phone,
             password_hash=hash_password(request.password),
-            nickname=request.username,
             role=request.role,
-            status="active",
+            status=status,
         )
 
         db.add(user)
         await db.flush()
         await db.refresh(user)
 
-        return user
+        if request.role == "teacher":
+            audit = TeacherAudit(
+                user_id=user.id,
+                real_name=(request.real_name or request.username).strip(),
+                phone=request.phone or "未填写",
+                email=str(request.email).lower(),
+                status="pending",
+            )
+            db.add(audit)
+            await db.flush()
+
+        return await self._create_login_response(db, user)
 
     async def login(
         self,
@@ -150,41 +138,16 @@ class AuthService:
             await self._handle_login_failure(db, user)
             raise AuthenticationException("用户名或密码错误")
 
-        # 检查账户状态
-        if user.status != "active":
+        # 检查账户状态：待审核老师允许登录，但权限端按学生处理
+        if user.status != "active" and not (user.role == "teacher" and user.status == "pending"):
             raise AuthenticationException("账户已被禁用")
 
-        # 重置登录失败计数
-        user.login_fail_count = 0
-        user.last_login_at = datetime.now(timezone.utc)
-
-        # 生成令牌
-        access_token = create_access_token(subject=user.id)
-        refresh_token = create_refresh_token(
-            subject=user.id,
+        return await self._create_login_response(
+            db,
+            user,
             remember_me=request.remember_me,
-        )
-
-        # 保存刷新令牌
-        days = (
-            settings.remember_me_expire_days
-            if request.remember_me
-            else settings.refresh_token_expire_days
-        )
-        token_record = RefreshToken(
-            token=refresh_token,
-            user_id=user.id,
-            expires_at=datetime.now(timezone.utc) + timedelta(days=days),
             device_info=device_info,
             ip_address=ip_address,
-        )
-        db.add(token_record)
-
-        return LoginResponse(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            expires_in=settings.access_token_expire_minutes * 60,
-            user=UserResponse.model_validate(user),
         )
 
     async def logout(
@@ -260,9 +223,9 @@ class AuthService:
         if token_record.is_expired:
             raise AuthenticationException("刷新令牌已过期")
 
-        # 检查用户状态
+        # 检查用户状态：待审核老师允许刷新令牌，但权限端按学生处理
         user = await db.get(User, int(user_id))
-        if not user or user.status != "active":
+        if not user or (user.status != "active" and not (user.role == "teacher" and user.status == "pending")):
             raise AuthenticationException("用户不存在或已被禁用")
 
         # 生成新的访问令牌
@@ -417,6 +380,46 @@ class AuthService:
 
     # ==================== 私有方法 ====================
 
+    async def _create_login_response(
+        self,
+        db: AsyncSession,
+        user: User,
+        remember_me: bool = False,
+        device_info: str | None = None,
+        ip_address: str | None = None,
+    ) -> LoginResponse:
+        """生成登录令牌响应并记录刷新令牌。"""
+        user.login_fail_count = 0
+        user.last_login_at = datetime.now(timezone.utc)
+
+        access_token = create_access_token(subject=user.id)
+        refresh_token = create_refresh_token(
+            subject=user.id,
+            remember_me=remember_me,
+        )
+
+        days = (
+            settings.remember_me_expire_days
+            if remember_me
+            else settings.refresh_token_expire_days
+        )
+        token_record = RefreshToken(
+            token=refresh_token,
+            user_id=user.id,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=days),
+            device_info=device_info,
+            ip_address=ip_address,
+        )
+        db.add(token_record)
+        await db.flush()
+
+        return LoginResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=settings.access_token_expire_minutes * 60,
+            user=UserResponse.model_validate(user),
+        )
+
     async def _verify_captcha(
         self,
         db: AsyncSession,
@@ -457,6 +460,17 @@ class AuthService:
         """通过邮箱获取用户"""
         result = await db.execute(
             select(User).where(User.email == email.lower())
+        )
+        return result.scalar_one_or_none()
+
+    async def _get_user_by_phone(
+        self,
+        db: AsyncSession,
+        phone: str,
+    ) -> User | None:
+        """通过手机号获取用户"""
+        result = await db.execute(
+            select(User).where(User.phone == phone)
         )
         return result.scalar_one_or_none()
 

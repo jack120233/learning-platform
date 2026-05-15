@@ -8,7 +8,6 @@ export interface AdminUserItem {
   username: string
   email: string
   phone: string
-  nickname: string
   role: 'student' | 'teacher' | 'admin'
   status: 'active' | 'disabled' | 'pending'
   created_at: string
@@ -26,12 +25,11 @@ export interface AdminUsersParams {
 
 /** 用户详情 */
 export interface AdminUserDetail extends AdminUserItem {
-  avatar: string
   bio: string
   teacher_intro: string
 }
 
-/** 讲师审核列表项 */
+/** 老师审核列表项 */
 export interface TeacherAuditItem {
   audit_id: number
   user_id: number
@@ -367,7 +365,6 @@ export interface AdminFeedbackItem {
   course_title: string | null
   target_user_id: number | null
   target_username: string | null
-  target_nickname: string | null
   content: string
   images: string[]
   status: 'pending' | 'processed'
@@ -423,7 +420,7 @@ export function deleteUser(userId: number) {
   return request.post<unknown, void>(`/users/${userId}/delete`)
 }
 
-/** 获取讲师审核列表 */
+/** 获取老师审核列表 */
 export function fetchTeacherAudits(params: { status?: 'all' | 'pending' | 'approved' | 'rejected'; page?: number; page_size?: number } = {}) {
   return request.get<unknown, PaginatedData<BackendTeacherAuditItem>>('/users/teacher-audits', {
     params: {
@@ -437,7 +434,7 @@ export function fetchTeacherAudits(params: { status?: 'all' | 'pending' | 'appro
   }))
 }
 
-/** 审核讲师 */
+/** 审核老师 */
 export function reviewTeacher(auditId: number, data: ReviewTeacherRequest) {
   return request.post<unknown, void>(`/users/teacher-audits/${auditId}/review`, data)
 }

@@ -21,7 +21,7 @@ const menuItems = computed(() => ([
   { index: '/admin/learning-statistics', title: '学习统计', icon: TrendCharts, permissionCode: 'admin' },
   { index: '/admin/courses', title: '课程管理', icon: Notebook, permissionCode: 'admin' },
   { index: '/admin/users', title: '用户管理', icon: User, permissionCode: 'admin.user' },
-  { index: '/admin/teacher-audits', title: '讲师审核', icon: Check, permissionCode: 'admin.teacher_audit' },
+  { index: '/admin/teacher-audits', title: '老师审核', icon: Check, permissionCode: 'admin.teacher_audit' },
   { index: '/admin/announcements', title: '公告管理', icon: Bell, permissionCode: 'admin.announcement' },
   { index: '/admin/messages', title: '系统消息', icon: Message, permissionCode: 'admin.feedback' },
   { index: '/admin/categories', title: '分类管理', icon: Collection, permissionCode: 'admin.category' },

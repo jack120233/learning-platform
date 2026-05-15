@@ -1,4 +1,4 @@
-"""讲师课程学习统计服务。"""
+"""老师课程学习统计服务。"""
 
 from __future__ import annotations
 
@@ -22,11 +22,11 @@ StudentStatusFilter = Literal["all", "inactive", "low_progress", "completed"]
 
 
 class TeacherStatisticsService:
-    """讲师课程学习统计读模型。"""
+    """老师课程学习统计读模型。"""
 
     def _ensure_teacher(self, current_user: User) -> None:
-        if current_user.role != "teacher":
-            raise ForbiddenException("仅讲师可访问课程统计")
+        if current_user.effective_role != "teacher":
+            raise ForbiddenException("仅老师可访问课程统计")
 
     def _range_dates(self, trend_range: str) -> tuple[date, date]:
         if trend_range not in {"7d", "30d"}:
@@ -50,7 +50,7 @@ class TeacherStatisticsService:
         page: int = 1,
         page_size: int = 10,
     ) -> tuple[list[dict], int]:
-        """列出当前讲师可查看统计的课程。"""
+        """列出当前老师可查看统计的课程。"""
         self._ensure_teacher(current_user)
         if permission_type not in {"all", "owner", "authorized"}:
             raise ValidationException("permission_type 参数无效")

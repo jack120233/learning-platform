@@ -165,15 +165,15 @@ async def test_user(db_session: AsyncSession):
 
 @pytest_asyncio.fixture
 async def test_teacher(db_session: AsyncSession):
-    """创建测试讲师用户
+    """创建测试老师用户
 
-    创建一个讲师角色的测试用户，用于讲师权限测试。
+    创建一个老师角色的测试用户，用于老师权限测试。
 
     Args:
         db_session: 数据库会话
 
     Returns:
-        User: 测试讲师实例
+        User: 测试老师实例
     """
     from sqlalchemy import select
     from app.models.user import User
@@ -189,7 +189,7 @@ async def test_teacher(db_session: AsyncSession):
             username="testteacher",
             email="teacher@example.com",
             password_hash=hash_password("Teacher123456"),
-            nickname="测试讲师",
+            nickname="测试老师",
             role="teacher",
             status="active",
         )
@@ -282,11 +282,11 @@ async def user_token(client: AsyncClient, test_user) -> str:
 
 @pytest_asyncio.fixture
 async def teacher_token(client: AsyncClient, test_teacher) -> str:
-    """获取讲师访问令牌
+    """获取老师访问令牌
 
     Args:
         client: HTTP 客户端
-        test_teacher: 测试讲师
+        test_teacher: 测试老师
 
     Returns:
         str: 访问令牌
@@ -333,10 +333,10 @@ def auth_headers(user_token: str) -> dict:
 
 @pytest_asyncio.fixture
 def teacher_headers(teacher_token: str) -> dict:
-    """获取讲师认证头
+    """获取老师认证头
 
     Args:
-        teacher_token: 讲师令牌
+        teacher_token: 老师令牌
 
     Returns:
         dict: 包含 Authorization 头的字典
@@ -398,7 +398,7 @@ async def test_course(db_session: AsyncSession, test_teacher, test_category):
 
     Args:
         db_session: 数据库会话
-        test_teacher: 测试讲师
+        test_teacher: 测试老师
         test_category: 测试分类
 
     Returns:

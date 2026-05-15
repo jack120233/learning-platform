@@ -1,5 +1,57 @@
 # UI 操作记录
 
+## 注册页邮箱验证隐藏与老师文案统一
+时间：2026-05-15
+
+- 变更原因：注册页邮箱验证码功能暂不开发，需要隐藏相关输入和发送按钮；同时项目角色展示统一为学生、老师、管理员。
+- 涉及文件：
+  - `src/views/auth/RegisterPage.vue`
+  - `src/api/auth.ts`
+  - `src/components/layout/AppHeader.vue`
+  - `src/router/index.ts`
+  - `src/views/profile/ProfileInfoPage.vue`
+  - `src/views/admin/AdminLayout.vue`
+  - `src/views/admin/UserManagePage.vue`
+  - `src/views/admin/RolePermissionPage.vue`
+  - `src/views/admin/TeacherAuditPage.vue`
+  - `src/views/admin/CourseManagePage.vue`
+  - `src/views/course/CourseDetailPage.vue`
+  - `src/views/teacher/CourseFormPage.vue`
+  - `src/views/teacher/CourseListPage.vue`
+  - `src/views/teacher/TeacherMessageCenterPage.vue`
+  - `src/api/admin.ts`
+  - `src/api/teacher.ts`
+  - `operations-log.md`
+- 核心改动：
+  - 注册页移除图形验证码、邮箱验证码输入和发送验证码按钮，提交时不再携带验证码字段。
+  - 注册页真实姓名输入提示改为“请输入真实姓名”，老师注册成功后保留待审核提示。
+  - 前端注册接口适配后端返回的登录令牌和用户对象，注册后仍可自动写入登录态。
+  - 用户可见“讲师”文案统一替换为“老师”，并修正头部管理员角色显示为“管理员”。
+  - 个人中心待审核老师显示为“老师（待审核）”。
+- 验证结果：
+  - 已执行：`cd "UI" && npm run build`
+  - 结果：通过，仍提示既有大体积 chunk 警告。
+
+
+## 已发布课程编辑前先下架
+时间：2026-05-15
+
+- 变更原因：教师编辑已发布课程时不应直接修改线上内容，需要在课程列表与课程编辑页统一拦截并引导先下架。
+- 涉及文件：
+  - `src/views/teacher/CourseListPage.vue`
+  - `src/views/teacher/CourseFormPage.vue`
+  - `operations-log.md`
+- 核心改动：
+  - 课程列表页的“编辑”入口在命中已发布课程时改为弹窗提示“已发布课程不能直接编辑，请先下架后再编辑”，并提供“下架”按钮复用现有下架流程后再进入编辑页。
+  - 课程编辑页在加载已发布课程、保存草稿、保存并发布、上传/删除资料时都先拦截并要求下架，不再允许直接把表单改动写回线上课程。
+  - 移除了原先“保存成功但发布失败”的后置提示路径，改为在编辑前提前处理课程状态。
+- 验证结果：
+  - 已执行：`cd "UI" && npx vue-tsc -b`
+  - 结果：通过。
+  - 已执行：`cd "UI" && npm run build`
+  - 结果：通过，仍提示既有大体积 chunk 警告。
+
+
 ## 教师端资源上传联调收口与前端留痕约束
 时间：2026-04-10
 
@@ -858,3 +910,21 @@
   - 已执行：`npm --prefix "/Users/jacob/Developer/a3.learn_platform/learning-platform/.claude/worktrees/20250514_Fix_bug-ui/UI" run build`。
   - 结果：通过；构建仍提示既有大体积 chunk 警告，并提示 `AdminMessagePage.vue` 既被动态导入又被静态导入，本次未扩大处理范围。
   - 备注：首次构建因 worktree 依赖缺失失败，已在该 worktree 执行 `npm install` 补齐依赖；`npm audit` 提示 1 个既有 high severity 依赖审计项，本次未自动升级依赖。
+
+## 待审核老师权限收口与 nickname/avatar 依赖清理
+时间：2026-05-15
+
+- 变更原因：待审核老师（role=teacher, status=pending）不应绕过前端直连后端获得老师权限；nickname/avatar 字段不再作为用户身份依赖。
+- 涉及文件：
+  - `src/store/user.ts`：移除 nickname/avatarUrl 存储
+  - `src/api/auth.ts`：移除 LoginUser 的 nickname/avatar 字段
+  - `src/api/profile.ts`：移除 UserProfile 中的 nickname/avatar、UploadAvatarResponse/uploadAvatar、FeedbackItem.target_nickname
+  - `src/api/learning.ts`：TeacherOption 只保留 teacher_id/username
+  - `src/components/layout/AppHeader.vue`：头像改为 fallback icon，不再读 avatarUrl
+  - `src/components/feedback/FeedbackForm.vue`：老师选项不再依赖 nickname/avatar
+  - `src/views/auth/LoginPage.vue`：setLoginInfo 不再传 nickname/avatar
+  - `src/views/profile/ProfileInfoPage.vue`：移除头像上传 UI 和 avatar CSS
+- 核心改动：前端用户身份统一用 username + userId，不再依赖 nickname/avatar
+- 验证结果：
+  - 已执行：`npm run build`
+  - 结果：构建通过

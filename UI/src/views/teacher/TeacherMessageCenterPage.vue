@@ -758,7 +758,7 @@ watch(notices, (currentNotices) => {
                     <UserIdentity
                       :username="feedback.target_username"
                       :user-id="feedback.target_user_id"
-                      fallback="当前讲师"
+                      fallback="当前老师"
                       compact
                     />
                   </span>
@@ -1019,7 +1019,7 @@ watch(notices, (currentNotices) => {
               <UserIdentity
                 :username="currentFeedback.target_username"
                 :user-id="currentFeedback.target_user_id"
-                fallback="当前讲师"
+                fallback="当前老师"
               />
             </span>
           </div>

@@ -3,8 +3,6 @@
 提供章节、小节、资源管理的业务逻辑。
 """
 
-from typing import Literal
-
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +23,64 @@ from app.schemas.content import (
 )
 
 
+PUBLISHED_COURSE_EDIT_MESSAGE = "已发布课程不能直接编辑，请先下架"
+
+
+async def _ensure_course_editable(
+    db: AsyncSession,
+    course_id: int,
+    user_id: int,
+) -> Course:
+    """加载课程并确认当前用户可编辑且课程未发布。"""
+    course = await db.get(Course, course_id)
+    if not course:
+        raise NotFoundException("课程不存在")
+    if course.teacher_id != user_id:
+        raise ForbiddenException("无权修改此课程")
+    if course.status == "published":
+        raise ValidationException(PUBLISHED_COURSE_EDIT_MESSAGE)
+    return course
+
+
+def _ensure_chapter_belongs_to_course(chapter: Chapter | None, course_id: int) -> Chapter:
+    """确认章节存在且属于指定课程。"""
+    if not chapter or chapter.course_id != course_id:
+        raise NotFoundException("章节不存在")
+    return chapter
+
+
+def _ensure_section_belongs_to_course(
+    section: Section | None,
+    course_id: int,
+    chapter_id: int | None = None,
+) -> Section:
+    """确认小节存在且属于指定课程/章节。"""
+    if not section or section.course_id != course_id:
+        raise NotFoundException("小节不存在")
+    if chapter_id is not None and section.chapter_id != chapter_id:
+        raise NotFoundException("小节不存在")
+    return section
+
+
+def _ensure_resource_belongs_to_path(
+    resource: Resource | None,
+    course_id: int,
+    chapter_id: int | None = None,
+    section_id: int | None = None,
+) -> Resource:
+    """确认资源存在且属于指定课程/章节/小节路径。"""
+    if not resource or resource.course_id != course_id:
+        raise NotFoundException("资源不存在")
+    if section_id is not None and resource.section_id != section_id:
+        raise NotFoundException("资源不存在")
+    if chapter_id is not None:
+        if resource.chapter_id != chapter_id:
+            raise NotFoundException("资源不存在")
+        if section_id is None and resource.section_id is not None:
+            raise NotFoundException("资源不存在")
+    return resource
+
+
 class ChapterService:
     """章节服务类"""
 
@@ -33,15 +89,7 @@ class ChapterService:
         db: AsyncSession,
         course_id: int,
     ) -> list[Chapter]:
-        """获取课程章节列表
-
-        Args:
-            db: 数据库会话
-            course_id: 课程ID
-
-        Returns:
-            章节列表
-        """
+        """获取课程章节列表"""
         result = await db.execute(
             select(Chapter)
             .where(Chapter.course_id == course_id)
@@ -61,18 +109,11 @@ class ChapterService:
         self,
         db: AsyncSession,
         course_id: int,
+        user_id: int,
         data: ChapterCreate,
     ) -> Chapter:
-        """创建章节
-
-        Args:
-            db: 数据库会话
-            course_id: 课程ID
-            data: 创建数据
-
-        Returns:
-            创建的章节
-        """
+        """创建章节"""
+        await _ensure_course_editable(db, course_id, user_id)
         chapter = Chapter(
             course_id=course_id,
             title=data.title,
@@ -87,25 +128,17 @@ class ChapterService:
     async def update(
         self,
         db: AsyncSession,
+        course_id: int,
         chapter_id: int,
+        user_id: int,
         data: ChapterUpdate,
     ) -> Chapter:
-        """更新章节
-
-        Args:
-            db: 数据库会话
-            chapter_id: 章节ID
-            data: 更新数据
-
-        Returns:
-            更新后的章节
-
-        Raises:
-            NotFoundException: 章节不存在
-        """
-        chapter = await self.get_by_id(db, chapter_id)
-        if not chapter:
-            raise NotFoundException("章节不存在")
+        """更新章节"""
+        await _ensure_course_editable(db, course_id, user_id)
+        chapter = _ensure_chapter_belongs_to_course(
+            await self.get_by_id(db, chapter_id),
+            course_id,
+        )
 
         update_data = data.model_dump(exclude_unset=True)
         for key, value in update_data.items():
@@ -118,18 +151,11 @@ class ChapterService:
         self,
         db: AsyncSession,
         course_id: int,
+        user_id: int,
         chapter_ids: list[int],
     ) -> None:
-        """批量排序章节。
-
-        Args:
-            db: 数据库会话
-            course_id: 课程ID
-            chapter_ids: 按目标顺序排列的章节ID数组
-
-        Raises:
-            ValidationException: 参数不合法或未包含课程全部章节
-        """
+        """批量排序章节。"""
+        await _ensure_course_editable(db, course_id, user_id)
         if not chapter_ids:
             raise ValidationException("chapter_ids 不能为空")
 
@@ -155,23 +181,17 @@ class ChapterService:
     async def delete(
         self,
         db: AsyncSession,
+        course_id: int,
         chapter_id: int,
+        user_id: int,
     ) -> None:
-        """删除章节
+        """删除章节"""
+        await _ensure_course_editable(db, course_id, user_id)
+        chapter = _ensure_chapter_belongs_to_course(
+            await self.get_by_id(db, chapter_id),
+            course_id,
+        )
 
-        Args:
-            db: 数据库会话
-            chapter_id: 章节ID
-
-        Raises:
-            NotFoundException: 章节不存在
-            ValidationException: 存在小节
-        """
-        chapter = await self.get_by_id(db, chapter_id)
-        if not chapter:
-            raise NotFoundException("章节不存在")
-
-        # 检查是否有小节
         sections = await db.execute(
             select(func.count()).where(Section.chapter_id == chapter_id)
         )
@@ -189,15 +209,7 @@ class SectionService:
         db: AsyncSession,
         chapter_id: int,
     ) -> list[Section]:
-        """获取章节小节列表
-
-        Args:
-            db: 数据库会话
-            chapter_id: 章节ID
-
-        Returns:
-            小节列表
-        """
+        """获取章节小节列表"""
         result = await db.execute(
             select(Section)
             .where(Section.chapter_id == chapter_id)
@@ -218,26 +230,15 @@ class SectionService:
         db: AsyncSession,
         course_id: int,
         chapter_id: int,
+        user_id: int,
         data: SectionCreate,
     ) -> Section:
-        """创建小节
-
-        Args:
-            db: 数据库会话
-            course_id: 课程ID
-            chapter_id: 章节ID
-            data: 创建数据
-
-        Returns:
-            创建的小节
-
-        Raises:
-            NotFoundException: 章节不存在
-        """
-        # 验证章节存在
-        chapter = await db.get(Chapter, chapter_id)
-        if not chapter:
-            raise NotFoundException("章节不存在")
+        """创建小节"""
+        course = await _ensure_course_editable(db, course_id, user_id)
+        chapter = _ensure_chapter_belongs_to_course(
+            await db.get(Chapter, chapter_id),
+            course_id,
+        )
 
         section = Section(
             course_id=course_id,
@@ -249,11 +250,8 @@ class SectionService:
         )
         db.add(section)
 
-        # 更新章节小节数量
         chapter.section_count += 1
-        course = await db.get(Course, course_id)
-        if course:
-            course.total_sections += 1
+        course.total_sections += 1
 
         await db.flush()
         return section
@@ -261,25 +259,19 @@ class SectionService:
     async def update(
         self,
         db: AsyncSession,
+        course_id: int,
+        chapter_id: int,
         section_id: int,
+        user_id: int,
         data: SectionUpdate,
     ) -> Section:
-        """更新小节
-
-        Args:
-            db: 数据库会话
-            section_id: 小节ID
-            data: 更新数据
-
-        Returns:
-            更新后的小节
-
-        Raises:
-            NotFoundException: 小节不存在
-        """
-        section = await self.get_by_id(db, section_id)
-        if not section:
-            raise NotFoundException("小节不存在")
+        """更新小节"""
+        await _ensure_course_editable(db, course_id, user_id)
+        section = _ensure_section_belongs_to_course(
+            await self.get_by_id(db, section_id),
+            course_id,
+            chapter_id,
+        )
 
         update_data = data.model_dump(exclude_unset=True)
         for key, value in update_data.items():
@@ -291,19 +283,15 @@ class SectionService:
     async def sort(
         self,
         db: AsyncSession,
+        course_id: int,
         chapter_id: int,
+        user_id: int,
         section_ids: list[int],
     ) -> None:
-        """批量排序小节。
+        """批量排序小节。"""
+        await _ensure_course_editable(db, course_id, user_id)
+        _ensure_chapter_belongs_to_course(await db.get(Chapter, chapter_id), course_id)
 
-        Args:
-            db: 数据库会话
-            chapter_id: 章节ID
-            section_ids: 按目标顺序排列的小节ID数组
-
-        Raises:
-            ValidationException: 参数不合法或未包含章节全部小节
-        """
         if not section_ids:
             raise ValidationException("section_ids 不能为空")
 
@@ -329,30 +317,25 @@ class SectionService:
     async def delete(
         self,
         db: AsyncSession,
+        course_id: int,
+        chapter_id: int,
         section_id: int,
+        user_id: int,
     ) -> None:
-        """删除小节
+        """删除小节"""
+        await _ensure_course_editable(db, course_id, user_id)
+        section = _ensure_section_belongs_to_course(
+            await self.get_by_id(db, section_id),
+            course_id,
+            chapter_id,
+        )
 
-        Args:
-            db: 数据库会话
-            section_id: 小节ID
-
-        Raises:
-            NotFoundException: 小节不存在
-            ValidationException: 存在资源
-        """
-        section = await self.get_by_id(db, section_id)
-        if not section:
-            raise NotFoundException("小节不存在")
-
-        # 检查是否有资源
         resources = await db.execute(
             select(func.count()).where(Resource.section_id == section_id)
         )
         if resources.scalar() > 0:
             raise ValidationException("存在资源，无法删除")
 
-        # 更新章节小节数量
         chapter = await db.get(Chapter, section.chapter_id)
         if chapter:
             chapter.section_count -= 1
@@ -372,15 +355,7 @@ class ResourceService:
         db: AsyncSession,
         section_id: int,
     ) -> list[Resource]:
-        """获取小节资源列表
-
-        Args:
-            db: 数据库会话
-            section_id: 小节ID
-
-        Returns:
-            资源列表
-        """
+        """获取小节资源列表"""
         result = await db.execute(
             select(Resource)
             .where(Resource.section_id == section_id)
@@ -418,10 +393,11 @@ class ResourceService:
         course_id: int,
         chapter_id: int,
         section_id: int,
+        user_id: int,
         data: ResourceCreate,
     ) -> Resource:
         """兼容旧调用，创建小节资源。"""
-        return await self.create_for_section(db, course_id, chapter_id, section_id, data)
+        return await self.create_for_section(db, course_id, chapter_id, section_id, user_id, data)
 
     async def create_for_section(
         self,
@@ -429,27 +405,17 @@ class ResourceService:
         course_id: int,
         chapter_id: int,
         section_id: int,
+        user_id: int,
         data: ResourceCreate,
     ) -> Resource:
-        """创建资源
-
-        Args:
-            db: 数据库会话
-            course_id: 课程ID
-            chapter_id: 章节ID
-            section_id: 小节ID
-            data: 创建数据
-
-        Returns:
-            创建的资源
-
-        Raises:
-            NotFoundException: 小节不存在
-        """
-        # 验证小节存在
-        section = await db.get(Section, section_id)
-        if not section:
-            raise NotFoundException("小节不存在")
+        """创建小节资源。"""
+        await _ensure_course_editable(db, course_id, user_id)
+        _ensure_chapter_belongs_to_course(await db.get(Chapter, chapter_id), course_id)
+        section = _ensure_section_belongs_to_course(
+            await db.get(Section, section_id),
+            course_id,
+            chapter_id,
+        )
 
         resource_type = normalize_resource_type(
             data.type,
@@ -472,12 +438,10 @@ class ResourceService:
         )
         db.add(resource)
 
-        # 更新小节资源数量和时长
         section.resource_count += 1
         if resource_type == "video":
             section.duration += data.duration
 
-        # 更新章节时长
         chapter = await db.get(Chapter, chapter_id)
         if chapter and resource_type == "video":
             chapter.total_duration += data.duration
@@ -494,12 +458,15 @@ class ResourceService:
         db: AsyncSession,
         course_id: int,
         chapter_id: int,
+        user_id: int,
         data: ResourceCreate,
     ) -> Resource:
         """创建章节级资源。"""
-        chapter = await db.get(Chapter, chapter_id)
-        if not chapter:
-            raise NotFoundException("章节不存在")
+        await _ensure_course_editable(db, course_id, user_id)
+        chapter = _ensure_chapter_belongs_to_course(
+            await db.get(Chapter, chapter_id),
+            course_id,
+        )
 
         resource_type = normalize_resource_type(
             data.type,
@@ -534,29 +501,27 @@ class ResourceService:
     async def delete(
         self,
         db: AsyncSession,
+        course_id: int,
         resource_id: int,
+        user_id: int,
+        chapter_id: int | None = None,
+        section_id: int | None = None,
     ) -> None:
-        """删除资源
+        """删除资源"""
+        await _ensure_course_editable(db, course_id, user_id)
+        resource = _ensure_resource_belongs_to_path(
+            await self.get_by_id(db, resource_id),
+            course_id,
+            chapter_id=chapter_id,
+            section_id=section_id,
+        )
 
-        Args:
-            db: 数据库会话
-            resource_id: 资源ID
-
-        Raises:
-            NotFoundException: 资源不存在
-        """
-        resource = await self.get_by_id(db, resource_id)
-        if not resource:
-            raise NotFoundException("资源不存在")
-
-        # 更新小节资源数量和时长
         section = await db.get(Section, resource.section_id) if resource.section_id else None
         if section:
             section.resource_count -= 1
             if resource.type == "video":
                 section.duration -= resource.duration
 
-        # 更新章节时长
         chapter = await db.get(Chapter, resource.chapter_id)
         if chapter and resource.type == "video":
             chapter.total_duration -= resource.duration

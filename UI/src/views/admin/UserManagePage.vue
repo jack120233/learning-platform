@@ -43,7 +43,7 @@ const {
 // 角色映射
 const roleMap: Record<string, { text: string; type: 'primary' | 'success' | 'warning' }> = {
   student: { text: '学生', type: 'primary' },
-  teacher: { text: '讲师', type: 'success' },
+  teacher: { text: '老师', type: 'success' },
   admin: { text: '管理员', type: 'warning' },
 }
 
@@ -118,7 +118,7 @@ async function handleDelete(user: AdminUserItem) {
   }
 }
 
-// 讲师审核弹窗
+// 老师审核弹窗
 const showAuditDialog = ref(false)
 const auditItem = ref<TeacherAuditItem | null>(null)
 const auditForm = ref({
@@ -205,9 +205,9 @@ onMounted(() => {
         <el-select v-model="roleFilter" placeholder="角色" style="width: 140px" @change="fetchData">
           <el-option label="全部角色" value="all" />
           <el-option label="学生" value="student" />
-          <el-option label="讲师" value="teacher" />
+          <el-option label="老师" value="teacher" />
           <el-option label="管理员" value="admin" />
-          <el-option label="待审核讲师" value="pending" />
+          <el-option label="待审核老师" value="pending" />
         </el-select>
         <el-select v-model="statusFilter" placeholder="状态" style="width: 120px" @change="fetchData">
           <el-option label="全部状态" value="all" />
@@ -354,8 +354,8 @@ onMounted(() => {
       </template>
     </el-drawer>
 
-    <!-- 讲师审核弹窗 -->
-    <el-dialog v-model="showAuditDialog" title="讲师审核" width="500px">
+    <!-- 老师审核弹窗 -->
+    <el-dialog v-model="showAuditDialog" title="老师审核" width="500px">
       <template v-if="auditItem">
         <div class="audit-info">
           <p><strong>用户名：</strong>{{ auditItem.username }}</p>

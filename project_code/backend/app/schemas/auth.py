@@ -6,7 +6,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 
 # ==================== 请求模型 ====================
@@ -18,13 +18,19 @@ class RegisterRequest(BaseModel):
         ...,
         min_length=2,
         max_length=50,
-        description="用户名",
-        examples=["zhangsan"],
+        description="真实姓名/登录名",
+        examples=["张三"],
     )
     email: EmailStr = Field(
         ...,
         description="邮箱地址",
         examples=["zhangsan@example.com"],
+    )
+    phone: str | None = Field(
+        default=None,
+        min_length=11,
+        max_length=20,
+        description="手机号码",
     )
     password: str = Field(
         ...,
@@ -33,30 +39,31 @@ class RegisterRequest(BaseModel):
         description="密码",
         examples=["password123"],
     )
+    confirm_password: str | None = Field(
+        default=None,
+        min_length=6,
+        max_length=50,
+        description="确认密码（兼容前端）",
+    )
     role: Literal["student", "teacher"] = Field(
         default="student",
         description="用户角色",
     )
-
-    # TODO: 验证码功能待后续测试后启用
-    captcha_key: str | None = Field(
+    real_name: str | None = Field(
         default=None,
-        description="验证码标识（暂未启用）",
-    )
-    captcha_text: str | None = Field(
-        default=None,
-        min_length=4,
-        max_length=6,
-        description="验证码内容（暂未启用）",
+        min_length=2,
+        max_length=50,
+        description="真实姓名",
     )
 
     @field_validator("username")
     @classmethod
     def validate_username(cls, v: str) -> str:
-        """验证用户名格式"""
-        if not v.isalnum():
-            raise ValueError("用户名只能包含字母和数字")
-        return v.lower()
+        """验证真实姓名/登录名。"""
+        normalized = v.strip()
+        if not normalized:
+            raise ValueError("请输入真实姓名")
+        return normalized
 
     @field_validator("password")
     @classmethod
@@ -65,6 +72,13 @@ class RegisterRequest(BaseModel):
         if not any(c.isupper() for c in v) and not any(c.isdigit() for c in v):
             raise ValueError("密码必须包含大写字母或数字")
         return v
+
+    @model_validator(mode="after")
+    def validate_confirm_password(self) -> "RegisterRequest":
+        """兼容前端确认密码字段。"""
+        if self.confirm_password is not None and self.confirm_password != self.password:
+            raise ValueError("两次输入的密码不一致")
+        return self
 
 
 class LoginRequest(BaseModel):
@@ -170,8 +184,6 @@ class UserResponse(BaseModel):
     id: int = Field(description="用户ID")
     username: str = Field(description="用户名")
     email: str = Field(description="邮箱")
-    nickname: str | None = Field(default=None, description="昵称")
-    avatar: str | None = Field(default=None, description="头像URL")
     role: str = Field(description="角色")
     status: str = Field(description="状态")
     created_at: datetime = Field(description="注册时间")

@@ -275,7 +275,7 @@ class TestFeedback:
         db_session: AsyncSession,
         test_course,
     ):
-        """测试拥有反馈权限的讲师可查看全量反馈列表和详情。"""
+        """测试拥有反馈权限的老师可查看全量反馈列表和详情。"""
         from app.models.feedback import Feedback
 
         teacher_auth = await create_role_user(client, db_session, "teacher")
@@ -286,8 +286,8 @@ class TestFeedback:
         own_feedback = Feedback(
             user_id=teacher_auth["user_id"],
             type="system",
-            title="讲师自己的反馈",
-            content="讲师自己提交的反馈",
+            title="老师自己的反馈",
+            content="老师自己提交的反馈",
             status="pending",
         )
         student_feedback = Feedback(
@@ -362,7 +362,7 @@ class TestFeedback:
         test_course,
         teacher_headers: dict,
     ):
-        """测试课程讲师可查看并处理自己课程的反馈。"""
+        """测试课程老师可查看并处理自己课程的反馈。"""
         from app.models.feedback import Feedback
 
         student_auth = await create_role_user(client, db_session, "student")
@@ -417,7 +417,7 @@ class TestFeedback:
         db_session: AsyncSession,
         test_course,
     ):
-        """测试讲师软删除学生反馈后列表和详情隐藏但数据库行保留。"""
+        """测试老师软删除学生反馈后列表和详情隐藏但数据库行保留。"""
         from app.models.feedback import Feedback
 
         student_auth = await create_role_user(client, db_session, "student")
@@ -466,7 +466,7 @@ class TestFeedback:
         db_session: AsyncSession,
         test_course,
     ):
-        """测试讲师不能删除不指向自己的学生反馈。"""
+        """测试老师不能删除不指向自己的学生反馈。"""
         from app.models.feedback import Feedback
 
         other_teacher_auth = await create_role_user(client, db_session, "teacher")
@@ -583,7 +583,7 @@ class TestFeedback:
         db_session: AsyncSession,
         test_course,
     ):
-        """测试课程反馈可以选择非课程原讲师的其他老师。"""
+        """测试课程反馈可以选择非课程原老师的其他老师。"""
         from sqlalchemy import delete
 
         from app.models.feedback import Feedback
@@ -692,7 +692,7 @@ class TestFeedback:
         db_session: AsyncSession,
         test_course,
     ):
-        """测试讲师不能查看或处理其他讲师课程的反馈。"""
+        """测试老师不能查看或处理其他老师课程的反馈。"""
         from sqlalchemy import delete
 
         from app.models.feedback import Feedback
@@ -713,7 +713,7 @@ class TestFeedback:
             course_id=test_course.id,
             target_user_id=test_course.teacher_id,
             title="非本人课程反馈",
-            content="这个反馈属于测试课程原讲师",
+            content="这个反馈属于测试课程原老师",
             status="pending",
         )
         db_session.add(feedback)
@@ -737,7 +737,7 @@ class TestFeedback:
         process_response = await client.post(
             f"/api/v1/feedbacks/{feedback.id}/process",
             headers=other_teacher_auth["headers"],
-            json={"reply": "尝试处理其他讲师课程反馈"},
+            json={"reply": "尝试处理其他老师课程反馈"},
         )
         assert process_response.status_code == 403
         assert process_response.json()["message"] == "无权处理该反馈"

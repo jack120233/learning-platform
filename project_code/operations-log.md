@@ -1,5 +1,76 @@
 # 操作记录
 
+## 老师注册待审核链路补齐
+时间：2026-05-15
+
+- 变更原因：老师注册不能直接获得完整老师权限，需要先生成管理员审核申请；待审核期间只能按学生权限访问。
+- 涉及文件：
+  - `backend/app/api/v1/auth.py`
+  - `backend/app/api/v1/permissions.py`
+  - `backend/app/api/v1/users.py`
+  - `backend/app/api/v1/uploads.py`
+  - `backend/app/api/v1/router.py`
+  - `backend/app/api/v1/admin_learning_statistics.py`
+  - `backend/app/api/v1/teacher_statistics.py`
+  - `backend/app/schemas/auth.py`
+  - `backend/app/schemas/user.py`
+  - `backend/app/schemas/course.py`
+  - `backend/app/schemas/feedback.py`
+  - `backend/app/schemas/learning.py`
+  - `backend/app/models/course.py`
+  - `backend/app/models/teacher_audit.py`
+  - `backend/app/services/auth_service.py`
+  - `backend/app/services/user_service.py`
+  - `backend/app/services/permission_service.py`
+  - `backend/app/services/course_service.py`
+  - `backend/app/services/course_statistics_authorization_service.py`
+  - `backend/app/services/teacher_statistics_service.py`
+  - `backend/tests/test_auth.py`
+  - `backend/tests/test_users.py`
+  - `backend/tests/conftest.py`
+  - `backend/tests/test_courses.py`
+  - `backend/tests/test_content.py`
+  - `backend/tests/test_feedbacks.py`
+  - `backend/tests/test_learning.py`
+  - `backend/tests/test_system.py`
+  - `operations-log.md`
+- 核心改动：
+  - 注册接口返回登录令牌和用户对象，学生注册为 active，老师注册为 pending 并同步创建 `TeacherAudit` 待审核记录。
+  - 待审核老师允许登录和刷新令牌，但 `/users/me/permissions` 返回学生权限，不包含老师中心权限。
+  - 管理员老师审核列表修复用户名查询逻辑，注册产生的审核记录可在 `/users/teacher-audits` 展示。
+  - 审核通过会把老师用户状态改为 active；审核驳回会回退为 active 学生，避免未通过用户保留老师权限。
+  - 后端用户可见的“讲师”文案统一改为“老师”，不改 `teacher` 代码、路径和权限标识。
+  - 补充注册、审核列表、待审核权限和审核通过激活测试。
+- 验证结果：
+  - 已执行：`python3 -m py_compile project_code/backend/app/schemas/auth.py project_code/backend/app/services/auth_service.py project_code/backend/app/api/v1/auth.py project_code/backend/app/api/v1/permissions.py project_code/backend/app/api/v1/users.py project_code/backend/app/services/user_service.py project_code/backend/tests/test_auth.py project_code/backend/tests/test_users.py`
+  - 结果：通过。
+  - 已执行：`cd "project_code/backend" && ../.venv/bin/python -m pytest tests/test_auth.py tests/test_users.py::TestTeacherAudit::test_teacher_registration_audit_is_listed_and_approved -q --tb=short`
+  - 结果：`22 passed`，有既有废弃警告。
+
+
+## 已发布课程编辑前置下架保护
+时间：2026-05-15
+
+- 变更原因：已发布课程的元信息、章节内容和课程资料都不应允许直接编辑，需要在后端增加状态级保护，防止前端绕过后仍改到线上内容。
+- 涉及文件：
+  - `backend/app/api/v1/content.py`
+  - `backend/app/services/content_service.py`
+  - `backend/app/services/course_service.py`
+  - `backend/tests/test_content.py`
+  - `backend/tests/test_courses.py`
+  - `operations-log.md`
+- 核心改动：
+  - 课程更新接口在所有权校验后增加已发布状态校验，课程负责人更新已发布课程会直接返回“已发布课程不能直接编辑，请先下架”。
+  - 课程资料新增、删除以及章节/小节/资源的新增、更新、删除、排序写操作都统一通过课程可编辑性校验，已发布课程不再允许写入。
+  - 路由层补齐 `user_id` 和路径归属参数，服务层集中复用课程存在、归属正确、未发布的判断逻辑。
+  - 补充课程与内容测试，覆盖发布态拒绝、下架后恢复可编辑以及非负责人仍返回权限错误的场景。
+- 验证结果：
+  - 已执行：`cd "project_code/backend" && ../.venv/bin/python -m pytest tests/test_courses.py -v`
+  - 结果：`32 passed`。
+  - 已执行：`cd "project_code/backend" && ../.venv/bin/python -m pytest tests/test_content.py -v`
+  - 结果：`22 passed`。
+
+
 ## 反馈截图上传接口补齐
 时间：2026-04-27 15:22:10
 
@@ -681,3 +752,28 @@
 - 验证结果：
   - 已执行：`/Users/jacob/Developer/a3.learn_platform/learning-platform/project_code/.venv/bin/python -m pytest /Users/jacob/Developer/a3.learn_platform/learning-platform/.claude/worktrees/20250514_Fix_bug-backend-tags/project_code/backend/tests/test_system.py -k "tag or category" -v`。
   - 结果：`29 passed, 11 warnings`，警告为既有 passlib `crypt` 与 FastAPI 422 常量弃用提示。
+
+## 待审核老师权限收口与 nickname/avatar 依赖清理
+时间：2026-05-15
+
+- 变更原因：待审核老师（role=teacher, status=pending）不应绕过前端直连后端获得老师权限；nickname/avatar 字段不再作为用户身份依赖。
+- 涉及文件：
+  - `backend/app/models/user.py`：新增 effective_role / is_pending_teacher 属性
+  - `backend/app/api/v1/permissions.py`：权限接口改用 effective_role
+  - `backend/app/api/v1/tags.py`：创建标签权限改用 effective_role
+  - `backend/app/api/v1/feedbacks.py`：反馈权限改用 effective_role
+  - `backend/app/api/v1/courses.py`：require_teacher_access / require_teacher_or_admin_access 使用 effective_role
+  - `backend/app/api/v1/uploads.py`：上传权限改用 effective_role
+  - `backend/app/api/v1/users.py`：老师审核列表改为 join 查询解决 N+1；TeacherOptionResponse 移除 nickname/avatar
+  - `backend/app/api/v1/announcements.py`：作者名用 username
+  - `backend/app/services/auth_service.py`：注册不再设 nickname=request.username
+  - `backend/app/services/teacher_statistics_service.py`：_ensure_teacher 改用 effective_role
+  - `backend/app/schemas/user.py`：移除 nickname/avatar 字段
+  - `backend/app/schemas/feedback.py`：移除 target_nickname
+  - `backend/app/services/feedback_service.py`：查询用 target_username 而非 nickname
+  - `backend/app/services/user_service.py`：搜索去掉了 User.nickname
+  - `backend/app/services/course_service.py`：published_all 改用 effective_role
+- 核心改动：统一用 User.effective_role 替代 user.role 做权限判断，pending teacher 自动降级为 student 权限
+- 验证结果：
+  - 已执行：`pytest tests/test_auth.py tests/test_users.py -v`
+  - 结果：48 passed，1 个 error 为既有 token 唯一约束冲突（单独重跑通过）

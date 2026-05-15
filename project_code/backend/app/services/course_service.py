@@ -113,8 +113,8 @@ class CourseService:
         query = select(Course)
 
         if scope == CourseManageScope.PUBLISHED_ALL:
-            if current_user.role not in {"teacher", "admin"}:
-                raise ForbiddenException("仅讲师可查看全部已发布课程")
+            if current_user.effective_role not in {"teacher", "admin"}:
+                raise ForbiddenException("仅老师可查看全部已发布课程")
             query = query.where(Course.status == "published")
         else:
             query = query.where(Course.teacher_id == current_user.id)
@@ -268,6 +268,8 @@ class CourseService:
         course = self._ensure_course_exists(await self.get_by_id(db, course_id))
         if not self._can_manage_course(current_user, course):
             raise ForbiddenException("无权修改此课程")
+        if course.status == "published":
+            raise ValidationException("已发布课程不能直接编辑，请先下架")
 
         update_data = data.model_dump(exclude_unset=True, exclude={"tag_ids"})
         for key, value in update_data.items():
@@ -450,6 +452,8 @@ class MaterialService:
             raise NotFoundException("课程不存在")
         if course.teacher_id != user_id:
             raise ForbiddenException("无权为此课程添加资料")
+        if course.status == "published":
+            raise ValidationException("已发布课程不能直接编辑，请先下架")
 
         material = CourseMaterial(
             course_id=course_id,
@@ -471,6 +475,8 @@ class MaterialService:
         course = await db.get(Course, material.course_id)
         if not course or course.teacher_id != user_id:
             raise ForbiddenException("无权删除此资料")
+        if course.status == "published":
+            raise ValidationException("已发布课程不能直接编辑，请先下架")
 
         await db.delete(material)
 

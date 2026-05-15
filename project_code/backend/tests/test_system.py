@@ -193,7 +193,7 @@ class TestCategory:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试默认讲师不能创建分类。"""
+        """测试默认老师不能创建分类。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         name = f"测试分类{uuid.uuid4().hex[:8]}"
         slug = f"test-cat-{uuid.uuid4().hex[:8]}"
@@ -216,7 +216,7 @@ class TestCategory:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试拥有分类管理权限的讲师可创建分类。"""
+        """测试拥有分类管理权限的老师可创建分类。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         await ensure_role_permission(db_session, "teacher", 38)
         name = f"测试分类{uuid.uuid4().hex[:8]}"
@@ -273,7 +273,7 @@ class TestTag:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试默认讲师可创建标签。"""
+        """测试默认老师可创建标签。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         name = f"测试标签{uuid.uuid4().hex[:8]}"
         slug = f"test-tag-{uuid.uuid4().hex[:8]}"
@@ -296,7 +296,7 @@ class TestTag:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试拥有标签管理权限的讲师可创建标签。"""
+        """测试拥有标签管理权限的老师可创建标签。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         await ensure_role_permission(db_session, "teacher", 39)
         name = f"测试标签{uuid.uuid4().hex[:8]}"
@@ -342,7 +342,7 @@ class TestTagDelete:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试默认讲师不能删除标签。"""
+        """测试默认老师不能删除标签。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         tag = await create_test_tag(db_session)
 
@@ -360,7 +360,7 @@ class TestTagDelete:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试拥有标签权限的讲师可删除未被引用标签。"""
+        """测试拥有标签权限的老师可删除未被引用标签。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         await ensure_role_permission(db_session, "teacher", 39)
         tag = await create_test_tag(db_session)
@@ -425,7 +425,7 @@ class TestTagDelete:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试默认讲师不能批量删除标签。"""
+        """测试默认老师不能批量删除标签。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         tag_a = await create_test_tag(db_session, name_prefix="批量标签A", slug_prefix="batch-tag-a")
         tag_b = await create_test_tag(db_session, name_prefix="批量标签B", slug_prefix="batch-tag-b")
@@ -445,7 +445,7 @@ class TestTagDelete:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试拥有标签权限的讲师可批量删除未被引用标签。"""
+        """测试拥有标签权限的老师可批量删除未被引用标签。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         await ensure_role_permission(db_session, "teacher", 39)
         tag_a = await create_test_tag(db_session, name_prefix="批量标签A", slug_prefix="batch-tag-a")
@@ -902,7 +902,7 @@ class TestMessagePermission:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试拥有系统消息权限的讲师可发送系统消息。"""
+        """测试拥有系统消息权限的老师可发送系统消息。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         target_user = await create_role_user(client, db_session, "student")
         await ensure_role_permission(db_session, "teacher", 37)

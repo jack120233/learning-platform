@@ -105,7 +105,7 @@ onMounted(() => {
 <template>
   <div class="teacher-audit-page">
     <div class="page-header">
-      <h2 class="page-title">讲师审核</h2>
+      <h2 class="page-title">老师审核</h2>
     </div>
 
     <div class="filter-bar">
@@ -168,7 +168,7 @@ onMounted(() => {
       @current-change="goToPage"
     />
 
-    <el-drawer v-model="detailDrawer" title="讲师申请详情" size="480px">
+    <el-drawer v-model="detailDrawer" title="老师申请详情" size="480px">
       <template v-if="currentAudit">
         <div class="detail-section">
           <div class="detail-row"><span class="detail-label">用户名</span><span class="detail-value">{{ currentAudit.username }}</span></div>
