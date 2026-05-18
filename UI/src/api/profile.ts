@@ -11,8 +11,6 @@ interface BackendUserProfile {
   can_change_username?: boolean | null
   email: string
   phone?: string | null
-  nickname?: string | null
-  avatar?: string | null
   role: 'student' | 'teacher' | 'admin'
   status: 'active' | 'disabled' | 'pending'
   created_at: string
@@ -28,8 +26,6 @@ export interface UserProfile {
   can_change_username: boolean
   email: string
   phone: string
-  nickname: string
-  avatar: string
   role: 'student' | 'teacher' | 'admin'
   status: 'active' | 'disabled' | 'pending'
   created_at: string
@@ -39,20 +35,9 @@ export interface UserProfile {
 /** 更新个人信息请求 */
 export interface UpdateProfileRequest {
   username?: string
-  nickname?: string
   email?: string
   phone?: string
   email_code?: string
-  avatar?: string
-}
-
-/** 上传头像响应 */
-export interface UploadAvatarResponse {
-  file_url: string
-  url: string
-  file_name: string
-  file_size: number
-  content_type?: string | null
 }
 
 /** 修改密码请求 */
@@ -134,7 +119,6 @@ export interface FeedbackItem {
   course_title?: string
   target_user_id?: number | null
   target_username?: string | null
-  target_nickname?: string | null
   reply?: string | null
   replied_at?: string | null
   created_at: string
@@ -169,19 +153,6 @@ export function fetchMyPermissions(): Promise<string[]> {
 export function updateProfile(data: UpdateProfileRequest): Promise<UserProfile> {
   return request.post<unknown, BackendUserProfile>('/users/me', data)
     .then(mapUserProfile)
-}
-
-/**
- * 上传头像
- */
-export function uploadAvatar(file: File): Promise<UploadAvatarResponse> {
-  const formData = new FormData()
-  formData.append('file', file)
-  return request.post<unknown, UploadAvatarResponse>('/upload/avatar', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  })
 }
 
 /**
@@ -329,7 +300,6 @@ interface BackendFeedbackItem {
   course_title?: string | null
   target_user_id?: number | null
   target_username?: string | null
-  target_nickname?: string | null
   created_at: string
 }
 
@@ -353,8 +323,6 @@ function mapUserProfile(profile: BackendUserProfile): UserProfile {
     can_change_username: profile.can_change_username ?? remaining > 0,
     email: profile.email,
     phone: profile.phone ?? '',
-    nickname: profile.nickname ?? '',
-    avatar: profile.avatar ?? '',
     role: profile.role,
     status: profile.status,
     created_at: profile.created_at,
@@ -400,7 +368,6 @@ function mapFeedbackItem(item: BackendFeedbackItem): FeedbackItem {
     course_title: item.course_title ?? undefined,
     target_user_id: item.target_user_id ?? null,
     target_username: item.target_username ?? null,
-    target_nickname: item.target_nickname ?? null,
     reply: item.reply ?? null,
     replied_at: item.replied_at ?? null,
     created_at: item.created_at,

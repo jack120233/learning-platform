@@ -13,7 +13,6 @@ export interface CourseDetail {
   description: string
   teacher_id: number
   teacher_name: string | null
-  teacher_avatar?: string
   author?: string
   category_id: number
   category_name: string | null
@@ -200,8 +199,6 @@ export interface SubmitFeedbackRequest {
 export interface TeacherOption {
   teacher_id: number
   username: string
-  nickname: string | null
-  avatar: string | null
 }
 
 /** 提交反馈响应 */

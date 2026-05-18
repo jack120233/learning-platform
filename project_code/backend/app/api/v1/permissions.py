@@ -41,7 +41,7 @@ async def get_current_user_permissions(
     current_user: CurrentUser,
 ) -> ApiResponse[list[str]]:
     """获取当前用户权限编码接口。"""
-    permission_codes = await permission_service.get_role_permission_codes(db, current_user.role)
+    permission_codes = await permission_service.get_role_permission_codes(db, current_user.effective_role)
     return ApiResponse.success(data=permission_codes)
 
 

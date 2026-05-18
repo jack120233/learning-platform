@@ -16,7 +16,6 @@ from app.schemas.auth import (
     ResetPasswordRequest,
     SendEmailCodeRequest,
     TokenResponse,
-    UserResponse,
 )
 from app.schemas.common import ApiResponse
 from app.services.auth_service import auth_service
@@ -26,14 +25,14 @@ router = APIRouter(prefix="/auth", tags=["用户认证"])
 
 @router.post(
     "/register",
-    response_model=ApiResponse[UserResponse],
+    response_model=ApiResponse[LoginResponse],
     summary="用户注册",
-    description="使用用户名、邮箱和密码注册新用户账户",
+    description="使用真实姓名、邮箱和密码注册新用户账户",
 )
 async def register(
     request: RegisterRequest,
     db: DBSession,
-) -> ApiResponse[UserResponse]:
+) -> ApiResponse[LoginResponse]:
     """用户注册接口
 
     Args:
@@ -41,11 +40,11 @@ async def register(
         db: 数据库会话
 
     Returns:
-        注册成功的用户信息
+        注册成功后的登录令牌和用户信息
     """
-    user = await auth_service.register(db, request)
+    response = await auth_service.register(db, request)
     return ApiResponse.success(
-        data=UserResponse.model_validate(user),
+        data=response,
         message="注册成功",
     )
 

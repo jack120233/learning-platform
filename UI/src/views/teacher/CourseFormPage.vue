@@ -79,8 +79,7 @@ const materials = ref<MaterialItem[]>([])
 
 // 课程详情（编辑模式）
 const courseDetail = ref<TeacherCourseDetail | null>(null)
-
-type PublishedCourseSaveAction = 'archive-only' | 'archive-and-republish'
+const isPublishedCourse = computed(() => courseDetail.value?.status === 'published')
 
 // 表单校验规则
 const rules = {
@@ -174,6 +173,13 @@ async function loadCourseDetail() {
     }
     
     materials.value = detail.materials || []
+
+    if (detail.status === 'published') {
+      const archived = await archivePublishedCourseForEdit()
+      if (!archived) {
+        router.push('/teacher/courses')
+      }
+    }
   } catch (error) {
     ElMessage.error('加载课程详情失败')
     router.push('/teacher/courses')
@@ -309,6 +315,11 @@ function getTagName(tagId: number) {
 }
 
 async function handleMaterialUpload(options: { file: File }) {
+  if (isEdit.value && isPublishedCourse.value) {
+    await archivePublishedCourseForEdit()
+    return
+  }
+
   if (!courseId.value) {
     ElMessage.warning('请先保存课程后再上传资料')
     return
@@ -338,6 +349,11 @@ async function handleMaterialUpload(options: { file: File }) {
 }
 
 async function handleDeleteMaterial(material: MaterialItem) {
+  if (isEdit.value && isPublishedCourse.value) {
+    await archivePublishedCourseForEdit()
+    return
+  }
+
   if (!courseId.value) return
   try {
     await deleteMaterial(courseId.value, material.material_id)
@@ -383,6 +399,11 @@ function checkPublishReady() {
 }
 
 async function handleSaveDraft(isSilent = false) {
+  if (isEdit.value && isPublishedCourse.value) {
+    await archivePublishedCourseForEdit()
+    return false
+  }
+
   const isValid = await validateCourseForm()
   if (!isValid) return false
   isSaving.value = true
@@ -434,28 +455,23 @@ function mergeCourseDetail(detail: TeacherCourseDetail, fallbackCourseId?: numbe
   }
 }
 
-async function requestPublishedCourseSaveAction(): Promise<PublishedCourseSaveAction | null> {
+async function archivePublishedCourseForEdit() {
+  if (!isPublishedCourse.value) return true
+
   try {
     await ElMessageBox.confirm(
-      '保存成功，但发布失败，请先下架后再发布',
+      '已发布课程不能直接编辑，请先下架后再编辑。',
       '提示',
       {
-        confirmButtonText: '下架并重新发布',
-        cancelButtonText: '仅下架',
+        confirmButtonText: '下架',
+        cancelButtonText: '取消',
         type: 'warning',
-        distinguishCancelAndClose: true,
         closeOnClickModal: false,
-        closeOnPressEscape: false,
-        showClose: false,
-        center: true,
       }
     )
-    return 'archive-and-republish'
-  } catch (action) {
-    if (action === 'cancel') {
-      return 'archive-only'
-    }
-    return null
+    return await archiveCurrentCourse('课程已下架，可以继续编辑', '编辑前下架')
+  } catch (error) {
+    return false
   }
 }
 
@@ -508,32 +524,20 @@ async function publishCurrentCourse(successMessage: string) {
 }
 
 async function handleSaveAndPublish() {
-  const isValid = await validateCourseForm()
-  if (!isValid) return
-  
-  const check = checkPublishReady()
-  if (!check.canPublish) {
-    ElMessage.warning(`以下内容缺失，无法发布：${check.missingItems.join('、')}`)
+  if (isEdit.value && isPublishedCourse.value) {
+    const archived = await archivePublishedCourseForEdit()
+    if (archived) {
+      ElMessage.info('课程已下架，请编辑后再保存或发布')
+    }
     return
   }
 
-  // 已发布课程需要先下架，再决定是否重新发布
-  if (courseDetail.value?.status === 'published') {
-    const saveSuccess = await handleSaveDraft(true)
-    if (!saveSuccess) return
+  const isValid = await validateCourseForm()
+  if (!isValid) return
 
-    const action = await requestPublishedCourseSaveAction()
-    if (!action) return
-
-    const archiveSuccess = await archiveCurrentCourse(
-      action === 'archive-only' ? '课程已下架' : undefined,
-      action === 'archive-only' ? '课程编辑后仅下架' : '课程编辑后下架并重新发布'
-    )
-    if (!archiveSuccess) return
-
-    if (action === 'archive-only') return
-
-    await publishCurrentCourse('下架并重新发布成功')
+  const check = checkPublishReady()
+  if (!check.canPublish) {
+    ElMessage.warning(`以下内容缺失，无法发布：${check.missingItems.join('、')}`)
     return
   }
 
@@ -618,11 +622,11 @@ onMounted(async () => {
         </el-select>
       </el-form-item>
 
-      <!-- 讲师信息 -->
-      <el-form-item label="讲师" prop="author">
+      <!-- 老师信息 -->
+      <el-form-item label="老师" prop="author">
         <el-input
           v-model="form.author"
-          placeholder="请输入讲师名称（可选）"
+          placeholder="请输入老师名称（可选）"
           maxlength="20"
           show-word-limit
           style="width: 240px"

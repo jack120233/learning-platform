@@ -73,8 +73,6 @@ const normalizedTeacherOptions = computed(() => {
     options.unshift({
       teacher_id: props.courseTeacherId,
       username: props.courseTeacherName || `老师 ${props.courseTeacherId}`,
-      nickname: props.courseTeacherName || null,
-      avatar: null,
     })
   }
   return options

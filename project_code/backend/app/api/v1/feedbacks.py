@@ -62,8 +62,9 @@ async def get_feedbacks(
     page_size: int = Query(default=10, ge=1, le=50, description="每页数量"),
 ) -> ApiResponse[PageData[FeedbackResponse]]:
     """获取反馈列表接口"""
-    can_view_all = await has_feedback_admin_permission(db, current_user.role)
-    can_view_course_feedback = current_user.role == "teacher"
+    effective_role = current_user.effective_role
+    can_view_all = await has_feedback_admin_permission(db, effective_role)
+    can_view_course_feedback = effective_role == "teacher"
 
     feedbacks, total = await feedback_service.get_list(
         db,
@@ -102,9 +103,10 @@ async def get_feedback(
     if not feedback:
         raise NotFoundException("反馈不存在")
 
-    can_view_all = await has_feedback_admin_permission(db, current_user.role)
+    effective_role = current_user.effective_role
+    can_view_all = await has_feedback_admin_permission(db, effective_role)
     can_view_course_feedback = (
-        current_user.role == "teacher"
+        effective_role == "teacher"
         and feedback["target_user_id"] == current_user.id
     )
     if not can_view_all and not can_view_course_feedback and feedback["user_id"] != current_user.id:
@@ -126,8 +128,9 @@ async def process_feedback(
     data: FeedbackProcess | None = None,
 ) -> ApiResponse[FeedbackResponse]:
     """处理反馈接口（管理员）"""
-    can_process_all = await has_feedback_admin_permission(db, current_user.role)
-    if not can_process_all and current_user.role != "teacher":
+    effective_role = current_user.effective_role
+    can_process_all = await has_feedback_admin_permission(db, effective_role)
+    if not can_process_all and effective_role != "teacher":
         raise ForbiddenException("无权处理反馈")
 
     feedback = await feedback_service.process(
@@ -156,7 +159,8 @@ async def delete_feedback(
     current_user: CurrentUser,
 ) -> ApiResponse[None]:
     """软删除反馈接口。"""
-    can_delete_all = current_user.role == "admin" and await has_feedback_admin_permission(db, current_user.role)
+    effective_role = current_user.effective_role
+    can_delete_all = effective_role == "admin" and await has_feedback_admin_permission(db, effective_role)
 
     await feedback_service.soft_delete(
         db,
@@ -181,7 +185,7 @@ async def batch_process_feedbacks(
     """批量处理反馈接口（管理员）。"""
     await permission_service.ensure_permission(
         db,
-        current_user.role,
+        current_user.effective_role,
         "admin.feedback",
         "无权处理反馈",
     )

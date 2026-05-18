@@ -392,7 +392,7 @@ const currentResourceParent = computed(() => {
               <span class="resource-count" v-if="chapter.resources?.length">{{ chapter.resources.length }} 资源</span>
 
               <el-button text size="small" type="primary" @click.stop="handleManageResources(chapter.chapter_id, 'chapter')">
-                整体资源管理
+                章节直属资源
               </el-button>
               <el-button text size="small" :icon="Plus" @click.stop="handleAddSection(chapter)">
                 添加小节

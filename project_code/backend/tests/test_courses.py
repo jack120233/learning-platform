@@ -138,10 +138,10 @@ class TestCourseManageList:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """讲师只能看到自己的课程。"""
+        """老师只能看到自己的课程。"""
         teacher, headers = await create_upload_test_user_with_user(db_session, "teacher")
         other_teacher, _other_headers = await create_upload_test_user_with_user(db_session, "teacher")
-        own_course = await create_course_with_status(db_session, teacher.id, "draft", "讲师自己的课程")
+        own_course = await create_course_with_status(db_session, teacher.id, "draft", "老师自己的课程")
         await create_course_with_status(db_session, other_teacher.id, "draft", "别人的课程")
 
         response = await client.get(
@@ -163,7 +163,7 @@ class TestCourseManageList:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """讲师可查看所有已发布课程。"""
+        """老师可查看所有已发布课程。"""
         teacher, teacher_headers = await create_upload_test_user_with_user(db_session, "teacher")
         other_teacher, _ = await create_upload_test_user_with_user(db_session, "teacher")
 
@@ -683,7 +683,7 @@ class TestCourseCoverUpload:
         assert data["data"]["file_name"] == "course-cover.png"
         assert data["data"]["file_size"] == len(file_content)
         assert data["data"]["url"] == data["data"]["file_url"]
-        assert data["data"]["file_url"].startswith("http://test/uploads/course-covers/")
+        assert data["data"]["file_url"].startswith("/uploads/course-covers/")
 
         upload_path = urlparse(data["data"]["file_url"]).path
         file_path = Path(settings.upload_dir) / Path(upload_path.lstrip("/")).relative_to("uploads")
@@ -729,7 +729,7 @@ class TestCourseCoverUpload:
 
         assert response.status_code == 403
         data = response.json()
-        assert data["message"] == "仅讲师或管理员可上传课程封面"
+        assert data["message"] == "仅老师或管理员可上传课程封面"
 
 
 class TestCourseMaterials:
@@ -821,12 +821,71 @@ class TestCourseMaterials:
         assert data["material_id"] > 0
         assert data["file_name"] == "lesson-outline.pdf"
         assert data["file_type"] == "pdf"
-        assert data["file_url"].startswith("http://test/uploads/files/")
+        assert data["file_url"].startswith("/uploads/files/")
 
         upload_path = urlparse(data["file_url"]).path
         file_path = Path(settings.upload_dir) / Path(upload_path.lstrip("/")).relative_to("uploads")
         assert file_path.exists()
         file_path.unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_cannot_create_material_on_published_course(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """已发布课程不能新增配套资料。"""
+        teacher, headers = await create_upload_test_user_with_user(db_session, "teacher")
+        course = await create_course_with_status(db_session, teacher.id, "published", "已发布资料课程")
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/materials",
+            headers=headers,
+            json={
+                "name": "禁止新增.pdf",
+                "file_url": "http://test/uploads/files/no-create.pdf",
+                "file_size": 1024,
+                "file_type": "pdf",
+            },
+        )
+
+        assert response.status_code == 422
+        assert response.json()["message"] == "已发布课程不能直接编辑，请先下架"
+        material_count = await db_session.scalar(
+            select(func.count()).select_from(CourseMaterial).where(CourseMaterial.course_id == course.id)
+        )
+        assert material_count == 0
+
+    @pytest.mark.asyncio
+    async def test_cannot_delete_material_on_published_course(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """已发布课程不能删除配套资料。"""
+        teacher, headers = await create_upload_test_user_with_user(db_session, "teacher")
+        course = await create_course_with_status(db_session, teacher.id, "published", "已发布删除资料课程")
+        material = CourseMaterial(
+            course_id=course.id,
+            name="待保留资料.pdf",
+            file_url="http://test/uploads/files/keep.pdf",
+            file_size=512,
+            file_type="pdf",
+        )
+        db_session.add(material)
+        await db_session.flush()
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/materials/{material.id}/delete",
+            headers=headers,
+        )
+
+        assert response.status_code == 422
+        assert response.json()["message"] == "已发布课程不能直接编辑，请先下架"
+        result = await db_session.execute(
+            select(CourseMaterial.id).where(CourseMaterial.id == material.id)
+        )
+        assert result.scalar_one_or_none() == material.id
 
     @pytest.mark.asyncio
     async def test_delete_material_legacy_post_route(
@@ -874,6 +933,80 @@ class TestCourseMaterials:
         )
 
         assert delete_response.status_code == 200
+
+
+class TestPublishedCourseEditGuard:
+    """已发布课程编辑保护测试。"""
+
+    @pytest.mark.asyncio
+    async def test_owner_cannot_update_published_course(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """负责人不能直接更新已发布课程，且数据库标题保持不变。"""
+        teacher, headers = await create_upload_test_user_with_user(db_session, "teacher")
+        course = await create_course_with_status(db_session, teacher.id, "published", "已发布原标题")
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}",
+            headers=headers,
+            json={"title": "不应写入的新标题"},
+        )
+
+        assert response.status_code == 422
+        assert response.json()["message"] == "已发布课程不能直接编辑，请先下架"
+        await db_session.refresh(course)
+        assert course.title == "已发布原标题"
+
+    @pytest.mark.asyncio
+    async def test_owner_can_archive_then_update_course(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """负责人下架后可以更新课程。"""
+        teacher, headers = await create_upload_test_user_with_user(db_session, "teacher")
+        course = await create_course_with_status(db_session, teacher.id, "published", "待下架编辑课程")
+
+        archive_response = await client.post(
+            f"/api/v1/courses/{course.id}/archive",
+            headers=headers,
+            json={"archive_reason": "编辑前下架"},
+        )
+        assert archive_response.status_code == 200
+
+        update_response = await client.post(
+            f"/api/v1/courses/{course.id}",
+            headers=headers,
+            json={"title": "下架后新标题"},
+        )
+
+        assert update_response.status_code == 200
+        await db_session.refresh(course)
+        assert course.status == "archived"
+        assert course.title == "下架后新标题"
+
+    @pytest.mark.asyncio
+    async def test_other_teacher_updating_published_course_gets_forbidden(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """其他老师更新已发布课程返回越权，且不暴露发布状态校验。"""
+        owner, _ = await create_upload_test_user_with_user(db_session, "teacher")
+        _other_teacher, headers = await create_upload_test_user_with_user(db_session, "teacher")
+        course = await create_course_with_status(db_session, owner.id, "published", "他人发布课程")
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}",
+            headers=headers,
+            json={"title": "越权标题"},
+        )
+
+        assert response.status_code == 403
+        await db_session.refresh(course)
+        assert course.title == "他人发布课程"
 
 
 class TestCourseArchive:
@@ -973,10 +1106,10 @@ class TestBatchCourseAction:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """讲师可批量删除自己的未发布课程。"""
+        """老师可批量删除自己的未发布课程。"""
         teacher, headers = await create_upload_test_user_with_user(db_session, "teacher")
-        draft_course = await create_course_with_status(db_session, teacher.id, "draft", "讲师草稿课程")
-        archived_course = await create_course_with_status(db_session, teacher.id, "archived", "讲师下架课程")
+        draft_course = await create_course_with_status(db_session, teacher.id, "draft", "老师草稿课程")
+        archived_course = await create_course_with_status(db_session, teacher.id, "archived", "老师下架课程")
 
         response = await client.post(
             "/api/v1/courses/batch-action",
@@ -998,11 +1131,11 @@ class TestBatchCourseAction:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """管理员可批量下架多名讲师的已发布课程。"""
+        """管理员可批量下架多名老师的已发布课程。"""
         teacher_a, _ = await create_upload_test_user_with_user(db_session, "teacher")
         teacher_b, _ = await create_upload_test_user_with_user(db_session, "teacher")
-        course_a = await create_course_with_status(db_session, teacher_a.id, "published", "讲师A课程")
-        course_b = await create_course_with_status(db_session, teacher_b.id, "published", "讲师B课程")
+        course_a = await create_course_with_status(db_session, teacher_a.id, "published", "老师A课程")
+        course_b = await create_course_with_status(db_session, teacher_b.id, "published", "老师B课程")
         _admin, admin_headers = await create_upload_test_user_with_user(db_session, "admin")
 
         response = await client.post(
@@ -1053,7 +1186,7 @@ class TestBatchCourseAction:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """讲师批量删除他人已发布课程返回越权失败，而非发布状态校验。"""
+        """老师批量删除他人已发布课程返回越权失败，而非发布状态校验。"""
         owner, _ = await create_upload_test_user_with_user(db_session, "teacher")
         other_teacher, headers = await create_upload_test_user_with_user(db_session, "teacher")
         published_course = await create_course_with_status(db_session, owner.id, "published", "他人已发布课程")

@@ -400,12 +400,12 @@ function openChapterResource(resource: CourseResource) {
         <div class="info-area">
           <h1 class="course-title">{{ course.title }}</h1>
 
-          <!-- 统一元数据行：讲师 | 分类 | 发布时间 -->
+          <!-- 统一元数据行：老师 | 分类 | 发布时间 -->
           <div class="meta-info-bar">
             <template v-if="course.author">
               <span class="meta-item">
                 <el-icon class="meta-icon"><User /></el-icon>
-                讲师：{{ course.author }}
+                老师：{{ course.author }}
               </span>
               <span class="meta-divider"></span>
             </template>

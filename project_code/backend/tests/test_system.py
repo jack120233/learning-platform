@@ -8,7 +8,7 @@ from datetime import datetime
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select, func
+from sqlalchemy import delete, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password
@@ -68,6 +68,22 @@ async def login_as_admin(
     return {"Authorization": f"Bearer {token}"}
 
 
+async def reset_role_permissions(
+    db_session: AsyncSession,
+    role: str,
+) -> None:
+    """重置指定角色默认权限。"""
+    await permission_service.ensure_schema_and_seed(db_session)
+    await db_session.execute(delete(RolePermission).where(RolePermission.role == role))
+    db_session.add_all(
+        [
+            RolePermission(role=role, permission_id=permission_id)
+            for permission_id in DEFAULT_ROLE_PERMISSION_IDS[role]
+        ]
+    )
+    await db_session.flush()
+
+
 async def create_role_user(
     client: AsyncClient,
     db_session: AsyncSession,
@@ -75,6 +91,7 @@ async def create_role_user(
     password: str = "Test123456",
 ) -> dict[str, str | int]:
     """创建指定角色用户并返回认证头。"""
+    await reset_role_permissions(db_session, role)
     unique_suffix = uuid.uuid4().hex[:8]
     username = f"{role}_{unique_suffix}"
     user = User(
@@ -171,12 +188,35 @@ class TestCategory:
         assert response.json()["message"] == "无权创建分类"
 
     @pytest.mark.asyncio
+    async def test_teacher_without_category_permission_cannot_create_category(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试默认老师不能创建分类。"""
+        teacher_auth = await create_role_user(client, db_session, "teacher")
+        name = f"测试分类{uuid.uuid4().hex[:8]}"
+        slug = f"test-cat-{uuid.uuid4().hex[:8]}"
+
+        response = await client.post(
+            "/api/v1/categories",
+            headers=teacher_auth["headers"],
+            json={
+                "name": name,
+                "slug": slug,
+            },
+        )
+
+        assert response.status_code == 403
+        assert response.json()["message"] == "无权创建分类"
+
+    @pytest.mark.asyncio
     async def test_teacher_with_category_permission_can_create_category(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试拥有分类管理权限的讲师可创建分类。"""
+        """测试拥有分类管理权限的老师可创建分类。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         await ensure_role_permission(db_session, "teacher", 38)
         name = f"测试分类{uuid.uuid4().hex[:8]}"
@@ -228,12 +268,35 @@ class TestTag:
         assert response.json()["message"] == "无权创建标签"
 
     @pytest.mark.asyncio
+    async def test_teacher_with_course_permission_can_create_tag(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试默认老师可创建标签。"""
+        teacher_auth = await create_role_user(client, db_session, "teacher")
+        name = f"测试标签{uuid.uuid4().hex[:8]}"
+        slug = f"test-tag-{uuid.uuid4().hex[:8]}"
+
+        response = await client.post(
+            "/api/v1/tags",
+            headers=teacher_auth["headers"],
+            json={"name": name, "slug": slug},
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["name"] == name
+        assert data["slug"] == slug
+        assert datetime.fromisoformat(data["created_at"])
+
+    @pytest.mark.asyncio
     async def test_teacher_with_tag_permission_can_create_tag(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试拥有标签管理权限的讲师可创建标签。"""
+        """测试拥有标签管理权限的老师可创建标签。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         await ensure_role_permission(db_session, "teacher", 39)
         name = f"测试标签{uuid.uuid4().hex[:8]}"
@@ -274,12 +337,30 @@ class TestTagDelete:
         assert response.json()["message"] == "无权删除标签"
 
     @pytest.mark.asyncio
+    async def test_teacher_without_tag_permission_cannot_delete_tag(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试默认老师不能删除标签。"""
+        teacher_auth = await create_role_user(client, db_session, "teacher")
+        tag = await create_test_tag(db_session)
+
+        response = await client.delete(
+            f"/api/v1/tags/{tag.id}",
+            headers=teacher_auth["headers"],
+        )
+
+        assert response.status_code == 403
+        assert response.json()["message"] == "无权删除标签"
+
+    @pytest.mark.asyncio
     async def test_teacher_with_tag_permission_can_delete_unused_tag(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试拥有标签权限的讲师可删除未被引用标签。"""
+        """测试拥有标签权限的老师可删除未被引用标签。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         await ensure_role_permission(db_session, "teacher", 39)
         tag = await create_test_tag(db_session)
@@ -339,12 +420,32 @@ class TestTagDelete:
         assert response.json()["message"] == "标签已被课程引用，无法删除"
 
     @pytest.mark.asyncio
+    async def test_teacher_without_tag_permission_cannot_batch_delete_tags(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试默认老师不能批量删除标签。"""
+        teacher_auth = await create_role_user(client, db_session, "teacher")
+        tag_a = await create_test_tag(db_session, name_prefix="批量标签A", slug_prefix="batch-tag-a")
+        tag_b = await create_test_tag(db_session, name_prefix="批量标签B", slug_prefix="batch-tag-b")
+
+        response = await client.post(
+            "/api/v1/tags/batch-delete",
+            headers=teacher_auth["headers"],
+            json={"tag_ids": [tag_a.id, tag_b.id]},
+        )
+
+        assert response.status_code == 403
+        assert response.json()["message"] == "无权批量删除标签"
+
+    @pytest.mark.asyncio
     async def test_teacher_with_tag_permission_can_batch_delete_tags(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试拥有标签权限的讲师可批量删除未被引用标签。"""
+        """测试拥有标签权限的老师可批量删除未被引用标签。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         await ensure_role_permission(db_session, "teacher", 39)
         tag_a = await create_test_tag(db_session, name_prefix="批量标签A", slug_prefix="batch-tag-a")
@@ -801,7 +902,7 @@ class TestMessagePermission:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试拥有系统消息权限的讲师可发送系统消息。"""
+        """测试拥有系统消息权限的老师可发送系统消息。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         target_user = await create_role_user(client, db_session, "student")
         await ensure_role_permission(db_session, "teacher", 37)

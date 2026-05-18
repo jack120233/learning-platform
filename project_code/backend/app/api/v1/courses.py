@@ -8,8 +8,8 @@ from pathlib import Path
 from fastapi import APIRouter, Query, Request
 from sqlalchemy import select
 
-from app.core.dependencies import CurrentUser, CurrentUserId, DBSession
-from app.core.exceptions import NotFoundException, ValidationException
+from app.core.dependencies import CurrentUser, DBSession
+from app.core.exceptions import ForbiddenException, NotFoundException, ValidationException
 from app.models.course import CourseTag
 from app.models.user import User
 from app.schemas.common import ApiResponse, PageData
@@ -33,6 +33,16 @@ from app.services.course_statistics_authorization_service import course_statisti
 from app.services.upload_service import upload_service
 
 router = APIRouter(prefix="/courses", tags=["课程管理"])
+
+
+def require_teacher_access(current_user: User) -> None:
+    if current_user.effective_role != "teacher":
+        raise ForbiddenException("仅老师可操作课程资源")
+
+
+def require_teacher_or_admin_access(current_user: User) -> None:
+    if current_user.effective_role not in {"teacher", "admin"}:
+        raise ForbiddenException("仅老师或管理员可操作课程资源")
 
 
 def build_course_list_item(course) -> CourseListResponse:
@@ -151,15 +161,16 @@ async def get_homepage_courses(
 )
 async def get_my_courses(
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
     status: str | None = Query(default=None, description="状态筛选"),
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=10, ge=1, le=50, description="每页数量"),
 ) -> ApiResponse[PageData[CourseListResponse]]:
     """获取我的课程接口"""
+    require_teacher_access(current_user)
     courses, total = await course_service.get_my_courses(
         db,
-        teacher_id=user_id,
+        teacher_id=current_user.id,
         status=status,
         page=page,
         page_size=page_size,
@@ -220,8 +231,8 @@ async def get_course(course_id: int, db: DBSession) -> ApiResponse[CourseRespons
     total_sections = sum(chapter.section_count for chapter in chapters)
     total_duration = sum(chapter.total_duration for chapter in chapters)
 
-    teacher_name_result = await db.execute(select(User.nickname).where(User.id == course.teacher_id))
-    teacher_nickname = teacher_name_result.scalar()
+    teacher_name_result = await db.execute(select(User.username).where(User.id == course.teacher_id))
+    teacher_name = teacher_name_result.scalar()
 
     course_dict = {
         "id": course.id,
@@ -231,7 +242,7 @@ async def get_course(course_id: int, db: DBSession) -> ApiResponse[CourseRespons
         "description": course.description,
         "cover_url": course.cover_url,
         "teacher_id": course.teacher_id,
-        "teacher_name": teacher_nickname,
+        "teacher_name": teacher_name,
         "category_id": course.category_id,
         "category_name": None,
         "price": course.price,
@@ -260,9 +271,10 @@ async def get_course(course_id: int, db: DBSession) -> ApiResponse[CourseRespons
     summary="创建课程",
     description="创建新课程",
 )
-async def create_course(data: CourseCreate, db: DBSession, user_id: CurrentUserId) -> ApiResponse[CourseResponse]:
+async def create_course(data: CourseCreate, db: DBSession, current_user: CurrentUser) -> ApiResponse[CourseResponse]:
     """创建课程接口"""
-    course = await course_service.create(db, user_id, data)
+    require_teacher_access(current_user)
+    course = await course_service.create(db, current_user.id, data)
     return ApiResponse.success(data=CourseResponse.model_validate(course), message="创建成功")
 
 
@@ -362,9 +374,10 @@ async def create_material(
     course_id: int,
     request: Request,
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
 ) -> ApiResponse[MaterialResponse]:
     """上传配套资料接口"""
+    require_teacher_or_admin_access(current_user)
     content_type = request.headers.get("content-type", "").lower()
 
     if content_type.startswith("multipart/form-data"):
@@ -373,7 +386,7 @@ async def create_material(
         if upload_file is None or not hasattr(upload_file, "filename"):
             raise ValidationException("请上传资料文件")
 
-        upload_result = await upload_service.save_file(file=upload_file, base_url=str(request.base_url))
+        upload_result = await upload_service.save_file(file=upload_file)
         file_name = str(upload_result["file_name"])
         data = MaterialCreate(
             name=file_name,
@@ -385,7 +398,7 @@ async def create_material(
         payload = await request.json()
         data = MaterialCreate.model_validate(payload)
 
-    material = await material_service.create(db, course_id, user_id, data)
+    material = await material_service.create(db, course_id, current_user.id, data)
     return ApiResponse.success(data=MaterialResponse.model_validate(material), message="上传成功")
 
 
@@ -399,10 +412,11 @@ async def delete_material(
     course_id: int,
     material_id: int,
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
 ) -> ApiResponse[None]:
     """删除配套资料接口"""
-    await material_service.delete(db, material_id, user_id)
+    require_teacher_or_admin_access(current_user)
+    await material_service.delete(db, material_id, current_user.id)
     return ApiResponse.success(message="删除成功")
 
 
@@ -417,10 +431,11 @@ async def delete_material_legacy(
     course_id: int,
     material_id: int,
     db: DBSession,
-    user_id: CurrentUserId,
+    current_user: CurrentUser,
 ) -> ApiResponse[None]:
     """兼容旧前端的资料删除接口。"""
-    await material_service.delete(db, material_id, user_id)
+    require_teacher_or_admin_access(current_user)
+    await material_service.delete(db, material_id, current_user.id)
     return ApiResponse.success(message="删除成功")
 
 

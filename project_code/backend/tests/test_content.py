@@ -104,7 +104,7 @@ class TestChapterCRUD:
             title="创建章节课程",
             teacher_id=test_teacher.id,
             category_id=category.id,
-            status="published",
+            status="draft",
             price=0,
             level="beginner",
         )
@@ -169,7 +169,7 @@ class TestChapterCRUD:
             title="更新章节课程",
             teacher_id=test_teacher.id,
             category_id=category.id,
-            status="published",
+            status="draft",
             price=0,
             level="beginner",
         )
@@ -391,7 +391,7 @@ class TestSectionCRUD:
             title="创建小节课程",
             teacher_id=test_teacher.id,
             category_id=category.id,
-            status="published",
+            status="draft",
             price=0,
             level="beginner",
         )
@@ -879,6 +879,146 @@ class TestSectionResourceAPI:
             select(Resource.id).where(Resource.id == resource.id)
         )
         assert result.scalar_one_or_none() is None
+
+
+class TestPublishedCourseContentEditGuard:
+    """已发布课程内容编辑保护测试。"""
+
+    async def _create_course_tree(
+        self,
+        db_session: AsyncSession,
+        status: str = "published",
+    ) -> tuple[User, dict[str, str], Course, Chapter, Section]:
+        teacher, headers = await create_content_test_user(db_session, "teacher")
+        category = Category(
+            name=f"发布保护分类-{uuid.uuid4().hex[:8]}",
+            slug=f"published-guard-{uuid.uuid4().hex[:8]}",
+            is_active=True,
+        )
+        db_session.add(category)
+        await db_session.flush()
+
+        course = Course(
+            title="发布保护课程",
+            teacher_id=teacher.id,
+            category_id=category.id,
+            status=status,
+            price=0,
+            level="beginner",
+        )
+        db_session.add(course)
+        await db_session.flush()
+
+        chapter = Chapter(course_id=course.id, title="原章节", sort_order=1)
+        db_session.add(chapter)
+        await db_session.flush()
+
+        section = Section(
+            course_id=course.id,
+            chapter_id=chapter.id,
+            title="原小节",
+            sort_order=1,
+        )
+        db_session.add(section)
+        await db_session.flush()
+        return teacher, headers, course, chapter, section
+
+    @pytest.mark.asyncio
+    async def test_cannot_create_chapter_on_published_course(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """已发布课程不能创建章节。"""
+        _teacher, headers, course, _chapter, _section = await self._create_course_tree(db_session)
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/chapters",
+            headers=headers,
+            json={"title": "新增章节", "sort_order": 2},
+        )
+
+        assert response.status_code == 422
+        assert response.json()["message"] == "已发布课程不能直接编辑，请先下架"
+
+    @pytest.mark.asyncio
+    async def test_cannot_update_chapter_on_published_course(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """已发布课程不能更新章节，且标题保持不变。"""
+        _teacher, headers, course, chapter, _section = await self._create_course_tree(db_session)
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/chapters/{chapter.id}",
+            headers=headers,
+            json={"title": "不应写入章节"},
+        )
+
+        assert response.status_code == 422
+        await db_session.refresh(chapter)
+        assert chapter.title == "原章节"
+
+    @pytest.mark.asyncio
+    async def test_archived_course_content_mutation_succeeds(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """已下架课程可以继续编辑内容。"""
+        _teacher, headers, course, chapter, _section = await self._create_course_tree(db_session, status="archived")
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/chapters/{chapter.id}",
+            headers=headers,
+            json={"title": "下架后章节标题"},
+        )
+
+        assert response.status_code == 200
+        await db_session.refresh(chapter)
+        assert chapter.title == "下架后章节标题"
+
+    @pytest.mark.asyncio
+    async def test_cannot_create_section_on_published_course(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """已发布课程不能创建小节。"""
+        _teacher, headers, course, chapter, _section = await self._create_course_tree(db_session)
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/chapters/{chapter.id}/sections",
+            headers=headers,
+            json={"title": "新增小节", "sort_order": 2},
+        )
+
+        assert response.status_code == 422
+        assert response.json()["message"] == "已发布课程不能直接编辑，请先下架"
+
+    @pytest.mark.asyncio
+    async def test_cannot_create_resource_on_published_course(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """已发布课程不能创建资源。"""
+        _teacher, headers, course, _chapter, section = await self._create_course_tree(db_session)
+
+        response = await client.post(
+            f"/api/v1/courses/{course.id}/sections/{section.id}/resources",
+            headers=headers,
+            json={
+                "resource_type": "document",
+                "file_name": "禁止新增.pdf",
+                "file_url": "http://test/uploads/files/no-resource.pdf",
+                "file_size": 1024,
+            },
+        )
+
+        assert response.status_code == 422
+        assert response.json()["message"] == "已发布课程不能直接编辑，请先下架"
 
 
 class TestChapterResourceAPI:

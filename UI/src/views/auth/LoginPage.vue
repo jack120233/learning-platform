@@ -74,8 +74,6 @@ const handleLogin = async () => {
       user_id: response.user.id,
       username: response.user.username,
       email: response.user.email,
-      nickname: response.user.nickname,
-      avatar_url: response.user.avatar || '',
       role: response.user.role,
       status: response.user.status,
       access_token: response.access_token,

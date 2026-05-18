@@ -110,7 +110,6 @@ class FeedbackService:
                 Course.title.label("course_title"),
                 Course.teacher_id.label("course_teacher_id"),
                 TargetUser.username.label("target_username"),
-                TargetUser.nickname.label("target_nickname"),
             )
             .join(User, User.id == Feedback.user_id)
             .outerjoin(Course, Course.id == Feedback.course_id)
@@ -174,7 +173,6 @@ class FeedbackService:
                 course_title,
                 course_teacher_id,
                 target_username,
-                target_nickname,
             )
             for (
                 feedback,
@@ -184,7 +182,6 @@ class FeedbackService:
                 course_title,
                 course_teacher_id,
                 target_username,
-                target_nickname,
             ) in result.all()
         ]
 
@@ -206,7 +203,6 @@ class FeedbackService:
                 Course.title.label("course_title"),
                 Course.teacher_id.label("course_teacher_id"),
                 TargetUser.username.label("target_username"),
-                TargetUser.nickname.label("target_nickname"),
             )
             .join(User, User.id == Feedback.user_id)
             .outerjoin(Course, Course.id == Feedback.course_id)
@@ -218,7 +214,7 @@ class FeedbackService:
         if row is None:
             return None
 
-        feedback, username, user_email, user_phone, course_title, course_teacher_id, target_username, target_nickname = row
+        feedback, username, user_email, user_phone, course_title, course_teacher_id, target_username = row
         return self.serialize_feedback_row(
             feedback,
             username,
@@ -227,7 +223,6 @@ class FeedbackService:
             course_title,
             course_teacher_id,
             target_username,
-            target_nickname,
         )
 
     async def process(
@@ -299,7 +294,6 @@ class FeedbackService:
         course_title: str | None = None,
         course_teacher_id: int | None = None,
         target_username: str | None = None,
-        target_nickname: str | None = None,
     ) -> dict:
         """将反馈模型与关联信息序列化为前端需要的结构。"""
         feedback_type = self.normalize_feedback_type(feedback.type, feedback.course_id)
@@ -320,7 +314,6 @@ class FeedbackService:
             "course_teacher_id": course_teacher_id,
             "target_user_id": feedback.target_user_id,
             "target_username": target_username,
-            "target_nickname": target_nickname,
             "title": feedback.title,
             "content": feedback.content,
             "contact": feedback.contact,

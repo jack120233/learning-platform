@@ -184,7 +184,7 @@ class CourseStatisticsAuthorizationService:
     async def ensure_statistics_access(self, db: AsyncSession, course_id: int, teacher: User) -> Course:
         """确保老师可查看课程统计并返回课程。"""
         if teacher.role != "teacher":
-            raise ForbiddenException("仅讲师可访问课程统计")
+            raise ForbiddenException("仅老师可访问课程统计")
         course = await self._get_course(db, course_id)
         if course.teacher_id == teacher.id:
             return course

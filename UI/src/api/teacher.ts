@@ -1,6 +1,6 @@
 import request, { type PaginatedData } from './index'
 
-// ==================== 讲师课程管理 ====================
+// ==================== 老师课程管理 ====================
 
 export type CourseStatus = 'draft' | 'published' | 'archived'
 export type CourseManageScope = 'mine' | 'published_all'
@@ -170,7 +170,6 @@ export interface TeacherFeedbackItem {
   course_teacher_id: number | null
   target_user_id: number | null
   target_username: string | null
-  target_nickname: string | null
   content: string
   images: string[]
   status: 'pending' | 'processed'
@@ -210,7 +209,6 @@ export interface TeacherUserSearchItem {
   user_id: number
   username: string
   email: string
-  nickname: string | null
   role: 'student' | 'teacher' | 'admin'
   status: 'active' | 'disabled' | 'pending'
   original_username: string | null
@@ -278,7 +276,7 @@ export interface UploadFileResponse {
   file_size: number
 }
 
-// ==================== 讲师课程统计 ====================
+// ==================== 老师课程统计 ====================
 
 export type TeacherStatisticsPermissionType = 'all' | 'owner' | 'authorized'
 export type TeacherStatisticsStudentStatus = 'all' | 'inactive' | 'low_progress' | 'completed'

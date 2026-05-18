@@ -61,7 +61,7 @@ class TestUploadFile:
         assert data["data"]["file_size"] == len(file_content)
         assert data["data"]["url"] == data["data"]["file_url"]
         assert data["data"]["file_url"].startswith(
-            "http://test/uploads/course-covers/"
+            "/uploads/course-covers/"
         )
 
         upload_path = urlparse(data["data"]["file_url"]).path
@@ -100,7 +100,7 @@ class TestUploadFile:
         assert data["data"]["file_size"] == len(file_content)
         assert data["data"]["content_type"] == "application/pdf"
         assert data["data"]["url"] == data["data"]["file_url"]
-        assert data["data"]["file_url"].startswith("http://test/uploads/files/")
+        assert data["data"]["file_url"].startswith("/uploads/files/")
         assert "/course-covers/" not in data["data"]["file_url"]
 
         upload_path = urlparse(data["data"]["file_url"]).path
@@ -162,7 +162,7 @@ class TestAvatarUpload:
         assert data["data"]["file_size"] == len(file_content)
         assert data["data"]["content_type"] == "image/gif"
         assert data["data"]["url"] == data["data"]["file_url"]
-        assert data["data"]["file_url"].startswith("http://test/uploads/avatars/")
+        assert data["data"]["file_url"].startswith("/uploads/avatars/")
 
         upload_path = urlparse(data["data"]["file_url"]).path
         file_path = (
@@ -232,7 +232,7 @@ class TestFeedbackImageUpload:
         assert data["data"]["file_size"] == len(file_content)
         assert data["data"]["content_type"] == "image/png"
         assert data["data"]["url"] == data["data"]["file_url"]
-        assert data["data"]["file_url"].startswith("http://test/uploads/feedback-images/")
+        assert data["data"]["file_url"].startswith("/uploads/feedback-images/")
 
         upload_path = urlparse(data["data"]["file_url"]).path
         file_path = (
@@ -390,7 +390,7 @@ class TestChunkUpload:
         data = response.json()["data"]
         assert data["file_name"] == "lesson-video.mp4"
         assert data["file_size"] == len(file_content)
-        assert data["file_url"].startswith("http://test/uploads/files/")
+        assert data["file_url"].startswith("/uploads/files/")
 
         upload_path = urlparse(data["file_url"]).path
         file_path = (

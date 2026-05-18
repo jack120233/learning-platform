@@ -17,6 +17,7 @@ from app.models.learning_progress import LearningProgress
 from app.models.user import User
 from app.core.security import hash_password
 from app.models.permission import RolePermission
+from app.models.teacher_audit import TeacherAudit
 
 
 def unique_key(prefix: str = "user") -> str:
@@ -1004,7 +1005,7 @@ class TestUserList:
         db_session: AsyncSession,
         test_user: User,
     ):
-        """测试讲师可搜索用户用于开放改名机会入口。"""
+        """测试老师可搜索用户用于开放改名机会入口。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
 
         response = await client.get(
@@ -1023,7 +1024,7 @@ class TestUserList:
 
 
 class TestTeacherAudit:
-    """讲师审核测试类"""
+    """老师审核测试类"""
 
     @pytest.mark.asyncio
     async def test_admin_can_get_teacher_audits(
@@ -1031,7 +1032,7 @@ class TestTeacherAudit:
         client: AsyncClient,
         admin_headers: dict,
     ):
-        """测试管理员可获取讲师审核列表。"""
+        """测试管理员可获取老师审核列表。"""
         response = await client.get(
             "/api/v1/users/teacher-audits",
             headers=admin_headers,
@@ -1040,12 +1041,77 @@ class TestTeacherAudit:
         assert response.status_code == 200
 
     @pytest.mark.asyncio
+    async def test_teacher_registration_audit_is_listed_and_approved(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        admin_headers: dict,
+    ):
+        """测试老师注册申请会出现在审核列表且通过后激活。"""
+        unique_suffix = uuid.uuid4().hex[:8]
+        username = f"audit_teacher_{unique_suffix}"
+        email = f"{username}@example.com"
+        phone = f"139{unique_suffix[:8]}"[:11]
+
+        register_response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "username": username,
+                "email": email,
+                "password": "Test123456",
+                "confirm_password": "Test123456",
+                "phone": phone,
+                "role": "teacher",
+            },
+        )
+        assert register_response.status_code == 200
+        teacher_headers = {
+            "Authorization": f"Bearer {register_response.json()['data']['access_token']}"
+        }
+
+        permissions_response = await client.get(
+            "/api/v1/users/me/permissions",
+            headers=teacher_headers,
+        )
+        assert permissions_response.status_code == 200
+        permission_codes = permissions_response.json()["data"]
+        assert "learn.course" in permission_codes
+        assert "teacher.course" not in permission_codes
+
+        list_response = await client.get(
+            "/api/v1/users/teacher-audits",
+            headers=admin_headers,
+            params={"status": "pending"},
+        )
+        assert list_response.status_code == 200
+        items = list_response.json()["data"]["items"]
+        audit_item = next(item for item in items if item["email"] == email)
+        assert audit_item["status"] == "pending"
+        assert audit_item["username"] == username
+
+        review_response = await client.post(
+            f"/api/v1/users/teacher-audits/{audit_item['id']}/review",
+            headers=admin_headers,
+            json={"approve": True, "comment": "通过"},
+        )
+        assert review_response.status_code == 200
+
+        user = await db_session.get(User, register_response.json()["data"]["user"]["id"])
+        assert user is not None
+        assert user.role == "teacher"
+        assert user.status == "active"
+
+        audit = await db_session.get(TeacherAudit, audit_item["id"])
+        assert audit is not None
+        assert audit.status == "approved"
+
+    @pytest.mark.asyncio
     async def test_student_without_permission_cannot_get_teacher_audits(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试普通用户无法获取讲师审核列表。"""
+        """测试普通用户无法获取老师审核列表。"""
         student_auth = await create_role_user(client, db_session, "student")
 
         response = await client.get(
@@ -1054,7 +1120,7 @@ class TestTeacherAudit:
         )
 
         assert response.status_code == 403
-        assert response.json()["message"] == "无权查看讲师审核列表"
+        assert response.json()["message"] == "无权查看老师审核列表"
 
     @pytest.mark.asyncio
     async def test_teacher_with_teacher_audit_permission_still_cannot_get_teacher_audits(
@@ -1062,7 +1128,7 @@ class TestTeacherAudit:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试讲师即使残留讲师审核权限也不能获取审核列表。"""
+        """测试老师即使残留老师审核权限也不能获取审核列表。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         db_session.add(RolePermission(role="teacher", permission_id=32))
         await db_session.flush()
@@ -1073,7 +1139,7 @@ class TestTeacherAudit:
         )
 
         assert response.status_code == 403
-        assert response.json()["message"] == "仅管理员可查看讲师审核列表"
+        assert response.json()["message"] == "仅管理员可查看老师审核列表"
 
 
 class TestAdminApplications:
@@ -1116,7 +1182,7 @@ class TestAdminApplications:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试讲师即使残留管理员申请权限也不能获取申请列表。"""
+        """测试老师即使残留管理员申请权限也不能获取申请列表。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         db_session.add(RolePermission(role="teacher", permission_id=33))
         await db_session.flush()

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { User, Key, Check, Bell, Back, Menu, Close, Message, Collection, PriceTag, TrendCharts, Notebook } from '@element-plus/icons-vue'
 import { useBreakpoint } from '@/composables/useBreakpoint'
 import { useUserStore } from '@/store/user'
+import { fetchTeacherAudits } from '@/api/admin'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,6 +14,20 @@ const { isMobile, isTablet } = useBreakpoint()
 // 移动端抽屉状态
 const showMobileMenu = ref(false)
 
+// 待审核老师数量
+const pendingTeacherCount = ref(0)
+
+async function loadPendingCount() {
+  try {
+    const data = await fetchTeacherAudits({ status: 'pending', page: 1, page_size: 1 })
+    pendingTeacherCount.value = data.total
+  } catch {
+    // ignore
+  }
+}
+
+onMounted(loadPendingCount)
+
 // 当前激活的菜单项
 const activeMenu = computed(() => route.path)
 
@@ -21,7 +36,7 @@ const menuItems = computed(() => ([
   { index: '/admin/learning-statistics', title: '学习统计', icon: TrendCharts, permissionCode: 'admin' },
   { index: '/admin/courses', title: '课程管理', icon: Notebook, permissionCode: 'admin' },
   { index: '/admin/users', title: '用户管理', icon: User, permissionCode: 'admin.user' },
-  { index: '/admin/teacher-audits', title: '讲师审核', icon: Check, permissionCode: 'admin.teacher_audit' },
+  { index: '/admin/teacher-audits', title: '老师审核', icon: Check, permissionCode: 'admin.teacher_audit' },
   { index: '/admin/announcements', title: '公告管理', icon: Bell, permissionCode: 'admin.announcement' },
   { index: '/admin/messages', title: '系统消息', icon: Message, permissionCode: 'admin.feedback' },
   { index: '/admin/categories', title: '分类管理', icon: Collection, permissionCode: 'admin.category' },
@@ -70,7 +85,15 @@ const handleMenuClick = (path?: string) => {
             :index="item.index"
           >
             <el-icon><component :is="item.icon" /></el-icon>
-            <span>{{ item.title }}</span>
+            <el-badge
+              v-if="item.index === '/admin/teacher-audits' && pendingTeacherCount > 0"
+              :value="pendingTeacherCount"
+              :max="99"
+              class="audit-badge"
+            >
+              <span>{{ item.title }}</span>
+            </el-badge>
+            <span v-else>{{ item.title }}</span>
           </el-menu-item>
         </el-menu>
 
@@ -110,7 +133,15 @@ const handleMenuClick = (path?: string) => {
               @click="handleMenuClick(item.index)"
             >
               <el-icon><component :is="item.icon" /></el-icon>
-              <span>{{ item.title }}</span>
+              <el-badge
+                v-if="item.index === '/admin/teacher-audits' && pendingTeacherCount > 0"
+                :value="pendingTeacherCount"
+                :max="99"
+                class="audit-badge"
+              >
+                <span>{{ item.title }}</span>
+              </el-badge>
+              <span v-else>{{ item.title }}</span>
             </div>
           </nav>
 
@@ -332,6 +363,13 @@ const handleMenuClick = (path?: string) => {
     &:hover {
       color: $primary-color;
     }
+  }
+}
+
+.audit-badge {
+  :deep(.el-badge__content) {
+    background-color: #f56c6c;
+    border: none;
   }
 }
 </style>

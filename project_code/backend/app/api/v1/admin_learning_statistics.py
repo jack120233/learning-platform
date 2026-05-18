@@ -26,7 +26,7 @@ async def get_admin_learning_statistics_overview(
     current_user: CurrentUser,
     range: str = Query(default="7d", description="7d/30d/all"),
     category_id: int | None = Query(default=None, description="分类ID"),
-    teacher_id: int | None = Query(default=None, description="讲师ID"),
+    teacher_id: int | None = Query(default=None, description="老师ID"),
     course_status: str = Query(default="all", description="课程状态"),
 ) -> ApiResponse[AdminLearningStatisticsOverviewResponse]:
     data = await admin_learning_statistics_service.get_overview(
@@ -52,7 +52,7 @@ async def get_admin_learning_statistics_trend(
     range: str = Query(default="7d", description="7d/30d"),
     metric: str = Query(default="duration", description="duration/active_students/completed_courses"),
     category_id: int | None = Query(default=None, description="分类ID"),
-    teacher_id: int | None = Query(default=None, description="讲师ID"),
+    teacher_id: int | None = Query(default=None, description="老师ID"),
     course_status: str = Query(default="all", description="课程状态"),
 ) -> ApiResponse[AdminLearningStatisticsTrendResponse]:
     data = await admin_learning_statistics_service.get_trend(
@@ -78,7 +78,7 @@ async def get_admin_learning_statistics_popular_courses(
     current_user: CurrentUser,
     range: str = Query(default="7d", description="7d/30d/all"),
     category_id: int | None = Query(default=None, description="分类ID"),
-    teacher_id: int | None = Query(default=None, description="讲师ID"),
+    teacher_id: int | None = Query(default=None, description="老师ID"),
     course_status: str = Query(default="all", description="课程状态"),
     limit: int = Query(default=10, ge=1, le=50, description="返回数量"),
 ) -> ApiResponse[list[AdminPopularCourseStatisticsItem]]:
@@ -105,7 +105,7 @@ async def get_admin_learning_statistics_low_completion_courses(
     current_user: CurrentUser,
     range: str = Query(default="7d", description="7d/30d/all"),
     category_id: int | None = Query(default=None, description="分类ID"),
-    teacher_id: int | None = Query(default=None, description="讲师ID"),
+    teacher_id: int | None = Query(default=None, description="老师ID"),
     course_status: str = Query(default="all", description="课程状态"),
     limit: int = Query(default=10, ge=1, le=50, description="返回数量"),
 ) -> ApiResponse[list[AdminLowCompletionCourseStatisticsItem]]:

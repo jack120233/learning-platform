@@ -134,8 +134,30 @@ function handleFeedbacks() {
   router.push('/teacher/feedbacks')
 }
 
-function handleEdit(courseId: number) {
-  router.push(`/teacher/courses/${courseId}/edit`)
+async function handleEdit(course: TeacherCourseItem) {
+  if (course.status !== 'published') {
+    router.push(`/teacher/courses/${course.id}/edit`)
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      '已发布课程不能直接编辑，请先下架后再编辑。',
+      '提示',
+      {
+        confirmButtonText: '下架',
+        cancelButtonText: '取消',
+        type: 'warning',
+        closeOnClickModal: false,
+      }
+    )
+
+    await archiveCourse(course.id, { archive_reason: '编辑前下架' })
+    ElMessage.success('课程已下架，可以继续编辑')
+    router.push(`/teacher/courses/${course.id}/edit`)
+  } catch (error) {
+    // 用户取消
+  }
 }
 
 async function handlePublish(course: TeacherCourseItem) {
@@ -420,7 +442,7 @@ onMounted(() => {
           <template #default="{ row }">
             <div class="course-title-wrap">
               <span class="course-title">{{ row.title }}</span>
-              <span v-if="manageScope === 'published_all' && row.teacher_name" class="teacher-name">讲师：{{ row.teacher_name }}</span>
+              <span v-if="manageScope === 'published_all' && row.teacher_name" class="teacher-name">老师：{{ row.teacher_name }}</span>
             </div>
           </template>
         </el-table-column>
@@ -453,7 +475,7 @@ onMounted(() => {
 
         <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="canEditCourse(row)" text size="small" :icon="Edit" @click="handleEdit(row.id)">
+            <el-button v-if="canEditCourse(row)" text size="small" :icon="Edit" @click="handleEdit(row)">
               编辑
             </el-button>
             <el-button v-if="canPublishCourse(row)" text size="small" type="success" :icon="Upload" @click="handlePublish(row)">

@@ -1,6 +1,6 @@
-"""讲师审核数据模型
+"""老师审核数据模型
 
-定义讲师审核相关的数据库模型。
+定义老师审核相关的数据库模型。
 """
 
 from datetime import datetime
@@ -12,9 +12,9 @@ from app.models.base import BaseModel
 
 
 class TeacherAudit(BaseModel):
-    """讲师审核记录模型
+    """老师审核记录模型
 
-    存储用户申请成为讲师的审核记录。
+    存储用户申请成为老师的审核记录。
 
     Attributes:
         user_id: 申请人ID

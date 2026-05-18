@@ -7,12 +7,13 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.models.captcha import CaptchaRecord
 from app.models.email_code import EmailCode
+from app.models.teacher_audit import TeacherAudit
 from app.models.user import User
 from app.core.security import hash_password
 
@@ -51,34 +52,15 @@ class TestRegister:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试用户注册成功"""
-        key = unique_key("register")
-        captcha = CaptchaRecord(
-            captcha_key=key,
-            captcha_text="test",
-            image_base64="test",
-            expires_at=utcnow() + timedelta(minutes=5),
-        )
-        db_session.add(captcha)
-
-        email_code = EmailCode(
-            email="newuser@example.com",
-            code="123456",
-            purpose="register",
-            expires_at=utcnow() + timedelta(minutes=10),
-        )
-        db_session.add(email_code)
-        await db_session.flush()
-
+        """测试学生注册成功。"""
         response = await client.post(
             "/api/v1/auth/register",
             json={
                 "username": "newuser",
                 "email": "newuser@example.com",
                 "password": "Test123456",
-                "captcha_key": key,
-                "captcha_text": "test",
                 "role": "student",
+                "confirm_password": "Test123456",
             },
         )
 
@@ -86,19 +68,60 @@ class TestRegister:
         data = response.json()
         assert data["code"] == 200
         assert data["message"] == "注册成功"
-        assert data["data"]["username"] == "newuser"
+        assert data["data"]["user"]["username"] == "newuser"
+        assert data["data"]["user"]["role"] == "student"
+        assert data["data"]["user"]["status"] == "active"
+        assert "access_token" in data["data"]
 
     @pytest.mark.asyncio
-    async def test_register_invalid_captcha(self, client: AsyncClient):
-        """测试验证码无效时注册失败"""
+    async def test_teacher_register_creates_pending_audit(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试老师注册会创建待审核记录。"""
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "username": "teacher_apply",
+                "email": "teacher_apply@example.com",
+                "password": "Test123456",
+                "phone": "13800000000",
+                "role": "teacher",
+                "confirm_password": "Test123456",
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["user"]["role"] == "teacher"
+        assert data["user"]["status"] == "pending"
+
+        result = await db_session.execute(
+            select(TeacherAudit).where(TeacherAudit.email == "teacher_apply@example.com")
+        )
+        audit = result.scalar_one_or_none()
+        assert audit is not None
+        assert audit.status == "pending"
+        assert audit.real_name == "teacher_apply"
+
+        user_result = await db_session.execute(
+            select(User).where(User.email == "teacher_apply@example.com")
+        )
+        user = user_result.scalar_one_or_none()
+        assert user is not None
+        assert user.status == "pending"
+
+    @pytest.mark.asyncio
+    async def test_register_confirm_password_mismatch(self, client: AsyncClient):
+        """测试确认密码不一致时注册失败。"""
         response = await client.post(
             "/api/v1/auth/register",
             json={
                 "username": "newuser2",
                 "email": "newuser2@example.com",
                 "password": "Test123456",
-                "captcha_key": "invalid_key",
-                "captcha_text": "wrong",
+                "confirm_password": "Test123457",
                 "role": "student",
             },
         )

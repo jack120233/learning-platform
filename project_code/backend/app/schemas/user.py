@@ -20,17 +20,6 @@ class UserProfileUpdate(BaseModel):
         max_length=50,
         description="用户名",
     )
-    nickname: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=50,
-        description="昵称",
-    )
-    avatar: str | None = Field(
-        default=None,
-        max_length=500,
-        description="头像URL",
-    )
     bio: str | None = Field(
         default=None,
         max_length=500,
@@ -78,8 +67,6 @@ class UserResponse(BaseModel):
     can_change_username: bool = Field(description="是否可修改用户名")
     email: str = Field(description="邮箱")
     phone: str | None = Field(default=None, description="手机号码")
-    nickname: str | None = Field(default=None, description="昵称")
-    avatar: str | None = Field(default=None, description="头像URL")
     bio: str | None = Field(default=None, description="个人简介")
     role: str = Field(description="角色")
     status: str = Field(description="状态")
@@ -99,7 +86,6 @@ class UserListResponse(BaseModel):
     username_change_remaining: int = Field(description="剩余用户名修改次数")
     can_change_username: bool = Field(description="是否可修改用户名")
     email: str = Field(description="邮箱")
-    nickname: str | None = Field(default=None, description="昵称")
     role: str = Field(description="角色")
     status: str = Field(description="状态")
     created_at: datetime = Field(description="注册时间")
@@ -113,8 +99,6 @@ class TeacherOptionResponse(BaseModel):
 
     teacher_id: int = Field(description="老师用户ID")
     username: str = Field(description="用户名")
-    nickname: str | None = Field(default=None, description="昵称")
-    avatar: str | None = Field(default=None, description="头像URL")
 
 
 class UserStatusUpdate(BaseModel):
@@ -161,10 +145,10 @@ class LearningRecordResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ==================== 讲师审核模型 ====================
+# ==================== 老师审核模型 ====================
 
 class TeacherAuditApply(BaseModel):
-    """讲师申请请求"""
+    """老师申请请求"""
 
     real_name: str = Field(
         ...,
@@ -204,7 +188,7 @@ class TeacherAuditApply(BaseModel):
 
 
 class TeacherAuditReview(BaseModel):
-    """讲师审核请求"""
+    """老师审核请求"""
 
     approve: bool = Field(
         ...,
@@ -218,7 +202,7 @@ class TeacherAuditReview(BaseModel):
 
 
 class TeacherAuditResponse(BaseModel):
-    """讲师审核记录响应"""
+    """老师审核记录响应"""
 
     id: int = Field(description="审核ID")
     user_id: int = Field(description="申请人ID")

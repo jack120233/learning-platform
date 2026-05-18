@@ -56,10 +56,12 @@ async def create_tag(
     current_user: CurrentUser,
 ) -> ApiResponse[TagResponse]:
     """创建标签接口"""
+    effective_role = current_user.effective_role
+    required_permission = "teacher.course" if effective_role == "teacher" else "admin.tag"
     await permission_service.ensure_permission(
         db,
-        current_user.role,
-        "admin.tag",
+        effective_role,
+        required_permission,
         "无权创建标签",
     )
     tag = await tag_service.create(db, data)

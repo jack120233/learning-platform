@@ -327,7 +327,7 @@ onMounted(() => {
           <template #default="{ row }">
             <div class="course-title-wrap">
               <span class="course-title">{{ row.title }}</span>
-              <span v-if="row.teacher_name" class="teacher-name">讲师：{{ row.teacher_name }}</span>
+              <span v-if="row.teacher_name" class="teacher-name">老师：{{ row.teacher_name }}</span>
             </div>
           </template>
         </el-table-column>

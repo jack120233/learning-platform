@@ -4,8 +4,6 @@
 """
 
 from fastapi import APIRouter
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.dependencies import DBSession, CurrentUserId
 from app.schemas.common import ApiResponse
 from app.schemas.content import (
@@ -62,8 +60,7 @@ async def create_chapter(
     user_id: CurrentUserId,
 ) -> ApiResponse[ChapterResponse]:
     """创建章节接口"""
-    # 实际项目中需要验证用户是否有权限操作该课程
-    chapter = await chapter_service.create(db, course_id, data)
+    chapter = await chapter_service.create(db, course_id, user_id, data)
     return ApiResponse.success(
         data=ChapterResponse.model_validate(chapter),
         message="创建成功",
@@ -83,7 +80,7 @@ async def sort_chapters(
     user_id: CurrentUserId,
 ) -> ApiResponse[None]:
     """章节排序接口"""
-    await chapter_service.sort(db, course_id, data.chapter_ids)
+    await chapter_service.sort(db, course_id, user_id, data.chapter_ids)
     return ApiResponse.success(message="排序成功")
 
 
@@ -101,7 +98,7 @@ async def update_chapter(
     user_id: CurrentUserId,
 ) -> ApiResponse[ChapterResponse]:
     """更新章节接口"""
-    chapter = await chapter_service.update(db, chapter_id, data)
+    chapter = await chapter_service.update(db, course_id, chapter_id, user_id, data)
     return ApiResponse.success(
         data=ChapterResponse.model_validate(chapter),
         message="更新成功",
@@ -121,7 +118,7 @@ async def delete_chapter(
     user_id: CurrentUserId,
 ) -> ApiResponse[None]:
     """删除章节接口"""
-    await chapter_service.delete(db, chapter_id)
+    await chapter_service.delete(db, course_id, chapter_id, user_id)
     return ApiResponse.success(message="删除成功")
 
 
@@ -139,7 +136,7 @@ async def delete_chapter_legacy(
     user_id: CurrentUserId,
 ) -> ApiResponse[None]:
     """兼容旧前端的章节删除接口。"""
-    await chapter_service.delete(db, chapter_id)
+    await chapter_service.delete(db, course_id, chapter_id, user_id)
     return ApiResponse.success(message="删除成功")
 
 
@@ -177,7 +174,7 @@ async def create_section(
     user_id: CurrentUserId,
 ) -> ApiResponse[SectionResponse]:
     """创建小节接口"""
-    section = await section_service.create(db, course_id, chapter_id, data)
+    section = await section_service.create(db, course_id, chapter_id, user_id, data)
     return ApiResponse.success(
         data=SectionResponse.model_validate(section),
         message="创建成功",
@@ -198,7 +195,7 @@ async def sort_sections(
     user_id: CurrentUserId,
 ) -> ApiResponse[None]:
     """小节排序接口"""
-    await section_service.sort(db, chapter_id, data.section_ids)
+    await section_service.sort(db, course_id, chapter_id, user_id, data.section_ids)
     return ApiResponse.success(message="排序成功")
 
 
@@ -217,7 +214,7 @@ async def update_section(
     user_id: CurrentUserId,
 ) -> ApiResponse[SectionResponse]:
     """更新小节接口"""
-    section = await section_service.update(db, section_id, data)
+    section = await section_service.update(db, course_id, chapter_id, section_id, user_id, data)
     return ApiResponse.success(
         data=SectionResponse.model_validate(section),
         message="更新成功",
@@ -238,7 +235,7 @@ async def delete_section(
     user_id: CurrentUserId,
 ) -> ApiResponse[None]:
     """删除小节接口"""
-    await section_service.delete(db, section_id)
+    await section_service.delete(db, course_id, chapter_id, section_id, user_id)
     return ApiResponse.success(message="删除成功")
 
 
@@ -257,7 +254,7 @@ async def delete_section_legacy(
     user_id: CurrentUserId,
 ) -> ApiResponse[None]:
     """兼容旧前端的小节删除接口。"""
-    await section_service.delete(db, section_id)
+    await section_service.delete(db, course_id, chapter_id, section_id, user_id)
     return ApiResponse.success(message="删除成功")
 
 
@@ -281,6 +278,7 @@ async def create_chapter_resource(
         db=db,
         course_id=course_id,
         chapter_id=chapter_id,
+        user_id=user_id,
         data=data,
     )
     return ApiResponse.success(
@@ -303,14 +301,13 @@ async def create_resource(
     user_id: CurrentUserId,
 ) -> ApiResponse[ResourceResponse]:
     """上传资源接口"""
-    # 需要获取小节的章节ID
     section = await section_service.get_by_id(db, section_id)
-    if not section:
+    if not section or section.course_id != course_id:
         from app.core.exceptions import NotFoundException
         raise NotFoundException("小节不存在")
 
     resource = await resource_service.create(
-        db, course_id, section.chapter_id, section_id, data
+        db, course_id, section.chapter_id, section_id, user_id, data
     )
     return ApiResponse.success(
         data=ResourceResponse.model_validate(resource),
@@ -332,7 +329,7 @@ async def delete_resource(
     user_id: CurrentUserId,
 ) -> ApiResponse[None]:
     """删除资源接口"""
-    await resource_service.delete(db, resource_id)
+    await resource_service.delete(db, course_id, resource_id, user_id, section_id=section_id)
     return ApiResponse.success(message="删除成功")
 
 
@@ -351,7 +348,7 @@ async def delete_chapter_resource_legacy(
     user_id: CurrentUserId,
 ) -> ApiResponse[None]:
     """兼容旧前端的章节资源删除接口。"""
-    await resource_service.delete(db, resource_id)
+    await resource_service.delete(db, course_id, resource_id, user_id, chapter_id=chapter_id)
     return ApiResponse.success(message="删除成功")
 
 
@@ -370,5 +367,5 @@ async def delete_resource_legacy(
     user_id: CurrentUserId,
 ) -> ApiResponse[None]:
     """兼容旧前端的小节资源删除接口。"""
-    await resource_service.delete(db, resource_id)
+    await resource_service.delete(db, course_id, resource_id, user_id, section_id=section_id)
     return ApiResponse.success(message="删除成功")
