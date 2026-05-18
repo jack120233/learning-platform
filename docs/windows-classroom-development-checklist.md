@@ -35,14 +35,22 @@ future/windows-classroom
 - [x] 课堂版 WAL 初始化入口。
 - [x] 运行配置与缓存抽象测试。
 
+## 1.1 当前产品口径
+
+- [x] 50 人作为课堂版基础验收。
+- [x] 70 路视频并发作为目标验收，尽力达到；未达到时记录明确瓶颈。
+- [x] 默认硬件按普通办公电脑或教师笔记本设计。
+- [x] 默认视频按普通 720p / 1080p 低中码率 MP4 设计。
+- [x] `/uploads/...` 静态文件不做文件级鉴权，业务权限放在资源元数据和学习入口链路。
+
 ## 2. Phase 1：课堂版配置文件与启动环境
 
 目标：提供课堂版默认环境配置，支持局域网访问。
 
 建议文件：
 
-- [ ] `config/windows-classroom.env`
-- [ ] `start-windows-classroom.cmd`
+- [x] `config/windows-classroom.env`
+- [x] `start-windows-classroom.cmd`
 - [ ] 如需跨平台辅助，可新增 LAN IP 检测脚本。
 
 配置要求：
@@ -57,13 +65,13 @@ SQLITE_BUSY_TIMEOUT_MS=30000
 
 验收项：
 
-- [ ] 启动脚本能设置 `APP_EDITION=windows_classroom`。
-- [ ] 后端监听局域网可访问地址。
-- [ ] 不要求用户手动输入数据库连接串。
-- [ ] 不要求用户启动 Redis。
-- [ ] 不要求用户启动 MySQL。
-- [ ] 启动失败时窗口不直接关闭，并提示日志位置。
-- [ ] 当前交付先按 `zip + launcher`，不阻塞后续安装器。
+- [x] 启动脚本能设置 `APP_EDITION=windows_classroom`。
+- [x] 后端监听局域网可访问地址。
+- [x] 不要求用户手动输入数据库连接串。
+- [x] 不要求用户启动 Redis。
+- [x] 不要求用户启动 MySQL。
+- [x] 启动失败时窗口不直接关闭，并提示日志位置。
+- [x] 当前交付先按 `zip + launcher`，不阻塞后续安装器。
 
 ## 3. Phase 2：LAN 访问地址展示
 
@@ -71,11 +79,11 @@ SQLITE_BUSY_TIMEOUT_MS=30000
 
 实现要求：
 
-- [ ] 获取本机局域网 IP。
-- [ ] 显示本机地址：`http://127.0.0.1:<port>`。
-- [ ] 显示局域网地址：`http://<lan-ip>:<port>`。
-- [ ] 提示学生需要连接同一局域网。
-- [ ] 提示防火墙可能需要放行应用端口。
+- [x] 获取本机局域网 IP。
+- [x] 显示本机地址：`http://127.0.0.1:<port>`。
+- [x] 显示局域网地址：`http://<lan-ip>:<port>`。
+- [x] 提示学生需要连接同一局域网。
+- [x] 提示防火墙可能需要放行应用端口。
 
 显示示例：
 
@@ -89,7 +97,7 @@ SQLITE_BUSY_TIMEOUT_MS=30000
 
 - [ ] Windows 主机本机可访问。
 - [ ] 同一局域网另一台设备可访问。
-- [ ] IP 获取失败时有清晰提示，不静默失败。
+- [x] IP 获取失败时有清晰提示，不静默失败。
 
 ## 4. Phase 3：SQLite 课堂运行验证
 
@@ -103,11 +111,11 @@ SQLITE_BUSY_TIMEOUT_MS=30000
 
 验收项：
 
-- [ ] `APP_EDITION=windows_classroom` 时启用 SQLite 文件库。
-- [ ] `PRAGMA journal_mode=WAL` 生效。
-- [ ] `PRAGMA busy_timeout` 生效。
+- [x] `APP_EDITION=windows_classroom` 时启用 SQLite 文件库。
+- [x] `PRAGMA journal_mode=WAL` 生效。
+- [x] `PRAGMA busy_timeout` 生效。
 - [ ] 并发读写场景不会轻易触发 database locked。
-- [ ] 测试覆盖 classroom 与 local 差异。
+- [x] 测试覆盖 classroom 与 local 差异。
 
 ## 5. Phase 4：学习进度写入节流
 
@@ -157,7 +165,7 @@ SQLITE_BUSY_TIMEOUT_MS=30000
 - [ ] Python 不整文件读入内存再返回。
 - [ ] JS/CSS/hash 静态资源可长期缓存。
 - [ ] 媒体文件通过稳定静态路径访问，不走整文件转发 API。
-- [ ] 明确当前静态服务是否支持 Range；不支持时补专用 Range 响应或替代静态承载方案。
+- [x] 明确当前静态服务是否支持 Range；不支持时补专用 Range 响应或替代静态承载方案。
 - [ ] 记录视频码率、文件大小、磁盘类型和网卡速率，作为 70 路视频并发判断依据。
 
 验收项：
@@ -210,6 +218,10 @@ SQLITE_BUSY_TIMEOUT_MS=30000
 - [ ] 记录 Windows 主机 CPU、内存、磁盘和网络变化。
 - [ ] 保存出现异常时的后端日志和浏览器截图。
 
+实机执行清单：
+
+- [ ] 按 [`windows-classroom-real-machine-test-checklist.md`](./windows-classroom-real-machine-test-checklist.md) 完成首次启动、LAN 访问、WAL、Range、50 人基础验收和 70 路视频并发目标验收。
+
 ## 8. 课堂版验证命令
 
 后端定向验证：
@@ -231,6 +243,11 @@ cd UI
 npm run build
 ```
 
+当前聚焦验证结果：
+
+- `project_code/.venv/bin/python -m pytest project_code/backend/tests/test_runtime_config.py -q`：`20 passed, 1 warning`
+- `project_code/.venv/bin/python -m pytest project_code/backend/tests/test_learning.py -q`：`7 passed, 8 warnings`
+
 联调验证：
 
 - [ ] Windows 主机本机访问。
@@ -241,6 +258,12 @@ npm run build
 - [ ] 打开学习页。
 - [ ] 播放视频并拖动。
 - [ ] 多用户保存学习进度。
+
+实机与规模验证：
+
+```text
+docs/windows-classroom-real-machine-test-checklist.md
+```
 
 ## 9. 禁止项
 

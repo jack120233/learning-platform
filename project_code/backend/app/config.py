@@ -67,6 +67,13 @@ class Settings(BaseSettings):
     windows_local_cache_dir: str = str(BASE_DIR / "data" / "cache")
     windows_local_database_filename: str = "windows-local.db"
 
+    # Windows classroom 默认使用同一运行目录结构，但数据库文件名与单机版隔离
+    windows_classroom_data_dir: str = str(BASE_DIR / "data")
+    windows_classroom_log_dir: str = str(BASE_DIR / "logs")
+    windows_classroom_upload_dir: str = str(BASE_DIR / "uploads")
+    windows_classroom_cache_dir: str = str(BASE_DIR / "data" / "cache")
+    windows_classroom_database_filename: str = "windows-classroom.db"
+
     # 数据库配置
     database_url: str | None = Field(
         default=None,
@@ -184,6 +191,8 @@ class Settings(BaseSettings):
             return Path(self.local_database_path)
         if self.app_edition == "windows_local":
             return Path(self.windows_local_data_dir) / self.windows_local_database_filename
+        if self.app_edition == "windows_classroom":
+            return Path(self.windows_classroom_data_dir) / self.windows_classroom_database_filename
         return Path(self.local_data_dir) / "learning_platform.db"
 
     @property
@@ -193,6 +202,8 @@ class Settings(BaseSettings):
             return Path(self.local_cache_dir)
         if self.app_edition == "windows_local":
             return Path(self.windows_local_cache_dir)
+        if self.app_edition == "windows_classroom":
+            return Path(self.windows_classroom_cache_dir)
         return Path(self.local_data_dir) / "cache"
 
     @property
@@ -206,6 +217,8 @@ class Settings(BaseSettings):
         """解析后的上传目录。"""
         if self.app_edition == "windows_local" and self.upload_dir == str(BASE_DIR / "uploads"):
             return Path(self.windows_local_upload_dir)
+        if self.app_edition == "windows_classroom" and self.upload_dir == str(BASE_DIR / "uploads"):
+            return Path(self.windows_classroom_upload_dir)
         return Path(self.upload_dir)
 
     @property
@@ -213,6 +226,8 @@ class Settings(BaseSettings):
         """解析后的日志目录。"""
         if self.app_edition == "windows_local" and self.log_dir == "logs":
             return Path(self.windows_local_log_dir)
+        if self.app_edition == "windows_classroom" and self.log_dir == "logs":
+            return Path(self.windows_classroom_log_dir)
         return Path(self.log_dir)
 
     @property
@@ -285,10 +300,9 @@ class Settings(BaseSettings):
     def runtime_directories(self) -> list[Path]:
         """需要在本地运行时确保存在的目录。"""
         directories = [self.resolved_upload_dir, self.resolved_log_dir]
-        if self.app_edition == "windows_local":
+        if self.is_windows_edition:
             directories.extend(
                 [
-                    Path(self.windows_local_data_dir),
                     self.resolved_local_database_path.parent,
                     self.resolved_cache_dir,
                 ]
@@ -296,9 +310,14 @@ class Settings(BaseSettings):
         return list(dict.fromkeys(directories))
 
     @property
+    def windows_frontend_ready(self) -> bool:
+        """Windows 版本是否已包含可直接承载的前端生产包。"""
+        return self.parsed_frontend_index_path.is_file()
+
+    @property
     def windows_local_frontend_ready(self) -> bool:
         """Windows 单机版是否已包含可直接承载的前端生产包。"""
-        return self.parsed_frontend_index_path.is_file()
+        return self.windows_frontend_ready
 
 
 @lru_cache

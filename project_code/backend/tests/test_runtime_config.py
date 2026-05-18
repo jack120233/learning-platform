@@ -1,9 +1,14 @@
 """运行版本配置与缓存抽象测试。"""
 
 import pytest
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.testclient import TestClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import Settings
+from app.core import runtime
 from app.core.cache import InMemoryCache, RedisCachePlaceholder
 from app.core.runtime import configure_sqlite_runtime, seed_database_if_empty
 from app.main import should_serve_frontend_spa
@@ -27,6 +32,26 @@ def test_windows_local_defaults_to_sqlite_file_and_diskcache(tmp_path):
     assert settings.sqlalchemy_connect_args == {"timeout": settings.sqlite_timeout_seconds}
 
 
+def test_windows_classroom_defaults_to_isolated_sqlite_file_and_diskcache(tmp_path):
+    settings = Settings(
+        app_edition="windows_classroom",
+        windows_classroom_data_dir=str(tmp_path / "data"),
+        windows_classroom_cache_dir=str(tmp_path / "data" / "cache"),
+        windows_classroom_upload_dir=str(tmp_path / "uploads"),
+        windows_classroom_log_dir=str(tmp_path / "logs"),
+    )
+
+    assert settings.async_database_url.startswith("sqlite+aiosqlite:///")
+    assert settings.async_database_url.endswith("windows-classroom.db")
+    assert settings.effective_cache_backend == "diskcache"
+    assert settings.resolved_cache_dir == tmp_path / "data" / "cache"
+    assert settings.resolved_upload_dir == tmp_path / "uploads"
+    assert settings.resolved_log_dir == tmp_path / "logs"
+    assert settings.sqlalchemy_connect_args == {"timeout": settings.sqlite_timeout_seconds}
+    assert settings.resolved_local_database_path.parent in settings.runtime_directories
+    assert settings.resolved_cache_dir in settings.runtime_directories
+
+
 def test_explicit_database_url_keeps_in_memory_sqlite_for_tests():
     settings = Settings(
         app_edition="windows_classroom",
@@ -46,12 +71,13 @@ def test_server_defaults_to_redis_cache_without_requiring_connection():
     assert settings.async_database_url == "sqlite+aiosqlite:///:memory:"
 
 
-def test_windows_local_frontend_paths_point_to_ui_dist():
-    settings = Settings(app_edition="windows_local")
+@pytest.mark.parametrize("app_edition", ["windows_local", "windows_classroom"])
+def test_windows_frontend_paths_point_to_ui_dist(app_edition):
+    settings = Settings(app_edition=app_edition)
 
     assert settings.parsed_frontend_dist_dir.name == "dist"
     assert settings.parsed_frontend_index_path.name == "index.html"
-    assert settings.windows_local_frontend_ready in {True, False}
+    assert settings.windows_frontend_ready in {True, False}
 
 
 @pytest.mark.parametrize(
@@ -78,6 +104,23 @@ def test_windows_local_spa_fallback_allows_frontend_routes(path):
 )
 def test_windows_local_spa_fallback_excludes_api_and_upload_routes(path):
     assert should_serve_frontend_spa(path, "/api/v1", "/uploads") is False
+
+
+def test_upload_static_files_support_range_requests(tmp_path):
+    video_path = tmp_path / "sample.mp4"
+    video_path.write_bytes(b"0123456789" * 200)
+    app = FastAPI()
+    app.mount("/uploads", StaticFiles(directory=tmp_path), name="uploads")
+
+    response = TestClient(app).get(
+        "/uploads/sample.mp4",
+        headers={"Range": "bytes=0-9"},
+    )
+
+    assert response.status_code == 206
+    assert response.headers["content-range"] == "bytes 0-9/2000"
+    assert response.headers["accept-ranges"] == "bytes"
+    assert response.content == b"0123456789"
 
 
 @pytest.mark.asyncio
@@ -108,6 +151,31 @@ async def test_sqlite_runtime_skips_pragmas_for_memory_database():
         async with engine.begin() as conn:
             messages = await configure_sqlite_runtime(conn)
         assert messages == []
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_windows_classroom_sqlite_runtime_enables_wal_and_busy_timeout(tmp_path, monkeypatch):
+    database_path = tmp_path / "classroom.db"
+    classroom_settings = Settings(
+        app_edition="windows_classroom",
+        database_url=f"sqlite+aiosqlite:///{database_path}",
+        sqlite_busy_timeout_ms=12345,
+    )
+    monkeypatch.setattr(runtime, "settings", classroom_settings)
+    engine = create_async_engine(classroom_settings.async_database_url)
+
+    try:
+        async with engine.begin() as conn:
+            messages = await runtime.configure_sqlite_runtime(conn)
+            busy_timeout = (await conn.execute(text("PRAGMA busy_timeout"))).scalar()
+            journal_mode = (await conn.execute(text("PRAGMA journal_mode"))).scalar()
+
+        assert "已设置 SQLite busy_timeout=12345ms" in messages
+        assert "已设置 SQLite journal_mode=WAL" in messages
+        assert busy_timeout == 12345
+        assert str(journal_mode).lower() == "wal"
     finally:
         await engine.dispose()
 

@@ -885,3 +885,55 @@
 - 验证结果：
   - 已执行：`pytest tests/test_auth.py tests/test_users.py -v`
   - 结果：48 passed，1 个 error 为既有 token 唯一约束冲突（单独重跑通过）
+
+## Windows 课堂版启动器与静态分发基础
+时间：2026-05-18
+
+- 变更原因：将 Windows 单机版沉淀的运行时基础合入课堂版分支后，补齐课堂版 zip + launcher 的最小可用入口，并确认课堂版可以承载前端 SPA 与 `/uploads` Range 静态资源分发。
+- 涉及文件：
+  - `../config/windows-classroom.env`
+  - `../start-windows-classroom.cmd`
+  - `backend/app/config.py`
+  - `backend/app/main.py`
+  - `backend/tests/test_runtime_config.py`
+  - `../docs/windows-classroom-video-delivery-plan.md`
+  - `../docs/windows-classroom-development-checklist.md`
+  - `../docs/windows-classroom-implementation-details.md`
+  - `../docs/windows-deployment-index.md`
+  - `../.trellis/spec/backend/runtime-editions.md`
+  - `operations-log.md`
+- 核心改动：
+  - 新增课堂版默认配置 `APP_EDITION=windows_classroom`、`HOST=0.0.0.0`、`CACHE_BACKEND=auto`、`SQLITE_BUSY_TIMEOUT_MS=30000`。
+  - 新增 `start-windows-classroom.cmd`，复用单机版启动链路，增加 APP_EDITION 校验、LAN IPv4 探测、本机/LAN URL 展示、防火墙提示、课堂版专用启动日志和错误日志。
+  - 为课堂版补齐独立默认 SQLite 文件名 `windows-classroom.db`，并把数据库父目录与 cache 目录纳入 Windows 运行目录初始化。
+  - 让 `windows_classroom` 与 `windows_local` 一样在前端 dist 存在时承载 `/assets`、根路径和 SPA fallback，同时继续排除 `/api` 与 `/uploads` 未命中路径。
+  - 补充课堂版默认配置测试、Windows 前端路径测试和 `StaticFiles` Range 请求测试，确认 `/uploads` 对 Range 请求返回 `206 Partial Content`。
+  - 新增课堂版视频与静态资源分发实施方案，并把课堂版容量口径统一为至少 50 人、目标 70 路视频并发。
+- 验证结果：
+  - 已执行：`project_code/.venv/bin/python -m pytest project_code/backend/tests/test_runtime_config.py -q`
+  - 结果：`19 passed, 1 warning`，警告为既有 `passlib` 使用 Python `crypt` 的弃用提示。
+  - 已执行：`npm --prefix UI run build`
+  - 结果：构建通过；Vite 仍有既有大 chunk warning，不阻断产物生成。
+
+## Windows 课堂版验收口径与 WAL 验证补强
+时间：2026-05-18
+
+- 变更原因：根据产品确认，课堂版按普通办公电脑、普通 720p/1080p 低中码率 MP4、50 人基础验收、70 路视频并发尽力达成且未达成需记录瓶颈的口径推进；同时 `/uploads` 静态文件不做文件级鉴权，需要固化到文档和测试中。
+- 涉及文件：
+  - `backend/tests/test_runtime_config.py`
+  - `../docs/windows-classroom-implementation-details.md`
+  - `../docs/windows-classroom-video-delivery-plan.md`
+  - `../docs/windows-classroom-real-machine-test-checklist.md`
+  - `../docs/windows-classroom-development-checklist.md`
+  - `../docs/windows-deployment-index.md`
+  - `operations-log.md`
+- 核心改动：
+  - 将课堂版验收假设写入实施细则、视频分发方案、实机验证清单和开发清单：普通办公电脑、720p/1080p 低中码率 MP4、50 人基础验收、70 路视频并发目标验收。
+  - 明确 `/uploads/...` 静态文件不做文件级鉴权，登录态和权限控制放在业务入口与资源元数据访问链路上。
+  - 补充课堂版 SQLite 文件库运行时测试，直接验证 `APP_EDITION=windows_classroom` 下 `PRAGMA journal_mode=WAL` 和 `PRAGMA busy_timeout` 生效。
+  - 更新课堂版开发清单中的 SQLite 验收状态和当前聚焦测试结果。
+- 验证结果：
+  - 已执行：`project_code/.venv/bin/python -m pytest project_code/backend/tests/test_runtime_config.py -q`
+  - 结果：`20 passed, 1 warning`，警告为既有 `passlib` 使用 Python `crypt` 的弃用提示。
+  - 已执行：`project_code/.venv/bin/python -m pytest project_code/backend/tests/test_learning.py -q`
+  - 结果：`7 passed, 8 warnings`，警告为既有 `passlib` 与 FastAPI 422 常量弃用提示。

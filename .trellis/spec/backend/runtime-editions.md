@@ -43,7 +43,7 @@ app_edition: Literal["development", "windows_local", "windows_classroom", "serve
 |--------|---------------|------------------------------|-----------------|
 | `future/windows-base` | Shared foundation used by both Windows editions: config, cache abstraction, SQLite runtime helpers, tests that apply to both editions | `windows_local` and `windows_classroom` shared behavior | Single-machine-only launcher UX, classroom-only LAN/video tuning |
 | `future/windows-local` | Windows single-machine install/startup flow, local data directory UX, first-run local initialization, browser auto-open | `windows_local` | LAN classroom capacity claims, classroom-only progress throttling, classroom-only video serving assumptions |
-| `future/windows-classroom` | Windows LAN classroom flow, host/LAN address display, SQLite WAL behavior, progress write throttling, static/video delivery for 10-50 LAN users | `windows_classroom` | Single-user installer-only assumptions, features that only work on localhost |
+| `future/windows-classroom` | Windows LAN classroom flow, host/LAN address display, SQLite WAL behavior, progress write throttling, static/video delivery for at least 50 LAN users with a best-effort 70 video-stream target | `windows_classroom` | Single-user installer-only assumptions, features that only work on localhost |
 
 Before editing edition-specific code, run `git branch --show-current` and confirm the branch matches the target edition.
 

@@ -15,9 +15,11 @@
 | 安排 Windows 单机版真实环境测试 | [`windows-local-real-machine-test-checklist.md`](./windows-local-real-machine-test-checklist.md) |
 | 了解 Windows 局域网课堂版目标、边界、配置和验收 | [`windows-classroom-implementation-details.md`](./windows-classroom-implementation-details.md) |
 | 直接推进 Windows 局域网课堂版开发 | [`windows-classroom-development-checklist.md`](./windows-classroom-development-checklist.md) |
+| 落地 Windows 局域网课堂版视频与静态分发 | [`windows-classroom-video-delivery-plan.md`](./windows-classroom-video-delivery-plan.md) |
+| 安排 Windows 局域网课堂版真实环境和规模验证 | [`windows-classroom-real-machine-test-checklist.md`](./windows-classroom-real-machine-test-checklist.md) |
 | 确认开发时应该在哪个分支 | [`.trellis/spec/backend/runtime-editions.md`](../.trellis/spec/backend/runtime-editions.md) |
 
-推荐阅读顺序：先读本索引确认版本和分支，再读对应版本的实施细则，随后按开发任务清单推进；单机版实机测试看 `windows-local-real-machine-test-checklist.md`，课堂版规模验证看 `windows-classroom-development-checklist.md` 的课堂规模验证章节。
+推荐阅读顺序：先读本索引确认版本和分支，再读对应版本的实施细则，随后按开发任务清单推进；单机版实机测试看 `windows-local-real-machine-test-checklist.md`，课堂版实机与规模验证看 `windows-classroom-real-machine-test-checklist.md`。
 
 ## 2. 分支与版本对应关系
 
@@ -62,7 +64,7 @@ project_code/.venv/bin/python -m pytest project_code/backend/tests/test_runtime_
 当前结果：
 
 ```text
-6 passed
+20 passed, 1 warning
 ```
 
 ## 4. Windows 单机版推进顺序
@@ -146,7 +148,8 @@ Windows 相关开发中禁止：
 - 同一局域网其他设备可访问。
 - 视频可播放并支持拖动。
 - 学习进度不会每秒高频写库。
-- 10～50 人轻量课堂使用时不出现明显数据库写爆问题。
+- 至少 50 人轻量课堂使用时不出现明显数据库写爆问题。
+- 尽力验证 70 路视频并发；未达成时记录瓶颈。
 
 ### Linux 服务器版
 

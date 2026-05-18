@@ -125,7 +125,7 @@ app.mount(
 
 frontend_dist_dir = settings.parsed_frontend_dist_dir
 frontend_index_path = settings.parsed_frontend_index_path
-if settings.app_edition == "windows_local" and frontend_index_path.is_file():
+if settings.is_windows_edition and frontend_index_path.is_file():
     app.mount(
         "/assets",
         StaticFiles(directory=frontend_dist_dir / "assets"),
@@ -163,7 +163,7 @@ async def root():
     Returns:
         服务信息
     """
-    if settings.app_edition == "windows_local" and settings.parsed_frontend_index_path.is_file():
+    if settings.is_windows_edition and settings.parsed_frontend_index_path.is_file():
         return FileResponse(settings.parsed_frontend_index_path)
 
     return ApiResponse.success(
@@ -179,7 +179,7 @@ async def root():
 @app.get("/{frontend_path:path}", response_model=None, include_in_schema=False)
 async def frontend_spa_fallback(frontend_path: str):
     if (
-        settings.app_edition != "windows_local"
+        not settings.is_windows_edition
         or not settings.parsed_frontend_index_path.is_file()
         or not should_serve_frontend_spa(
             frontend_path,
