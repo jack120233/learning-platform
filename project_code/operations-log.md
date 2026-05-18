@@ -885,3 +885,24 @@
 - 验证结果：
   - 已执行：`pytest tests/test_auth.py tests/test_users.py -v`
   - 结果：48 passed，1 个 error 为既有 token 唯一约束冲突（单独重跑通过）
+
+## Windows 单机版 ZIP 打包链路
+时间：2026-05-18
+
+- 变更原因：Windows 单机版已经完成本机测试，需要补齐首版可交付 ZIP 打包链路，并收紧启动器对发布包完整性的判断。
+- 涉及文件：
+  - `../start-windows-local.cmd`
+  - `../scripts/windows-local/build-package.ps1`
+  - `../scripts/windows-local/package-readme.txt`
+  - `../.gitignore`
+  - `operations-log.md`
+- 核心改动：
+  - 新增 `scripts/windows-local/build-package.ps1`，固定执行分支校验、`.venv` 校验、前端生产构建、白名单复制和 ZIP 压缩。
+  - 发布包仅包含 `start-windows-local.cmd`、`config/windows-local.env`、`UI/dist`、`project_code/.venv`、后端 `app`/`scripts`/`requirements.txt`，并在包内创建空的 `data`、`logs`、`uploads` 目录。
+  - `start-windows-local.cmd` 在缺少 `UI/dist` 时区分开发目录和发布包：开发目录可尝试 `npm.cmd run build`，发布包缺少前端产物则直接报“包不完整”。
+  - 补充随包 `README.txt` 模板，并把 `release/` 加入根级忽略规则，避免发布产物污染仓库。
+- 验证结果：
+  - 已执行：`cd UI && npm run build`
+  - 结果：通过，仍有既有大体积 chunk 警告。
+  - 待执行：`powershell -File scripts/windows-local/build-package.ps1`
+  - 备注：打包脚本面向 Windows 构建机；当前环境未安装 PowerShell，暂未实际产出 ZIP。
