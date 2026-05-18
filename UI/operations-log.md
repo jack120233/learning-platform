@@ -1,5 +1,26 @@
 # UI 操作记录
 
+## 老师端课程标签删除权限补齐
+时间：2026-05-18
+
+- 变更原因：老师在课程编辑页已有创建课程标签能力，删除标签权限和页面入口需要同步补齐。
+- 涉及文件：
+  - `src/views/teacher/CourseFormPage.vue`
+  - `src/api/teacher.ts`
+  - `docs/前端接口文档.md`
+  - `operations-log.md`
+- 核心改动：
+  - 老师端标签 API 新增 `deleteTag`，并将标签列表读取收紧为稳定 `TagItem[]` 类型。
+  - 课程编辑页的可选标签池新增图标删除入口，删除前二次确认，成功后同步移除标签池和当前表单中的对应标签。
+  - 补充接口文档，说明老师端标签写操作使用 `teacher.course` 权限，管理员后台仍使用 `admin.tag`。
+- 验证结果：
+  - 已执行：`cd "UI" && npm run build`
+  - 结果：通过，仍提示既有大体积 chunk 警告。
+  - 已执行：`cd "project_code/backend" && ../.venv/bin/python -m pytest tests/test_system.py -k 'Tag'`
+  - 结果：通过，12 passed，保留既有依赖弃用 warning。
+  - 已执行：真实浏览器访问 `http://127.0.0.1:3000/teacher/courses/1/edit`，确认标签池显示删除入口，并临时新增标签后执行删除。
+  - 结果：通过，删除确认弹窗正常，标签删除后从标签池消失，页面无 console error。
+
 ## 注册页邮箱验证隐藏与老师文案统一
 时间：2026-05-15
 

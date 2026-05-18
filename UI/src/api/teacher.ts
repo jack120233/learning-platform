@@ -95,6 +95,8 @@ export interface TagItem {
   color?: string
 }
 
+type TagListResponse = PaginatedData<TagItem> | { items?: TagItem[]; list?: TagItem[] } | TagItem[]
+
 /** 章节项 */
 export interface ChapterItem {
   chapter_id: number
@@ -336,20 +338,34 @@ export interface TeacherCourseStudentStatisticsItem {
 // ==================== 标签管理 ====================
 
 /** 获取标签列表 */
-export function fetchTags() {
-  return request.get<unknown, any>('/tags', { params: { page_size: 100 } }).then(res => {
-    return res.items || res.list || (Array.isArray(res) ? res : [])
+export function fetchTags(): Promise<TagItem[]> {
+  return request.get<unknown, TagListResponse>('/tags', { params: { page_size: 100 } }).then(res => {
+    if (Array.isArray(res)) {
+      return res
+    }
+    if ('items' in res && res.items) {
+      return res.items
+    }
+    if ('list' in res && res.list) {
+      return res.list
+    }
+    return []
   })
 }
 
 /** 创建标签 */
-export function createTag(data: { name: string, slug?: string, color?: string }) {
+export function createTag(data: { name: string, slug?: string, color?: string }): Promise<TagItem> {
   const payload = {
     name: data.name,
     slug: data.slug || `t-${Math.random().toString(36).slice(2, 8)}`,
     ...(data.color ? { color: data.color } : {})
   }
-  return request.post<unknown, any>('/tags', payload)
+  return request.post<unknown, TagItem>('/tags', payload)
+}
+
+/** 删除标签 */
+export function deleteTag(tagId: number) {
+  return request.delete<unknown, void>(`/tags/${tagId}`)
 }
 
 // ==================== API 函数 ====================

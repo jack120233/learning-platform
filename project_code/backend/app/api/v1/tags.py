@@ -15,6 +15,11 @@ from app.services.system_service import tag_service
 router = APIRouter(prefix="/tags", tags=["标签管理"])
 
 
+def _tag_write_permission_for(effective_role: str) -> str:
+    """Return the permission needed for tag write actions by role."""
+    return "teacher.course" if effective_role == "teacher" else "admin.tag"
+
+
 @router.get(
     "",
     response_model=ApiResponse[PageData[TagResponse]],
@@ -57,11 +62,10 @@ async def create_tag(
 ) -> ApiResponse[TagResponse]:
     """创建标签接口"""
     effective_role = current_user.effective_role
-    required_permission = "teacher.course" if effective_role == "teacher" else "admin.tag"
     await permission_service.ensure_permission(
         db,
         effective_role,
-        required_permission,
+        _tag_write_permission_for(effective_role),
         "无权创建标签",
     )
     tag = await tag_service.create(db, data)
@@ -83,10 +87,11 @@ async def delete_tag(
     current_user: CurrentUser,
 ) -> ApiResponse[None]:
     """删除标签接口"""
+    effective_role = current_user.effective_role
     await permission_service.ensure_permission(
         db,
-        current_user.role,
-        "admin.tag",
+        effective_role,
+        _tag_write_permission_for(effective_role),
         "无权删除标签",
     )
     await tag_service.delete(db, tag_id)
@@ -105,10 +110,11 @@ async def batch_delete_tags(
     current_user: CurrentUser,
 ) -> ApiResponse[BatchTagDeleteResponse]:
     """批量删除标签接口"""
+    effective_role = current_user.effective_role
     await permission_service.ensure_permission(
         db,
-        current_user.role,
-        "admin.tag",
+        effective_role,
+        _tag_write_permission_for(effective_role),
         "无权批量删除标签",
     )
     result = await tag_service.batch_delete(db, data.tag_ids)
