@@ -17,6 +17,7 @@
 | 直接推进 Windows 局域网课堂版开发 | [`windows-classroom-development-checklist.md`](./windows-classroom-development-checklist.md) |
 | 落地 Windows 局域网课堂版视频与静态分发 | [`windows-classroom-video-delivery-plan.md`](./windows-classroom-video-delivery-plan.md) |
 | 安排 Windows 局域网课堂版真实环境和规模验证 | [`windows-classroom-real-machine-test-checklist.md`](./windows-classroom-real-machine-test-checklist.md) |
+| 在 Windows 主机快速做课堂版连通性和 Range 自检 | [`verify-windows-classroom.ps1`](../verify-windows-classroom.ps1) |
 | 确认开发时应该在哪个分支 | [`.trellis/spec/backend/runtime-editions.md`](../.trellis/spec/backend/runtime-editions.md) |
 
 推荐阅读顺序：先读本索引确认版本和分支，再读对应版本的实施细则，随后按开发任务清单推进；单机版实机测试看 `windows-local-real-machine-test-checklist.md`，课堂版实机与规模验证看 `windows-classroom-real-machine-test-checklist.md`。

@@ -39,6 +39,7 @@
 必须存在：
 
 - `start-windows-classroom.cmd`
+- `verify-windows-classroom.ps1`
 - `config\windows-classroom.env`
 - `project_code\.venv\Scripts\python.exe` 或等价后端运行环境
 - `UI\dist\index.html`，或 `UI\package.json` + 可用 npm 构建环境
@@ -88,6 +89,12 @@ SQLITE_BUSY_TIMEOUT_MS=30000
 - `project_code\backend\logs\windows-classroom-startup.log`
 - `project_code\backend\logs\windows-classroom-startup-error.log`
 - 浏览器 Console / Network 截图
+
+可选辅助脚本：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\verify-windows-classroom.ps1
+```
 
 ## 4. 局域网访问测试
 
@@ -161,6 +168,12 @@ Range 命令：
 
 ```cmd
 curl -I -H "Range: bytes=0-1023" http://127.0.0.1:8000/uploads/<video-path>
+```
+
+也可用辅助脚本：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\verify-windows-classroom.ps1 -VideoPath "uploads/<video-path>"
 ```
 
 预期：
