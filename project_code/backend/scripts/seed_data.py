@@ -55,60 +55,12 @@ async def seed_users(session) -> list[User]:
             role="teacher",
             status="active",
         ),
-        User(
-            username="teacher2",
-            email="teacher2@example.com",
-            password_hash=hash_password("Test123456"),
-            nickname="李老师",
-            role="teacher",
-            status="active",
-        ),
-        User(
-            username="teacher3",
-            email="teacher3@example.com",
-            password_hash=hash_password("Test123456"),
-            nickname="王老师",
-            role="teacher",
-            status="active",
-        ),
-        User(
-            username="teacher4",
-            email="teacher4@example.com",
-            password_hash=hash_password("Test123456"),
-            nickname="赵老师",
-            role="teacher",
-            status="active",
-        ),
-        User(
-            username="teacher5",
-            email="teacher5@example.com",
-            password_hash=hash_password("Test123456"),
-            nickname="陈老师",
-            role="teacher",
-            status="active",
-        ),
-        User(
-            username="teacher6",
-            email="teacher6@example.com",
-            password_hash=hash_password("Test123456"),
-            nickname="刘老师",
-            role="teacher",
-            status="active",
-        ),
         # 学生
         User(
             username="student1",
             email="student1@example.com",
             password_hash=hash_password("Test123456"),
             nickname="学生1",
-            role="student",
-            status="active",
-        ),
-        User(
-            username="student2",
-            email="student2@example.com",
-            password_hash=hash_password("Test123456"),
-            nickname="学生2",
             role="student",
             status="active",
         ),
@@ -344,7 +296,6 @@ async def seed_database() -> None:
         print("  管理员: admin1 / Admin123456")
         print("  教师:   teacher1 / Test123456")
         print("  学生:   student1 / Test123456")
-        print("  学生:   student2 / Test123456")
         print("=" * 50)
 
     except Exception as e:
