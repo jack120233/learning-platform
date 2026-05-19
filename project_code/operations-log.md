@@ -1,5 +1,21 @@
 # 操作记录
 
+## Windows 默认种子账号精简
+时间：2026-05-19
+
+- 变更原因：Windows 本地版首次启动默认内置账号过多，不利于正式交付；需要将首次生成的默认账号收敛为每个角色 1 个。
+- 涉及文件：
+  - `backend/scripts/seed_data.py`
+  - `operations-log.md`
+- 核心改动：
+  - 删除默认内置账号 `teacher2` 到 `teacher6`。
+  - 删除默认内置账号 `student2`。
+  - 首次启动后默认只保留 `admin1`、`teacher1`、`student1` 三个账号。
+  - 同步清理种子脚本末尾的测试账号提示文案。
+- 验证结果：
+  - 已执行：只读检查 `seed_data.py` 中账号定义与输出提示。
+  - 结果：仅保留 `admin1 / teacher1 / student1`。
+
 ## Windows 机房版权限初始化补齐
 时间：2026-05-19
 
