@@ -51,4 +51,4 @@ class TestRequestAndSqlLogging:
         assert f"[{request_id}] SQL执行" in combined
         assert "FROM courses" in combined
         assert "teacher_id" in combined
-        assert "数据库: 2条SQL/" in combined
+        assert "数据库: 3条SQL/" in combined

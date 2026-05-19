@@ -949,3 +949,25 @@
 - 验证结果：
   - 已执行：`npm run build`
   - 结果：构建通过
+
+## 登录页邮箱手机号统一输入
+时间：2026-05-19 10:45
+
+- 变更原因：后端登录凭据改为邮箱或手机号，前端登录页不再区分邮箱登录/手机号登录两个入口。
+- 涉及文件：
+  - `src/views/auth/LoginPage.vue`
+  - `src/utils/validators.ts`
+  - `src/api/auth.ts`
+  - `api-frontend-quick-reference.md`
+  - `前端需求设计文档.md`
+  - `operations-log.md`
+- 核心改动：
+  - 移除登录页邮箱/手机号切换 tab，改为单一“邮箱或手机号”输入框。
+  - 输入框标题、placeholder、校验提示和登录失败提示统一为邮箱/手机号口径。
+  - 新增邮箱或手机号通用校验规则，登录 API 类型注释标明历史 `username` 字段承载邮箱或手机号。
+  - 更新前端需求与接口速查文档。
+- 验证结果：
+  - 已执行：`cd UI && npm run build`
+  - 结果：构建通过，保留既有大 chunk 警告。
+  - 已执行：Codex in-app browser 打开 `http://127.0.0.1:3000/login`
+  - 结果：页面仅显示单一“邮箱或手机号”输入框，placeholder 为“请输入邮箱或手机号”，未显示“邮箱登录/手机号登录”旧 tab。

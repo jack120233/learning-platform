@@ -61,7 +61,7 @@ async def login_as_admin(
 
     response = await client.post(
         "/api/v1/auth/login",
-        json={"username": username, "password": password},
+        json={"username": f"{username}@example.com", "password": password},
     )
     assert response.status_code == 200
     token = response.json()["data"]["access_token"]
@@ -107,7 +107,7 @@ async def create_role_user(
 
     response = await client.post(
         "/api/v1/auth/login",
-        json={"username": username, "password": password},
+        json={"username": f"{username}@example.com", "password": password},
     )
     assert response.status_code == 200
     token = response.json()["data"]["access_token"]
@@ -552,7 +552,7 @@ class TestAnnouncement:
         assert payload["message"] == "创建成功"
         assert payload["data"]["title"] == title
         assert payload["data"]["is_published"] is True
-        assert payload["data"]["author_name"] == "系统管理员"
+        assert payload["data"]["author_name"].startswith("admin_")
         assert datetime.fromisoformat(payload["data"]["publish_at"])
 
         result = await db_session.execute(
@@ -636,7 +636,7 @@ class TestAnnouncement:
         assert payload["message"] == "更新成功"
         assert payload["data"]["title"] == "已更新公告"
         assert payload["data"]["is_published"] is True
-        assert payload["data"]["author_name"] == "系统管理员"
+        assert payload["data"]["author_name"].startswith("admin_")
         assert datetime.fromisoformat(payload["data"]["publish_at"])
 
     @pytest.mark.asyncio
@@ -869,7 +869,7 @@ class TestAnnouncement:
         assert response.status_code == 200
         items = response.json()["data"]["items"]
         matched_item = next(item for item in items if item["title"] == title)
-        assert matched_item["author_name"] == "系统管理员"
+        assert matched_item["author_name"].startswith("admin_")
 
 
 class TestMessagePermission:

@@ -6,7 +6,15 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 
 # ==================== 请求模型 ====================
@@ -84,10 +92,13 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     """用户登录请求"""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     username: str = Field(
         ...,
-        description="用户名或邮箱",
-        examples=["zhangsan"],
+        validation_alias=AliasChoices("login_id", "username"),
+        description="邮箱或手机号（优先使用 login_id，兼容历史 username 字段）",
+        examples=["zhangsan@example.com", "13800000000"],
     )
     password: str = Field(
         ...,

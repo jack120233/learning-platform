@@ -523,7 +523,7 @@ class UserService:
         result = await db.execute(
             select(User).where(User.phone == phone)
         )
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     async def _get_user_by_username(
         self,
