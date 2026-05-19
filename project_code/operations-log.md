@@ -940,3 +940,21 @@
   - 结果：`25 passed, 9 warnings`，警告为既有 passlib `crypt` 与 FastAPI 422 常量弃用提示。
   - 已执行：`cd project_code/backend && ../.venv/bin/pytest tests/ -q`
   - 结果：`196 passed, 76 warnings`，警告同上。
+
+## GitHub Actions Windows 打包工作流
+时间：2026-05-19
+
+- 变更原因：需要把 Windows 单机版 ZIP 打包搬到 GitHub Actions 的 Windows runner 上执行，支持远端自动产出可下载的 zip artifact，并为后续 Windows 10 真机验证提供稳定包源。
+- 涉及文件：
+  - `../.github/workflows/windows-package.yml`
+  - `operations-log.md`
+- 核心改动：
+  - 新增 `Windows Local Package` workflow，支持 `push` 到 `future/windows-local` 自动打包，也支持 `workflow_dispatch` 手动触发。
+  - 在 GitHub 的 `windows-2022` runner 上安装 Node.js 20、Python 3.11，执行 `npm ci`、创建 `project_code\.venv`、安装后端依赖，再运行 `scripts/windows-local/build-package.ps1`。
+  - workflow checkout 显式使用 `github.ref_name`，打包脚本额外兼容 `GITHUB_REF_NAME`，避免 GitHub Actions 的 detached HEAD 让分支校验误判失败。
+  - 在 workflow 中校验 zip 及关键文件是否存在，并把产物上传为 `windows-local-package-<version>` artifact。
+  - 保留 `gh workflow run` 的手动触发兼容路径；当前本地 `gh` token 已失效，需重新登录后才能用 `gh` 直接触发或查看 run。
+- 验证结果：
+  - 已执行：工作流 YAML 静态检查与依赖路径核对。
+  - 待执行：推送到 `origin/future/windows-local` 后由 GitHub Actions 进行首次远端打包。
+  - 备注：Windows 10 兼容性仍需你后续在真实 Windows 10 环境解压和启动验证。

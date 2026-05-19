@@ -68,6 +68,9 @@ $releaseRoot = Join-Path $repoRoot "release\windows-local"
 
 Write-Step "Validating branch"
 $currentBranch = (& git -C $repoRoot branch --show-current).Trim()
+if ([string]::IsNullOrWhiteSpace($currentBranch) -and $env:GITHUB_REF_NAME) {
+    $currentBranch = $env:GITHUB_REF_NAME.Trim()
+}
 if ($currentBranch -ne "future/windows-local") {
     throw "Expected branch 'future/windows-local' but found '$currentBranch'"
 }

@@ -1,0 +1,104 @@
+name: Windows Local Package
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - future/windows-local
+    paths:
+      - ".github/workflows/windows-package.yml"
+      - "scripts/windows-local/**"
+      - "start-windows-local.cmd"
+      - "config/windows-local.env"
+      - "UI/**"
+      - "project_code/backend/**"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-2022
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: UI/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install frontend dependencies
+        working-directory: UI
+        run: npm ci
+
+      - name: Create backend virtual environment
+        run: python -m venv project_code\.venv
+
+      - name: Install backend dependencies
+        shell: pwsh
+        run: |
+          .\project_code\.venv\Scripts\python.exe -m pip install --upgrade pip setuptools wheel
+          .\project_code\.venv\Scripts\python.exe -m pip install -r project_code\backend\requirements.txt
+
+      - name: Resolve app version
+        id: version
+        shell: pwsh
+        working-directory: project_code\backend
+        run: |
+          $version = (& ..\.venv\Scripts\python.exe -c "from app.config import settings; print(settings.app_version)").Trim()
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "Failed to resolve app version"
+          }
+          "app_version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Build Windows package
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/windows-local/build-package.ps1
+
+      - name: Verify packaged files
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.version.outputs.app_version }}
+        run: |
+          $packageRoot = "release\windows-local\$env:APP_VERSION\learning-platform"
+          $zipPath = "release\windows-local\$env:APP_VERSION\learning-platform-windows-local-$env:APP_VERSION.zip"
+          $requiredPaths = @(
+            "$packageRoot\start-windows-local.cmd",
+            "$packageRoot\README.txt",
+            "$packageRoot\config\windows-local.env",
+            "$packageRoot\UI\dist\index.html",
+            "$packageRoot\project_code\.venv\Scripts\python.exe",
+            "$packageRoot\project_code\backend\app",
+            "$packageRoot\project_code\backend\scripts",
+            "$packageRoot\project_code\backend\requirements.txt",
+            "$packageRoot\project_code\backend\data",
+            "$packageRoot\project_code\backend\logs",
+            "$packageRoot\project_code\backend\uploads",
+            $zipPath
+          )
+          foreach ($path in $requiredPaths) {
+            if (-not (Test-Path -LiteralPath $path)) {
+              throw "Missing packaged path: $path"
+            }
+          }
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-local-package-${{ steps.version.outputs.app_version }}
+          path: release/windows-local/${{ steps.version.outputs.app_version }}/learning-platform-windows-local-${{ steps.version.outputs.app_version }}.zip
+          if-no-files-found: error
+          retention-days: 14
