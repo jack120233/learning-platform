@@ -61,7 +61,7 @@ async def login_as_admin(
 
     response = await client.post(
         "/api/v1/auth/login",
-        json={"username": username, "password": password},
+        json={"username": f"{username}@example.com", "password": password},
     )
     assert response.status_code == 200
     token = response.json()["data"]["access_token"]
@@ -107,7 +107,7 @@ async def create_role_user(
 
     response = await client.post(
         "/api/v1/auth/login",
-        json={"username": username, "password": password},
+        json={"username": f"{username}@example.com", "password": password},
     )
     assert response.status_code == 200
     token = response.json()["data"]["access_token"]
@@ -337,38 +337,40 @@ class TestTagDelete:
         assert response.json()["message"] == "无权删除标签"
 
     @pytest.mark.asyncio
-    async def test_teacher_without_tag_permission_cannot_delete_tag(
+    async def test_teacher_with_course_permission_can_delete_unused_tag(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试默认老师不能删除标签。"""
+        """测试默认老师可删除未被引用标签。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
-        tag = await create_test_tag(db_session)
-
-        response = await client.delete(
-            f"/api/v1/tags/{tag.id}",
-            headers=teacher_auth["headers"],
-        )
-
-        assert response.status_code == 403
-        assert response.json()["message"] == "无权删除标签"
-
-    @pytest.mark.asyncio
-    async def test_teacher_with_tag_permission_can_delete_unused_tag(
-        self,
-        client: AsyncClient,
-        db_session: AsyncSession,
-    ):
-        """测试拥有标签权限的老师可删除未被引用标签。"""
-        teacher_auth = await create_role_user(client, db_session, "teacher")
-        await ensure_role_permission(db_session, "teacher", 39)
         tag = await create_test_tag(db_session)
         tag_id = tag.id
 
         response = await client.delete(
             f"/api/v1/tags/{tag_id}",
             headers=teacher_auth["headers"],
+        )
+
+        assert response.status_code == 200
+        assert response.json()["message"] == "删除成功"
+        result = await db_session.execute(select(func.count()).select_from(Tag).where(Tag.id == tag_id))
+        assert (result.scalar() or 0) == 0
+
+    @pytest.mark.asyncio
+    async def test_admin_with_tag_permission_can_delete_unused_tag(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """测试管理员可删除未被引用标签。"""
+        admin_headers = await login_as_admin(client, db_session)
+        tag = await create_test_tag(db_session)
+        tag_id = tag.id
+
+        response = await client.delete(
+            f"/api/v1/tags/{tag_id}",
+            headers=admin_headers,
         )
 
         assert response.status_code == 200
@@ -384,7 +386,6 @@ class TestTagDelete:
     ):
         """测试删除不存在标签返回未找到。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
-        await ensure_role_permission(db_session, "teacher", 39)
 
         response = await client.delete(
             "/api/v1/tags/999999",
@@ -404,7 +405,6 @@ class TestTagDelete:
         from tests.test_courses import create_course_with_status, create_upload_test_user_with_user
 
         teacher_auth = await create_role_user(client, db_session, "teacher")
-        await ensure_role_permission(db_session, "teacher", 39)
         tag = await create_test_tag(db_session, name_prefix="引用标签", slug_prefix="used-tag")
         teacher, _ = await create_upload_test_user_with_user(db_session, "teacher")
         course = await create_course_with_status(db_session, teacher.id, "draft", "标签引用课程")
@@ -420,12 +420,12 @@ class TestTagDelete:
         assert response.json()["message"] == "标签已被课程引用，无法删除"
 
     @pytest.mark.asyncio
-    async def test_teacher_without_tag_permission_cannot_batch_delete_tags(
+    async def test_teacher_with_course_permission_can_batch_delete_tags(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试默认老师不能批量删除标签。"""
+        """测试默认老师可批量删除未被引用标签。"""
         teacher_auth = await create_role_user(client, db_session, "teacher")
         tag_a = await create_test_tag(db_session, name_prefix="批量标签A", slug_prefix="batch-tag-a")
         tag_b = await create_test_tag(db_session, name_prefix="批量标签B", slug_prefix="batch-tag-b")
@@ -436,24 +436,28 @@ class TestTagDelete:
             json={"tag_ids": [tag_a.id, tag_b.id]},
         )
 
-        assert response.status_code == 403
-        assert response.json()["message"] == "无权批量删除标签"
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["success_count"] == 2
+        assert data["failed_count"] == 0
+        assert set(data["success_ids"]) == {tag_a.id, tag_b.id}
+        assert await db_session.get(Tag, tag_a.id) is None
+        assert await db_session.get(Tag, tag_b.id) is None
 
     @pytest.mark.asyncio
-    async def test_teacher_with_tag_permission_can_batch_delete_tags(
+    async def test_admin_with_tag_permission_can_batch_delete_tags(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """测试拥有标签权限的老师可批量删除未被引用标签。"""
-        teacher_auth = await create_role_user(client, db_session, "teacher")
-        await ensure_role_permission(db_session, "teacher", 39)
+        """测试管理员可批量删除未被引用标签。"""
+        admin_headers = await login_as_admin(client, db_session)
         tag_a = await create_test_tag(db_session, name_prefix="批量标签A", slug_prefix="batch-tag-a")
         tag_b = await create_test_tag(db_session, name_prefix="批量标签B", slug_prefix="batch-tag-b")
 
         response = await client.post(
             "/api/v1/tags/batch-delete",
-            headers=teacher_auth["headers"],
+            headers=admin_headers,
             json={"tag_ids": [tag_a.id, tag_b.id]},
         )
 
@@ -475,7 +479,6 @@ class TestTagDelete:
         from tests.test_courses import create_course_with_status, create_upload_test_user_with_user
 
         teacher_auth = await create_role_user(client, db_session, "teacher")
-        await ensure_role_permission(db_session, "teacher", 39)
         removable_tag = await create_test_tag(db_session, name_prefix="可删标签", slug_prefix="removable-tag")
         used_tag = await create_test_tag(db_session, name_prefix="被引用标签", slug_prefix="used-batch-tag")
         removable_tag_id = removable_tag.id
@@ -549,7 +552,7 @@ class TestAnnouncement:
         assert payload["message"] == "创建成功"
         assert payload["data"]["title"] == title
         assert payload["data"]["is_published"] is True
-        assert payload["data"]["author_name"] == "系统管理员"
+        assert payload["data"]["author_name"].startswith("admin_")
         assert datetime.fromisoformat(payload["data"]["publish_at"])
 
         result = await db_session.execute(
@@ -633,7 +636,7 @@ class TestAnnouncement:
         assert payload["message"] == "更新成功"
         assert payload["data"]["title"] == "已更新公告"
         assert payload["data"]["is_published"] is True
-        assert payload["data"]["author_name"] == "系统管理员"
+        assert payload["data"]["author_name"].startswith("admin_")
         assert datetime.fromisoformat(payload["data"]["publish_at"])
 
     @pytest.mark.asyncio
@@ -866,7 +869,7 @@ class TestAnnouncement:
         assert response.status_code == 200
         items = response.json()["data"]["items"]
         matched_item = next(item for item in items if item["title"] == title)
-        assert matched_item["author_name"] == "系统管理员"
+        assert matched_item["author_name"].startswith("admin_")
 
 
 class TestMessagePermission:

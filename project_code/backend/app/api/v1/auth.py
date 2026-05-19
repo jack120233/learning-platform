@@ -53,7 +53,7 @@ async def register(
     "/login",
     response_model=ApiResponse[LoginResponse],
     summary="用户登录",
-    description="使用用户名/邮箱和密码登录系统",
+    description="使用邮箱或手机号和密码登录系统",
 )
 async def login(
     request: LoginRequest,

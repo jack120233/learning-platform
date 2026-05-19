@@ -47,7 +47,7 @@ async def create_role_user(
 
     response = await client.post(
         "/api/v1/auth/login",
-        json={"username": username, "password": password},
+        json={"username": f"{username}@example.com", "password": password},
     )
     assert response.status_code == 200
     token = response.json()["data"]["access_token"]
@@ -86,7 +86,7 @@ class TestUserProfile:
         login_response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "testuser",
+                "username": "testuser@example.com",
                 "password": "Test123456",
                 "captcha_key": key,
                 "captcha_text": "test",
@@ -346,7 +346,7 @@ class TestUserProfile:
         login_response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "testuser",
+                "username": "testuser@example.com",
                 "password": "Test123456",
                 "captcha_key": key,
                 "captcha_text": "test",
@@ -405,7 +405,7 @@ class TestUserProfile:
         login_response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "testuser",
+                "username": "testuser@example.com",
                 "password": "Test123456",
                 "captcha_key": key,
                 "captcha_text": "test",
@@ -516,7 +516,7 @@ class TestUserProfile:
         login_response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "testuser",
+                "username": "testuser@example.com",
                 "password": "Test123456",
                 "captcha_key": key,
                 "captcha_text": "test",
@@ -619,7 +619,7 @@ class TestUserProfile:
         login_response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "testuser",
+                "username": "testuser@example.com",
                 "password": "Test123456",
                 "captcha_key": key,
                 "captcha_text": "test",
@@ -676,7 +676,7 @@ class TestChangePassword:
         login_response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "testuser",
+                "username": "testuser@example.com",
                 "password": "Test123456",
                 "captcha_key": key,
                 "captcha_text": "test",
@@ -724,7 +724,7 @@ class TestChangePassword:
         login_response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "testuser",
+                "username": "testuser@example.com",
                 "password": "Test123456",
                 "captcha_key": key,
                 "captcha_text": "test",
@@ -776,7 +776,7 @@ class TestLearningRecords:
         login_response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "testuser",
+                "username": "testuser@example.com",
                 "password": "Test123456",
                 "captcha_key": key,
                 "captcha_text": "test",

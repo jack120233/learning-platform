@@ -37,6 +37,7 @@ export interface RegisterResponse {
 
 /** 登录请求参数 */
 export interface LoginRequest {
+  /** 邮箱或手机号。后端字段名暂保留 username 以兼容接口。 */
   username: string
   password: string
   remember_me: boolean

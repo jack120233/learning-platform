@@ -24,6 +24,7 @@ if not exist "%PYTHON_EXE%" (
     echo [ERROR] Python virtual environment not found:
     echo %PYTHON_EXE%
     echo Please prepare project_code\.venv before launching.
+    echo Error log: %STARTUP_ERROR_LOG%
     >> "%STARTUP_ERROR_LOG%" echo [%date% %time%] Python virtual environment not found: %PYTHON_EXE%
     pause
     exit /b 1
@@ -32,6 +33,7 @@ if not exist "%PYTHON_EXE%" (
 if not exist "%CONFIG_FILE%" (
     echo [ERROR] Missing config file:
     echo %CONFIG_FILE%
+    echo Error log: %STARTUP_ERROR_LOG%
     >> "%STARTUP_ERROR_LOG%" echo [%date% %time%] Missing config file: %CONFIG_FILE%
     pause
     exit /b 1
@@ -48,19 +50,32 @@ if not defined CACHE_BACKEND set "CACHE_BACKEND=auto"
 set "PYTHONPATH=%BACKEND_DIR%"
 
 if not exist "%UI_DIR%\dist\index.html" (
-    echo Frontend production bundle not found. Building UI...
     if not exist "%UI_DIR%\package.json" (
-        echo [ERROR] Frontend project not found: %UI_DIR%
-        >> "%STARTUP_ERROR_LOG%" echo [%date% %time%] Frontend project not found: %UI_DIR%
+        echo [ERROR] Frontend production bundle not found:
+        echo %UI_DIR%\dist\index.html
+        echo This package is incomplete. Please rebuild the Windows package.
+        echo Error log: %STARTUP_ERROR_LOG%
+        >> "%STARTUP_ERROR_LOG%" echo [%date% %time%] Frontend production bundle missing and UI source project unavailable: %UI_DIR%\dist\index.html
         pause
         exit /b 1
     )
+    where npm.cmd >nul 2>nul
+    if errorlevel 1 (
+        echo [ERROR] Frontend source exists but npm.cmd is unavailable.
+        echo Install Node.js on this development machine, or rebuild the release package with UI\dist included.
+        echo Error log: %STARTUP_ERROR_LOG%
+        >> "%STARTUP_ERROR_LOG%" echo [%date% %time%] Frontend production bundle missing and npm.cmd unavailable.
+        pause
+        exit /b 1
+    )
+    echo Frontend production bundle not found. Building UI...
     pushd "%UI_DIR%"
     call npm.cmd run build
     set "BUILD_EXIT=%ERRORLEVEL%"
     popd
     if not "%BUILD_EXIT%"=="0" (
         echo [ERROR] Frontend build failed. See console output above.
+        echo Error log: %STARTUP_ERROR_LOG%
         >> "%STARTUP_ERROR_LOG%" echo [%date% %time%] Frontend build failed, exit=%BUILD_EXIT%
         pause
         exit /b %BUILD_EXIT%
@@ -72,6 +87,7 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr /c:":%PORT% " ^| findstr "LIS
 if defined PORT_PID (
     echo [ERROR] Port %PORT% is already in use. PID=%PORT_PID%
     echo Please close the existing process and retry.
+    echo Error log: %STARTUP_ERROR_LOG%
     >> "%STARTUP_ERROR_LOG%" echo [%date% %time%] Port %PORT% is already in use. PID=%PORT_PID%
     pause
     exit /b 1

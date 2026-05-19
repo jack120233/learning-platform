@@ -210,7 +210,7 @@ class TestLogin:
         db_session: AsyncSession,
         test_user: User,
     ):
-        """测试用户登录成功"""
+        """测试用户使用邮箱登录成功"""
         key = unique_key("login")
         captcha = CaptchaRecord(
             captcha_key=key,
@@ -224,7 +224,7 @@ class TestLogin:
         response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "testuser",
+                "username": "testuser@example.com",
                 "password": "Test123456",
                 "captcha_key": key,
                 "captcha_text": "test",
@@ -269,6 +269,83 @@ class TestLogin:
         assert response.status_code == 200
 
     @pytest.mark.asyncio
+    async def test_login_with_phone(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+    ):
+        """测试使用手机号登录。"""
+        key = unique_key("phone_login")
+        captcha = CaptchaRecord(
+            captcha_key=key,
+            captcha_text="test",
+            image_base64="test",
+            expires_at=utcnow() + timedelta(minutes=5),
+        )
+        db_session.add(captcha)
+        await db_session.flush()
+
+        response = await client.post(
+            "/api/v1/auth/login",
+            json={
+                "username": "13800000001",
+                "password": "Test123456",
+                "captcha_key": key,
+                "captcha_text": "test",
+            },
+        )
+
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_login_accepts_login_id_alias(
+        self,
+        client: AsyncClient,
+        test_user: User,
+    ):
+        """测试登录接口兼容 login_id 字段。"""
+        response = await client.post(
+            "/api/v1/auth/login",
+            json={
+                "login_id": "testuser@example.com",
+                "password": "Test123456",
+            },
+        )
+
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_login_with_username_rejected(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+    ):
+        """测试用户名不再作为登录凭据。"""
+        key = unique_key("username_login")
+        captcha = CaptchaRecord(
+            captcha_key=key,
+            captcha_text="test",
+            image_base64="test",
+            expires_at=utcnow() + timedelta(minutes=5),
+        )
+        db_session.add(captcha)
+        await db_session.flush()
+
+        response = await client.post(
+            "/api/v1/auth/login",
+            json={
+                "username": "testuser",
+                "password": "Test123456",
+                "captcha_key": key,
+                "captcha_text": "test",
+            },
+        )
+
+        assert response.status_code in [400, 401]
+
+    @pytest.mark.asyncio
     async def test_login_wrong_password(
         self,
         client: AsyncClient,
@@ -289,7 +366,7 @@ class TestLogin:
         response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "testuser",
+                "username": "testuser@example.com",
                 "password": "WrongPassword1",
                 "captcha_key": key,
                 "captcha_text": "test",
@@ -319,7 +396,7 @@ class TestLogin:
         response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "nonexistent",
+                "username": "nonexistent@example.com",
                 "password": "Test123456",
                 "captcha_key": key,
                 "captcha_text": "test",
@@ -350,7 +427,7 @@ class TestLogin:
         response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "testuser",
+                "username": "testuser@example.com",
                 "password": "Test123456",
                 "captcha_key": key,
                 "captcha_text": "test",
@@ -359,6 +436,28 @@ class TestLogin:
         )
 
         assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_repeated_login_refresh_tokens_are_unique(
+        self,
+        client: AsyncClient,
+        test_user: User,
+    ):
+        """测试同一用户连续登录会生成不同的刷新令牌。"""
+        payload = {
+            "username": "testuser@example.com",
+            "password": "Test123456",
+        }
+
+        first_response = await client.post("/api/v1/auth/login", json=payload)
+        second_response = await client.post("/api/v1/auth/login", json=payload)
+
+        assert first_response.status_code == 200
+        assert second_response.status_code == 200
+        assert (
+            first_response.json()["data"]["refresh_token"]
+            != second_response.json()["data"]["refresh_token"]
+        )
 
 
 class TestLogout:
@@ -385,7 +484,7 @@ class TestLogout:
         login_response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "testuser",
+                "username": "testuser@example.com",
                 "password": "Test123456",
                 "captcha_key": key,
                 "captcha_text": "test",
@@ -431,7 +530,7 @@ class TestRefreshToken:
         login_response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "testuser",
+                "username": "testuser@example.com",
                 "password": "Test123456",
                 "captcha_key": key,
                 "captcha_text": "test",

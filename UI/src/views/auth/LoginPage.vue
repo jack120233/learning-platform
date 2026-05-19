@@ -2,11 +2,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Message, Phone, Lock } from '@element-plus/icons-vue'
+import { User, Lock } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { login } from '@/api/auth'
-import { createLoginIdRules, detectLoginType } from '@/utils/validators'
+import { emailOrPhoneRules } from '@/utils/validators'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 
 const router = useRouter()
@@ -15,9 +15,6 @@ const userStore = useUserStore()
 
 // 表单引用
 const formRef = ref<FormInstance>()
-
-// 登录方式
-const loginMethod = ref<'email' | 'phone'>('email')
 
 // 表单数据
 const formData = ref({
@@ -37,18 +34,12 @@ const redirectUrl = computed(() => route.query.redirect as string || null)
 
 // 表单校验规则
 const formRules = computed<FormRules>(() => ({
-  loginId: createLoginIdRules(() => loginMethod.value),
+  loginId: emailOrPhoneRules,
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 8, max: 20, message: '密码长度为 8-20 位', trigger: 'blur' },
   ],
 }))
-
-// 切换登录方式
-const handleMethodChange = () => {
-  formData.value.loginId = ''
-  formRef.value?.clearValidate('loginId')
-}
 
 // 处理登录
 const handleLogin = async () => {
@@ -110,7 +101,7 @@ const handleLogin = async () => {
     const message = error.message || '登录失败，请稍后重试'
 
     if (message.includes('不存在') || message.includes('密码错误')) {
-      ElMessage.error('账号不存在或密码错误')
+      ElMessage.error('邮箱/手机号不存在或密码错误')
       if (loginErrorCount.value >= 3) {
         ElMessage.warning('密码连续错误 5 次将锁定账号')
       }
@@ -149,8 +140,6 @@ onMounted(() => {
   if (rememberedLoginId) {
     formData.value.loginId = rememberedLoginId
     formData.value.rememberMe = true
-    // 自动判断登录方式
-    loginMethod.value = detectLoginType(rememberedLoginId)
   }
 })
 </script>
@@ -159,12 +148,6 @@ onMounted(() => {
   <AuthLayout title="欢迎回来" sub-title="登录您的账号，继续学习之旅">
     <div class="login-form">
       <h2 class="form-title">登录</h2>
-
-      <!-- 登录方式切换 -->
-      <el-tabs v-model="loginMethod" class="login-tabs" @tab-change="handleMethodChange">
-        <el-tab-pane label="邮箱登录" name="email" />
-        <el-tab-pane label="手机号登录" name="phone" />
-      </el-tabs>
 
       <!-- 登录表单 -->
       <el-form
@@ -175,11 +158,11 @@ onMounted(() => {
         size="large"
       >
         <!-- 账号输入 -->
-        <el-form-item prop="loginId">
+        <el-form-item label="邮箱或手机号" prop="loginId">
           <el-input
             v-model="formData.loginId"
-            :placeholder="loginMethod === 'email' ? '请输入邮箱' : '请输入手机号'"
-            :prefix-icon="loginMethod === 'email' ? Message : Phone"
+            placeholder="请输入邮箱或手机号"
+            :prefix-icon="User"
             clearable
             @keyup.enter="handleLoginIdEnter"
           />
@@ -239,32 +222,6 @@ onMounted(() => {
   color: $text-primary;
   margin-bottom: 24px;
   text-align: center;
-}
-
-.login-tabs {
-  margin-bottom: 24px;
-
-  :deep(.el-tabs__header) {
-    margin-bottom: 0;
-  }
-
-  :deep(.el-tabs__nav-wrap::after) {
-    display: none;
-  }
-
-  :deep(.el-tabs__item) {
-    font-size: 15px;
-    color: $text-secondary;
-
-    &.is-active {
-      color: $primary-color;
-      font-weight: 500;
-    }
-  }
-
-  :deep(.el-tabs__active-bar) {
-    background-color: $primary-color;
-  }
 }
 
 .options-row {
