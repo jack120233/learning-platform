@@ -101,7 +101,7 @@
 | 方法 | 路径 | 登录 | 核心请求 | 核心返回 | 备注 |
 |---|---|---|---|---|---|
 | POST | `/api/v1/auth/register` | 否 | `username,email,password,role,captcha_key?,captcha_text?` | `id,username,email,nickname?,avatar?,role,status,created_at` | 注册 |
-| POST | `/api/v1/auth/login` | 否 | `username,password,remember_me,captcha_key?,captcha_text?` | `access_token,refresh_token,token_type,expires_in,user` | 登录 |
+| POST | `/api/v1/auth/login` | 否 | `login_id/username,password,remember_me,captcha_key?,captcha_text?` | `access_token,refresh_token,token_type,expires_in,user` | 登录（邮箱或手机号） |
 | POST | `/api/v1/auth/logout` | 是 | 查询：`refresh_token?` | 仅 `code/message` | 退出登录 |
 | POST | `/api/v1/auth/refresh` | 否 | `refresh_token` | `access_token,token_type,expires_in` | 刷新令牌 |
 | GET | `/api/v1/auth/captcha` | 否 | 无 | `captcha_key,captcha_image` | 获取图形验证码 |

@@ -145,7 +145,7 @@
 | 序号 | 方法 | 路径 | 接口说明 | 登录要求 | 权限备注 | 路径/查询参数 | 请求体字段摘要 | 返回 data 字段摘要 | 处理函数 | 代码位置 | 测试文件 |
 |---:|---|---|---|---|---|---|---|---|---|---|---|
 | 1 | POST | `/api/v1/auth/register` | 用户注册 | 无需登录 | 无 | 无 | `RegisterRequest`：`username`、`email`、`password`、`role`、`captcha_key?`、`captcha_text?` | `auth.UserResponse`：`id`、`username`、`email`、`nickname?`、`avatar?`、`role`、`status`、`created_at` | `register` | `backend/app/api/v1/auth.py:27` | `backend/tests/test_auth.py` |
-| 2 | POST | `/api/v1/auth/login` | 用户登录 | 无需登录 | 无 | 无 | `LoginRequest`：`username`、`password`、`remember_me`、`captcha_key?`、`captcha_text?` | `LoginResponse`：`access_token`、`refresh_token`、`token_type`、`expires_in`、`user` | `login` | `backend/app/api/v1/auth.py:53` | `backend/tests/test_auth.py` |
+| 2 | POST | `/api/v1/auth/login` | 用户登录 | 无需登录 | 无 | 无 | `LoginRequest`：`login_id`/`username`（邮箱或手机号）、`password`、`remember_me`、`captcha_key?`、`captcha_text?` | `LoginResponse`：`access_token`、`refresh_token`、`token_type`、`expires_in`、`user` | `login` | `backend/app/api/v1/auth.py:53` | `backend/tests/test_auth.py` |
 | 3 | POST | `/api/v1/auth/logout` | 退出登录并撤销刷新令牌 | 需要 Bearer Token | 无 | 查询参数：`refresh_token?` | 无 | 无；仅返回 `code/message` | `logout` | `backend/app/api/v1/auth.py:91` | `backend/tests/test_auth.py` |
 | 4 | POST | `/api/v1/auth/refresh` | 刷新访问令牌 | 无需登录 | 无 | 无 | `RefreshTokenRequest`：`refresh_token` | `TokenResponse`：`access_token`、`token_type`、`expires_in` | `refresh_token` | `backend/app/api/v1/auth.py:116` | `backend/tests/test_auth.py` |
 | 5 | GET | `/api/v1/auth/captcha` | 获取图形验证码 | 无需登录 | 无 | 无 | 无 | `CaptchaResponse`：`captcha_key`、`captcha_image` | `get_captcha` | `backend/app/api/v1/auth.py:142` | `backend/tests/test_auth.py` |

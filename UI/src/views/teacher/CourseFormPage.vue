@@ -18,6 +18,7 @@ import {
   deleteMaterial,
   fetchTags,
   createTag,
+  deleteTag,
   type TeacherCourseDetail,
   type ChapterItem,
   type MaterialItem,
@@ -67,6 +68,7 @@ const categories = ref<CategoryItem[]>([])
 
 // 标签库列表
 const tags = ref<TagItem[]>([])
+const deletingTagIds = ref<number[]>([])
 
 // 新标签输入
 const newTagInput = ref('')
@@ -297,6 +299,10 @@ function handleRemoveTag(index: number) {
   form.value.tags.splice(index, 1)
 }
 
+function isDeletingTag(tagId: number) {
+  return deletingTagIds.value.includes(tagId)
+}
+
 function toggleAvailableTag(tag: TagItem) {
   const index = form.value.tags.indexOf(tag.id)
   if (index > -1) {
@@ -307,6 +313,33 @@ function toggleAvailableTag(tag: TagItem) {
       return
     }
     form.value.tags.push(tag.id)
+  }
+}
+
+async function handleDeleteTag(tag: TagItem) {
+  if (isDeletingTag(tag.id)) return
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除标签「${tag.name}」吗？删除后所有老师都无法再选择该标签。`,
+      '删除标签',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      }
+    )
+
+    deletingTagIds.value.push(tag.id)
+    await deleteTag(tag.id)
+    tags.value = tags.value.filter(item => item.id !== tag.id)
+    form.value.tags = form.value.tags.filter(tagId => tagId !== tag.id)
+    ElMessage.success('标签已删除')
+  } catch (error) {
+    // Cancellation or API errors are already handled by the shared UI flow.
+  } finally {
+    deletingTagIds.value = deletingTagIds.value.filter(tagId => tagId !== tag.id)
   }
 }
 
@@ -662,20 +695,33 @@ onMounted(async () => {
           </div>
           
           <div class="available-tags-box" v-if="tags.length > 0">
-            <div class="available-title">可选标签池（点击即可快速添加或移除）</div>
+            <div class="available-title">可选标签池</div>
             <div class="available-tags-list">
-              <el-tag
+              <span
                 v-for="tag in tags"
                 :key="tag.id"
-                :type="form.tags.includes(tag.id) ? 'primary' : 'info'"
-                :effect="form.tags.includes(tag.id) ? 'dark' : 'plain'"
-                round
                 class="available-tag-item"
                 :class="{ 'is-selected': form.tags.includes(tag.id) }"
+                role="button"
+                tabindex="0"
                 @click="toggleAvailableTag(tag)"
+                @keydown.enter.prevent="toggleAvailableTag(tag)"
+                @keydown.space.prevent="toggleAvailableTag(tag)"
               >
-                {{ tag.name }}
-              </el-tag>
+                <span class="available-tag-name">{{ tag.name }}</span>
+                <el-button
+                  class="available-tag-delete"
+                  type="danger"
+                  text
+                  circle
+                  size="small"
+                  :icon="Delete"
+                  :loading="isDeletingTag(tag.id)"
+                  :aria-label="`删除标签 ${tag.name}`"
+                  @click.stop="handleDeleteTag(tag)"
+                  @keydown.stop
+                />
+              </span>
             </div>
           </div>
         </div>
@@ -941,14 +987,43 @@ onMounted(async () => {
       }
 
       .available-tag-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        max-width: 100%;
+        min-height: 30px;
+        padding: 0 4px 0 12px;
+        border: 1px solid var(--el-border-color);
+        background-color: #fff;
+        color: var(--el-text-color-regular);
         cursor: pointer;
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         user-select: none;
-        padding: 0 14px;
-        height: 30px;
-        line-height: 28px;
         font-size: 13px;
-        border-radius: 15px;
+        border-radius: 999px;
+
+        .available-tag-name {
+          min-width: 0;
+          max-width: 150px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          line-height: 28px;
+        }
+
+        .available-tag-delete {
+          flex: 0 0 auto;
+          width: 22px;
+          height: 22px;
+          min-height: 22px;
+          margin-left: 0 !important;
+          color: var(--el-color-danger);
+
+          &:hover,
+          &:focus {
+            background-color: var(--el-color-danger-light-9);
+          }
+        }
 
         &:hover {
           transform: translateY(-2px);
@@ -960,10 +1035,27 @@ onMounted(async () => {
           }
         }
 
+        &:focus-visible {
+          outline: 2px solid var(--el-color-primary-light-5);
+          outline-offset: 2px;
+        }
+
         &.is-selected {
+          border-color: var(--el-color-primary);
+          background-color: var(--el-color-primary);
+          color: #fff;
           font-weight: 500;
           transform: scale(1.02);
           box-shadow: 0 2px 6px rgba(var(--el-color-primary-rgb), 0.3);
+
+          .available-tag-delete {
+            color: #fff;
+
+            &:hover,
+            &:focus {
+              background-color: rgba(255, 255, 255, 0.18);
+            }
+          }
         }
       }
     }

@@ -151,6 +151,7 @@ async def test_user(db_session: AsyncSession):
         user = User(
             username="testuser",
             email="testuser@example.com",
+            phone="13800000001",
             password_hash=hash_password("Test123456"),
             nickname="测试用户",
             role="student",
@@ -188,6 +189,7 @@ async def test_teacher(db_session: AsyncSession):
         teacher = User(
             username="testteacher",
             email="teacher@example.com",
+            phone="13800000002",
             password_hash=hash_password("Teacher123456"),
             nickname="测试老师",
             role="teacher",
@@ -229,6 +231,7 @@ async def test_admin(db_session: AsyncSession):
         admin = User(
             username="testadmin",
             email="admin@example.com",
+            phone="13800000003",
             password_hash=hash_password("Admin123456"),
             nickname="测试管理员",
             role="admin",
@@ -274,7 +277,7 @@ async def user_token(client: AsyncClient, test_user) -> str:
     """
     response = await client.post(
         "/api/v1/auth/login",
-        json={"username": "testuser", "password": "Test123456"},
+        json={"username": "testuser@example.com", "password": "Test123456"},
     )
     assert response.status_code == 200
     return response.json()["data"]["access_token"]
@@ -293,7 +296,7 @@ async def teacher_token(client: AsyncClient, test_teacher) -> str:
     """
     response = await client.post(
         "/api/v1/auth/login",
-        json={"username": "testteacher", "password": "Teacher123456"},
+        json={"username": "teacher@example.com", "password": "Teacher123456"},
     )
     assert response.status_code == 200
     return response.json()["data"]["access_token"]
@@ -312,7 +315,7 @@ async def admin_token(client: AsyncClient, test_admin) -> str:
     """
     response = await client.post(
         "/api/v1/auth/login",
-        json={"username": "testadmin", "password": "Admin123456"},
+        json={"username": "admin@example.com", "password": "Admin123456"},
     )
     assert response.status_code == 200
     return response.json()["data"]["access_token"]

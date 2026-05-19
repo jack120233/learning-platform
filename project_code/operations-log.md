@@ -906,3 +906,37 @@
   - 结果：通过，仍有既有大体积 chunk 警告。
   - 待执行：`powershell -File scripts/windows-local/build-package.ps1`
   - 备注：打包脚本面向 Windows 构建机；当前环境未安装 PowerShell，暂未实际产出 ZIP。
+
+## 登录凭据改为邮箱或手机号
+时间：2026-05-19 10:45
+
+- 变更原因：用户名可能不唯一，登录入口需要改用唯一性更明确的邮箱或手机号，并处理历史重复数据风险。
+- 涉及文件：
+  - `backend/app/services/auth_service.py`
+  - `backend/app/schemas/auth.py`
+  - `backend/app/api/v1/auth.py`
+  - `backend/app/core/security.py`
+  - `backend/app/services/user_service.py`
+  - `backend/tests/conftest.py`
+  - `backend/tests/test_auth.py`
+  - `backend/tests/test_content.py`
+  - `backend/tests/test_courses.py`
+  - `backend/tests/test_learning.py`
+  - `backend/tests/test_logging.py`
+  - `backend/tests/test_permissions.py`
+  - `backend/tests/test_system.py`
+  - `backend/tests/test_users.py`
+  - `docs/api-endpoint-inventory.md`
+  - `operations-log.md`
+- 核心改动：
+  - 登录查询从用户名/邮箱改为邮箱/手机号；用户名不再作为登录凭据。
+  - `LoginRequest` 支持 `login_id` 字段，同时兼容历史 `username` 字段。
+  - 邮箱查询改为大小写归一，手机号按精确值查询；若邮箱或手机号命中多条历史脏数据，拒绝登录并提示联系管理员。
+  - 注册和资料更新仍依赖邮箱、手机号唯一约束及服务层重复检查，避免正常路径产生重复。
+  - refresh token 加入 `jti`，避免同一用户同一秒连续登录生成重复 token。
+  - 测试登录数据与断言改为邮箱/手机号口径，并补充手机号登录、`login_id` 别名、用户名拒绝、连续登录 refresh token 唯一性回归。
+- 验证结果：
+  - 已执行：`cd project_code/backend && ../.venv/bin/pytest tests/test_auth.py -q`
+  - 结果：`25 passed, 9 warnings`，警告为既有 passlib `crypt` 与 FastAPI 422 常量弃用提示。
+  - 已执行：`cd project_code/backend && ../.venv/bin/pytest tests/ -q`
+  - 结果：`196 passed, 76 warnings`，警告同上。

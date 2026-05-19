@@ -6,6 +6,7 @@
 from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from uuid import uuid4
 
 import bcrypt
 from jose import JWTError, jwt
@@ -122,6 +123,7 @@ def create_refresh_token(
         "sub": str(subject),
         "exp": expire,
         "type": "refresh",
+        "jti": uuid4().hex,
     }
 
     return jwt.encode(

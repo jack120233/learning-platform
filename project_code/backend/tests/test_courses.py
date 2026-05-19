@@ -619,7 +619,7 @@ class TestCoursePublish:
         login_response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "testteacher",
+                "username": "teacher@example.com",
                 "password": "Teacher123456",
                 "captcha_key": key,
                 "captcha_text": "test",
@@ -1057,7 +1057,7 @@ class TestCourseArchive:
         login_response = await client.post(
             "/api/v1/auth/login",
             json={
-                "username": "testteacher",
+                "username": "teacher@example.com",
                 "password": "Teacher123456",
                 "captcha_key": key,
                 "captcha_text": "test",

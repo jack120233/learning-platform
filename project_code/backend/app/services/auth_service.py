@@ -7,9 +7,8 @@ import hashlib
 import random
 import string
 from datetime import datetime, timedelta, timezone
-from typing import Literal
 
-from sqlalchemy import select, and_
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -124,9 +123,9 @@ class AuthService:
         # await self._verify_captcha(db, request.captcha_key, request.captcha_text)
 
         # 查找用户
-        user = await self._get_user_by_username_or_email(db, request.username)
+        user = await self._get_user_by_email_or_phone(db, request.username)
         if not user:
-            raise AuthenticationException("用户名或密码错误")
+            raise AuthenticationException("邮箱/手机号或密码错误")
 
         # 检查账户是否被锁定
         if user.is_locked:
@@ -136,7 +135,7 @@ class AuthService:
         # 验证密码
         if not verify_password(request.password, user.password_hash):
             await self._handle_login_failure(db, user)
-            raise AuthenticationException("用户名或密码错误")
+            raise AuthenticationException("邮箱/手机号或密码错误")
 
         # 检查账户状态：待审核老师允许登录，但权限端按学生处理
         if user.status != "active" and not (user.role == "teacher" and user.status == "pending"):
@@ -459,9 +458,9 @@ class AuthService:
     ) -> User | None:
         """通过邮箱获取用户"""
         result = await db.execute(
-            select(User).where(User.email == email.lower())
+            select(User).where(func.lower(User.email) == email.lower())
         )
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     async def _get_user_by_phone(
         self,
@@ -472,20 +471,34 @@ class AuthService:
         result = await db.execute(
             select(User).where(User.phone == phone)
         )
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
-    async def _get_user_by_username_or_email(
+    async def _get_user_by_email_or_phone(
         self,
         db: AsyncSession,
-        username: str,
+        login_id: str,
     ) -> User | None:
-        """通过用户名或邮箱获取用户"""
-        result = await db.execute(
-            select(User).where(
-                (User.username == username.lower()) | (User.email == username.lower())
-            )
-        )
-        return result.scalar_one_or_none()
+        """通过邮箱或手机号获取用户。
+
+        邮箱和手机号在用户表均有唯一约束；如果历史数据绕过约束出现重复，
+        登录入口拒绝继续，避免在多个候选账号中随机选择。
+        """
+        normalized = login_id.strip().lower()
+        if not normalized:
+            return None
+
+        if "@" in normalized:
+            condition = func.lower(User.email) == normalized
+        elif normalized.isdigit():
+            condition = User.phone == normalized
+        else:
+            return None
+
+        result = await db.execute(select(User).where(condition))
+        users = result.scalars().all()
+        if len(users) > 1:
+            raise AuthenticationException("登录账号存在重复数据，请联系管理员")
+        return users[0] if users else None
 
     async def _get_valid_email_code(
         self,

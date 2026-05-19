@@ -65,6 +65,31 @@ export const emailRules: FormItemRule[] = [
 ]
 
 /**
+ * 邮箱或手机号校验规则
+ */
+export const emailOrPhoneRules: FormItemRule[] = [
+  {
+    required: true,
+    validator: (_rule, value, callback) => {
+      if (!value) {
+        callback(new Error('请输入邮箱或手机号'))
+        return
+      }
+
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+      const isPhone = PHONE_PATTERN.test(value)
+      if (!isEmail && !isPhone) {
+        callback(new Error('请输入正确的邮箱或手机号'))
+        return
+      }
+
+      callback()
+    },
+    trigger: 'blur',
+  },
+]
+
+/**
  * 用户名校验规则
  */
 export const usernameRules: FormItemRule[] = [

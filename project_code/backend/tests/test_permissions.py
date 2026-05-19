@@ -36,7 +36,7 @@ async def login_as_role(
 
     response = await client.post(
         "/api/v1/auth/login",
-        json={"username": username, "password": password},
+        json={"username": f"{username}@example.com", "password": password},
     )
     assert response.status_code == 200
     token = response.json()["data"]["access_token"]
