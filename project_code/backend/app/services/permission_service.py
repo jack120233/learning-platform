@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ForbiddenException, ValidationException
@@ -61,6 +61,76 @@ class PermissionService:
         await self._ensure_tables(db)
         await self._seed_permissions(db)
         await self._seed_role_permissions(db)
+
+    async def check_and_backfill_default_permissions(self, db: AsyncSession) -> list[str]:
+        """检查默认权限数据完整性，并补录缺失项。"""
+        await self._ensure_tables(db)
+
+        messages: list[str] = []
+        result = await db.execute(select(Permission.id))
+        existing_permission_ids = set(result.scalars().all())
+
+        missing_permissions = [
+            seed
+            for seed in DEFAULT_PERMISSIONS
+            if seed.id not in existing_permission_ids
+        ]
+        if missing_permissions:
+            db.add_all(
+                [
+                    Permission(
+                        id=seed.id,
+                        name=seed.name,
+                        code=seed.code,
+                        description=seed.description,
+                        parent_id=seed.parent_id,
+                        sort_order=seed.sort_order,
+                    )
+                    for seed in missing_permissions
+                ]
+            )
+            messages.append(f"已补录 {len(missing_permissions)} 条默认权限定义")
+
+        result = await db.execute(
+            select(RolePermission.role, RolePermission.permission_id)
+            .order_by(RolePermission.role.asc(), RolePermission.permission_id.asc())
+        )
+        existing_rows = result.all()
+        existing_by_role: dict[str, set[int]] = {}
+        for role, permission_id in existing_rows:
+            existing_by_role.setdefault(role, set()).add(permission_id)
+
+        role_labels = {
+            "student": "学生",
+            "teacher": "老师",
+            "admin": "管理员",
+        }
+        backfill_rows: list[RolePermission] = []
+        for role, permission_ids in DEFAULT_ROLE_PERMISSION_IDS.items():
+            existing_role_permission_ids = existing_by_role.get(role, set())
+            missing_permission_ids = [
+                permission_id
+                for permission_id in permission_ids
+                if permission_id not in existing_role_permission_ids
+            ]
+            if not missing_permission_ids:
+                continue
+
+            backfill_rows.extend(
+                RolePermission(role=role, permission_id=permission_id)
+                for permission_id in missing_permission_ids
+            )
+            messages.append(
+                f"已为{role_labels[role]}角色补录 {len(missing_permission_ids)} 条默认权限"
+            )
+
+        if backfill_rows:
+            db.add_all(backfill_rows)
+
+        if missing_permissions or backfill_rows:
+            await db.flush()
+
+        return messages
 
     async def get_permission_tree(self, db: AsyncSession) -> list[dict]:
         """获取权限树。"""
@@ -170,9 +240,15 @@ class PermissionService:
 
     async def _seed_permissions(self, db: AsyncSession) -> None:
         """初始化默认权限定义。"""
-        result = await db.execute(select(func.count()).select_from(Permission))
-        count = result.scalar() or 0
-        if count > 0:
+        result = await db.execute(select(Permission.id))
+        existing_permission_ids = set(result.scalars().all())
+
+        missing_permissions = [
+            seed
+            for seed in DEFAULT_PERMISSIONS
+            if seed.id not in existing_permission_ids
+        ]
+        if not missing_permissions:
             return
 
         db.add_all(
@@ -185,25 +261,32 @@ class PermissionService:
                     parent_id=seed.parent_id,
                     sort_order=seed.sort_order,
                 )
-                for seed in DEFAULT_PERMISSIONS
+                for seed in missing_permissions
             ]
         )
         await db.flush()
 
     async def _seed_role_permissions(self, db: AsyncSession) -> None:
         """初始化默认角色权限映射。"""
-        result = await db.execute(select(func.count()).select_from(RolePermission))
-        count = result.scalar() or 0
-        if count > 0:
+        result = await db.execute(
+            select(RolePermission.role, RolePermission.permission_id)
+            .order_by(RolePermission.role.asc(), RolePermission.permission_id.asc())
+        )
+        role_permission_rows = result.all()
+        existing_by_role: dict[str, set[int]] = {}
+        for role, permission_id in role_permission_rows:
+            existing_by_role.setdefault(role, set()).add(permission_id)
+
+        missing_rows = [
+            RolePermission(role=role, permission_id=permission_id)
+            for role, permission_ids in DEFAULT_ROLE_PERMISSION_IDS.items()
+            if not existing_by_role.get(role)
+            for permission_id in permission_ids
+        ]
+        if not missing_rows:
             return
 
-        db.add_all(
-            [
-                RolePermission(role=role, permission_id=permission_id)
-                for role, permission_ids in DEFAULT_ROLE_PERMISSION_IDS.items()
-                for permission_id in permission_ids
-            ]
-        )
+        db.add_all(missing_rows)
         await db.flush()
 
     async def _normalize_permission_ids(self, db: AsyncSession, permission_ids: list[int]) -> list[int]:

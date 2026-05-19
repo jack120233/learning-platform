@@ -1,5 +1,27 @@
 # 操作记录
 
+## Windows 机房版权限初始化补齐
+时间：2026-05-19
+
+- 变更原因：`windows_classroom` 首次生成的新库存在权限半初始化风险；建表兼容逻辑会先落一部分老师权限，后续默认权限初始化又按整表是否为空跳过，导致 `student/admin` 默认权限可能缺失。
+- 涉及文件：
+  - `backend/app/core/db_schema.py`
+  - `backend/app/core/runtime.py`
+  - `backend/app/main.py`
+  - `backend/app/services/permission_service.py`
+  - `backend/tests/test_permissions.py`
+  - `backend/tests/test_runtime_config.py`
+  - `operations-log.md`
+- 核心改动：
+  - 调整数据库兼容修复逻辑，新库建表阶段不再提前写入 teacher-only 的 `role_permissions`。
+  - 启动阶段新增“完整权限初始化 -> 完整性检查 -> 缺失补录”链路，确保 `student`、`teacher`、`admin` 三类默认权限在首次启动时一次配齐。
+  - 将 `windows_classroom` 启动入口接入统一本地版初始化流程，不再只让 `windows_local` 走权限补齐链。
+  - 将权限默认数据写入改成按权限定义和按角色幂等补齐，避免半初始化库长期残留。
+  - 补充 SQLite 新库初始化、缺角色补回、缺权限补录等回归测试。
+- 验证结果：
+  - 已执行：`cd project_code/backend && ../.venv/bin/python -m pytest tests/test_permissions.py tests/test_runtime_config.py -q`
+  - 结果：`35 passed, 5 warnings`
+
 ## 老师注册待审核链路补齐
 时间：2026-05-15
 

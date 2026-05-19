@@ -192,33 +192,34 @@ async def ensure_database_compatibility(conn: AsyncConnection) -> list[str]:
             text("SELECT permission_id FROM role_permissions WHERE role = 'teacher'")
         )
         current_teacher_permission_ids = {row[0] for row in teacher_rows.fetchall()}
-        target_teacher_permission_ids = set(DEFAULT_ROLE_PERMISSION_IDS["teacher"])
+        if current_teacher_permission_ids:
+            target_teacher_permission_ids = set(DEFAULT_ROLE_PERMISSION_IDS["teacher"])
 
-        stale_teacher_permission_ids = current_teacher_permission_ids - target_teacher_permission_ids
-        missing_teacher_permission_ids = target_teacher_permission_ids - current_teacher_permission_ids
+            stale_teacher_permission_ids = current_teacher_permission_ids - target_teacher_permission_ids
+            missing_teacher_permission_ids = target_teacher_permission_ids - current_teacher_permission_ids
 
-        if stale_teacher_permission_ids:
-            await conn.execute(
-                text(
-                    "DELETE FROM role_permissions "
-                    "WHERE role = 'teacher' "
-                    f"AND permission_id NOT IN ({allowed_teacher_permission_ids})"
+            if stale_teacher_permission_ids:
+                await conn.execute(
+                    text(
+                        "DELETE FROM role_permissions "
+                        "WHERE role = 'teacher' "
+                        f"AND permission_id NOT IN ({allowed_teacher_permission_ids})"
+                    )
                 )
-            )
-            messages.append("已清理老师角色的历史后台权限")
+                messages.append("已清理老师角色的历史后台权限")
 
-        for permission_id in sorted(missing_teacher_permission_ids):
-            await conn.execute(
-                text(
-                    "INSERT INTO role_permissions (role, permission_id) "
-                    "SELECT :role, :permission_id "
-                    "WHERE NOT EXISTS ("
-                    "SELECT 1 FROM role_permissions WHERE role = :role AND permission_id = :permission_id"
-                    ")"
-                ),
-                {"role": "teacher", "permission_id": permission_id},
-            )
-        if missing_teacher_permission_ids:
-            messages.append("已补齐老师角色当前默认权限")
+            for permission_id in sorted(missing_teacher_permission_ids):
+                await conn.execute(
+                    text(
+                        "INSERT INTO role_permissions (role, permission_id) "
+                        "SELECT :role, :permission_id "
+                        "WHERE NOT EXISTS ("
+                        "SELECT 1 FROM role_permissions WHERE role = :role AND permission_id = :permission_id"
+                        ")"
+                    ),
+                    {"role": "teacher", "permission_id": permission_id},
+                )
+            if missing_teacher_permission_ids:
+                messages.append("已补齐老师角色当前默认权限")
 
     return messages

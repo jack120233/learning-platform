@@ -4,18 +4,26 @@ import pytest
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import Settings
 from app.core import runtime
 from app.core.cache import InMemoryCache, RedisCachePlaceholder
-from app.core.runtime import configure_sqlite_runtime, seed_database_if_empty
+from app.core.runtime import (
+    configure_sqlite_runtime,
+    initialize_database_schema,
+    initialize_permission_defaults,
+    seed_database_if_empty,
+)
 from app.main import should_serve_frontend_spa
+from app.models.permission import RolePermission
+from app.services.permission_service import permission_service
 
 
 def test_windows_local_defaults_to_sqlite_file_and_diskcache(tmp_path):
     settings = Settings(
+        _env_file=None,
         app_edition="windows_local",
         windows_local_data_dir=str(tmp_path / "data"),
         windows_local_cache_dir=str(tmp_path / "data" / "cache"),
@@ -34,6 +42,7 @@ def test_windows_local_defaults_to_sqlite_file_and_diskcache(tmp_path):
 
 def test_windows_classroom_defaults_to_isolated_sqlite_file_and_diskcache(tmp_path):
     settings = Settings(
+        _env_file=None,
         app_edition="windows_classroom",
         windows_classroom_data_dir=str(tmp_path / "data"),
         windows_classroom_cache_dir=str(tmp_path / "data" / "cache"),
@@ -54,6 +63,7 @@ def test_windows_classroom_defaults_to_isolated_sqlite_file_and_diskcache(tmp_pa
 
 def test_explicit_database_url_keeps_in_memory_sqlite_for_tests():
     settings = Settings(
+        _env_file=None,
         app_edition="windows_classroom",
         database_url="sqlite+aiosqlite:///:memory:",
     )
@@ -65,7 +75,7 @@ def test_explicit_database_url_keeps_in_memory_sqlite_for_tests():
 
 
 def test_server_defaults_to_redis_cache_without_requiring_connection():
-    settings = Settings(app_edition="server")
+    settings = Settings(_env_file=None, app_edition="server")
 
     assert settings.effective_cache_backend == "redis"
     assert settings.async_database_url == "sqlite+aiosqlite:///:memory:"
@@ -73,7 +83,7 @@ def test_server_defaults_to_redis_cache_without_requiring_connection():
 
 @pytest.mark.parametrize("app_edition", ["windows_local", "windows_classroom"])
 def test_windows_frontend_paths_point_to_ui_dist(app_edition):
-    settings = Settings(app_edition=app_edition)
+    settings = Settings(_env_file=None, app_edition=app_edition)
 
     assert settings.parsed_frontend_dist_dir.name == "dist"
     assert settings.parsed_frontend_index_path.name == "index.html"
@@ -210,5 +220,63 @@ async def test_seed_database_if_empty_runs_only_when_empty(tmp_path):
         seeded_again = await seed_database_if_empty(async_session_factory, seed_runner)
         assert seeded_again is False
         assert calls == []
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_initialize_database_schema_does_not_preseed_teacher_only_permissions(tmp_path):
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'bootstrap.db'}")
+    async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    try:
+        async with engine.begin() as conn:
+            await initialize_database_schema(conn)
+
+        async with async_session_factory() as session:
+            result = await session.execute(select(RolePermission.role, RolePermission.permission_id))
+            assert result.all() == []
+
+            await permission_service.ensure_schema_and_seed(session)
+
+            role_permissions = await session.execute(
+                select(RolePermission.role, RolePermission.permission_id)
+                .order_by(RolePermission.role.asc(), RolePermission.permission_id.asc())
+            )
+            grouped: dict[str, list[int]] = {}
+            for role, permission_id in role_permissions.all():
+                grouped.setdefault(role, []).append(permission_id)
+
+            assert grouped["student"] == [1, 11, 12, 13, 14]
+            assert grouped["teacher"] == [1, 2, 11, 12, 13, 14, 21, 22, 23]
+            assert grouped["admin"] == [1, 2, 3, 11, 12, 13, 14, 21, 22, 23, 31, 32, 33, 35, 36, 37, 38, 39]
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_initialize_permission_defaults_fills_new_database_completely(tmp_path):
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'windows-classroom.db'}")
+    async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    try:
+        async with engine.begin() as conn:
+            await initialize_database_schema(conn)
+
+        messages = await initialize_permission_defaults(async_session_factory)
+        assert messages == []
+
+        async with async_session_factory() as session:
+            role_permissions = await session.execute(
+                select(RolePermission.role, RolePermission.permission_id)
+                .order_by(RolePermission.role.asc(), RolePermission.permission_id.asc())
+            )
+            grouped: dict[str, list[int]] = {}
+            for role, permission_id in role_permissions.all():
+                grouped.setdefault(role, []).append(permission_id)
+
+            assert grouped["student"] == [1, 11, 12, 13, 14]
+            assert grouped["teacher"] == [1, 2, 11, 12, 13, 14, 21, 22, 23]
+            assert grouped["admin"] == [1, 2, 3, 11, 12, 13, 14, 21, 22, 23, 31, 32, 33, 35, 36, 37, 38, 39]
     finally:
         await engine.dispose()

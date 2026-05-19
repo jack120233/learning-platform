@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db_schema import ensure_database_compatibility
 from app.core.security import hash_password
 from app.models.permission import RolePermission
+from app.services.permission_service import permission_service
 from app.models.user import User
 
 
@@ -263,6 +264,67 @@ class TestRolePermissions:
 
         assert "已清理老师角色的历史后台权限" in messages
         assert list(permission_ids.scalars().all()) == [1, 2, 11, 12, 13, 14, 21, 22, 23]
+
+    @pytest.mark.asyncio
+    async def test_permission_seed_backfills_missing_roles_without_overwriting_teacher(
+        self,
+        db_session: AsyncSession,
+    ):
+        await permission_service.ensure_schema_and_seed(db_session)
+        await db_session.execute(
+            RolePermission.__table__.delete().where(RolePermission.role.in_(["student", "admin"]))
+        )
+        await db_session.flush()
+
+        await permission_service.ensure_schema_and_seed(db_session)
+
+        result = await db_session.execute(
+            select(RolePermission.role, RolePermission.permission_id)
+            .order_by(RolePermission.role.asc(), RolePermission.permission_id.asc())
+        )
+        rows = result.all()
+        grouped: dict[str, list[int]] = {}
+        for role, permission_id in rows:
+            grouped.setdefault(role, []).append(permission_id)
+
+        assert grouped["student"] == [1, 11, 12, 13, 14]
+        assert grouped["teacher"] == [1, 2, 11, 12, 13, 14, 21, 22, 23]
+        assert grouped["admin"] == [1, 2, 3, 11, 12, 13, 14, 21, 22, 23, 31, 32, 33, 35, 36, 37, 38, 39]
+
+    @pytest.mark.asyncio
+    async def test_permission_check_backfills_partial_role_permissions(
+        self,
+        db_session: AsyncSession,
+    ):
+        await permission_service.ensure_schema_and_seed(db_session)
+        await db_session.execute(
+            RolePermission.__table__.delete().where(
+                (RolePermission.role == "student") & (RolePermission.permission_id == 14)
+            )
+        )
+        await db_session.execute(
+            RolePermission.__table__.delete().where(
+                (RolePermission.role == "admin") & (RolePermission.permission_id.in_([38, 39]))
+            )
+        )
+        await db_session.flush()
+
+        messages = await permission_service.check_and_backfill_default_permissions(db_session)
+
+        result = await db_session.execute(
+            select(RolePermission.role, RolePermission.permission_id)
+            .order_by(RolePermission.role.asc(), RolePermission.permission_id.asc())
+        )
+        rows = result.all()
+        grouped: dict[str, list[int]] = {}
+        for role, permission_id in rows:
+            grouped.setdefault(role, []).append(permission_id)
+
+        assert "已为学生角色补录 1 条默认权限" in messages
+        assert "已为管理员角色补录 2 条默认权限" in messages
+        assert grouped["student"] == [1, 11, 12, 13, 14]
+        assert grouped["teacher"] == [1, 2, 11, 12, 13, 14, 21, 22, 23]
+        assert grouped["admin"] == [1, 2, 3, 11, 12, 13, 14, 21, 22, 23, 31, 32, 33, 35, 36, 37, 38, 39]
 
     @pytest.mark.asyncio
     async def test_get_permission_tree_allows_role_permission_operator(

@@ -56,14 +56,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f"🧰 缓存后端: {settings.effective_cache_backend}")
     if settings.is_sqlite_file_database:
         logger.info(f"🛢️ SQLite 数据库: {settings.async_database_url}")
-    if settings.app_edition == "windows_local":
+    if settings.is_windows_edition:
         _, startup_messages, seeded = await ensure_windows_local_startup(engine, AsyncSessionLocal)
         for message in startup_messages:
             if "请手动检查" in message:
                 logger.warning(message)
             else:
                 logger.info(message)
-        logger.info("已导入 Windows 单机版种子数据" if seeded else "Windows 单机版种子数据已存在，跳过导入")
+        edition_label = "Windows 单机版" if settings.app_edition == "windows_local" else "Windows 机房版"
+        logger.info(f"已导入{edition_label}种子数据" if seeded else f"{edition_label}种子数据已存在，跳过导入")
     else:
         async with engine.begin() as conn:
             startup_messages = await configure_sqlite_runtime(conn)
