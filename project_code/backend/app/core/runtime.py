@@ -63,6 +63,19 @@ async def seed_database_if_empty(
     return True
 
 
+async def initialize_permission_defaults(
+    session_factory: async_sessionmaker[Any],
+) -> list[str]:
+    """初始化权限默认数据，并在发现缺失时补录。"""
+    from app.services.permission_service import permission_service
+
+    async with session_factory() as session:
+        await permission_service.ensure_schema_and_seed(session)
+        messages = await permission_service.check_and_backfill_default_permissions(session)
+        await session.commit()
+    return messages
+
+
 async def ensure_windows_local_startup(
     engine: Any,
     session_factory: async_sessionmaker[Any],
@@ -74,5 +87,6 @@ async def ensure_windows_local_startup(
         runtime_messages = await configure_sqlite_runtime(conn)
         schema_messages = await initialize_database_schema(conn)
 
+    permission_messages = await initialize_permission_defaults(session_factory)
     seeded = await seed_database_if_empty(session_factory)
-    return directories, runtime_messages + schema_messages, seeded
+    return directories, runtime_messages + schema_messages + permission_messages, seeded

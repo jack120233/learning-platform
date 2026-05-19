@@ -986,3 +986,23 @@
   - 已执行：工作流 YAML 静态检查与依赖路径核对。
   - 待执行：推送到 `origin/future/windows-local` 后由 GitHub Actions 进行首次远端打包。
   - 备注：Windows 10 兼容性仍需你后续在真实 Windows 10 环境解压和启动验证。
+
+## Windows 单机版权限初始化补齐
+时间：2026-05-19
+
+- 变更原因：首次生成的 `windows-local.db` 出现 `permissions` 已写入但 `role_permissions` 只有老师角色的半初始化状态，导致管理员和学生权限映射缺失。
+- 涉及文件：
+  - `backend/app/core/db_schema.py`
+  - `backend/app/services/permission_service.py`
+  - `backend/tests/test_permissions.py`
+  - `backend/tests/test_runtime_config.py`
+  - `operations-log.md`
+- 核心改动：
+  - 收紧数据库兼容修复逻辑：只有在库里已存在老师权限记录时，才做老师历史权限清理与补齐，避免新库建表阶段提前写入 teacher-only 的 `role_permissions`。
+  - 将默认权限定义补种改为按权限 ID 幂等补齐，不再依赖整张 `permissions` 表必须为空。
+  - 在 Windows 单机版启动初始化阶段显式执行“权限默认数据初始化”，直接把 `permissions` 和 `role_permissions` 完整写入新库，不再等接口访问时才补。
+  - 在初始化后追加一轮“权限完整性检查 + 补录”，如果某个角色缺少默认权限映射，会立刻补齐缺失项。
+  - 保留运行期兜底：常规权限服务仍会补上完全缺失的角色映射，避免旧库或脏库继续带病运行。
+  - 新增测试覆盖新库初始化完整写入，以及半初始化库/部分缺失库会补齐缺失角色权限。
+- 验证结果：
+  - 待执行：`cd project_code/backend && ../.venv/bin/pytest tests/test_permissions.py tests/test_runtime_config.py -q`
