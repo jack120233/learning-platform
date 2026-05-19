@@ -907,6 +907,34 @@
   - 待执行：`powershell -File scripts/windows-local/build-package.ps1`
   - 备注：打包脚本面向 Windows 构建机；当前环境未安装 PowerShell，暂未实际产出 ZIP。
 
+## Windows 单机版打包运行修复（缺依赖 + GBK 编码）
+时间：2026-05-18
+
+- 变更原因：
+  - 解压 `release/windows-local/1.0.0/.../learning-platform-windows-local-1.0.0` 后双击 `start-windows-local.cmd` 后端无法启动，health check 超时。
+  - 错误日志暴露两个独立问题：
+    1. `ImportError: email-validator is not installed`（pydantic `EmailStr` 缺依赖）
+    2. `UnicodeEncodeError: 'gbk' codec can't encode character '\\U0001f680' / '\\u274c'`（启动日志和 init/seed 的 print 含 emoji，Windows 默认 GBK 控制台编码崩溃，致 Application startup failed）
+- 涉及文件：
+  - `backend/requirements.txt`（补 `email-validator>=2.0.0`）
+  - `start-windows-local.cmd`（启动器追加 `PYTHONIOENCODING=utf-8` 与 `PYTHONUTF8=1` 环境变量）
+- 核心改动：
+  - `backend/requirements.txt` 在「数据验证」段落新增 `email-validator>=2.0.0` 依赖，避免下次重建 venv 再次漏装。
+  - `start-windows-local.cmd` 在 `PYTHONPATH=%BACKEND_DIR%` 之后追加：
+    ```
+    set "PYTHONIOENCODING=utf-8"
+    set "PYTHONUTF8=1"
+    ```
+    使 uvicorn 子进程的 stdout/stderr 与 print 都以 UTF-8 输出，规避 Windows GBK 控制台编码限制。
+- 验证结果：
+  - 已执行：在当前 venv (`project_code/.venv`) `pip install email-validator>=2.0.0`，安装 `email-validator 2.3.0` + `dnspython 2.8.0` 成功。
+  - 已执行：`rm -rf release/windows-local/1.0.0 && powershell -File scripts/windows-local/build-package.ps1`，新包 `learning-platform-windows-local-1.0.0.zip` 重新生成，版本 `1.0.0`。
+  - 已执行：用新包内置 venv 启动 uvicorn，模拟启动器环境（`APP_EDITION=windows_local PYTHONIOENCODING=utf-8 PYTHONUTF8=1`）：
+    - 后端日志显示 `✅ 种子数据导入完成` / `Application startup complete` / `Uvicorn running on http://127.0.0.1:8014`。
+    - HTTP 验证：`GET /` → 200，`GET /docs` → 200，`GET /api/v1/health` → 200。
+  - 结论：原报错链路（缺 `email-validator` + GBK emoji 崩溃）已闭环修复。
+  - 备注：仅修复启动期阻塞问题，未触及业务代码中其它含 emoji 的 `print`/`logger`；后续若仍想消除非致命的 `--- Logging error ---` 噪音，可考虑在 `app/main.py` 移除 emoji 或显式 reconfigure `sys.stdout.encoding`。
+
 ## 登录凭据改为邮箱或手机号
 时间：2026-05-19 10:45
 

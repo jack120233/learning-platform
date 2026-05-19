@@ -12,6 +12,7 @@ alembic>=1.13.0
 # 数据验证
 pydantic>=2.6.0
 pydantic-settings>=2.1.0
+email-validator>=2.0.0
 
 # 认证安全
 python-jose[cryptography]>=3.3.0

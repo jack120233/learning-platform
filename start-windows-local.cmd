@@ -48,6 +48,8 @@ if not defined HOST set "HOST=127.0.0.1"
 if not defined PORT set "PORT=8000"
 if not defined CACHE_BACKEND set "CACHE_BACKEND=auto"
 set "PYTHONPATH=%BACKEND_DIR%"
+set "PYTHONIOENCODING=utf-8"
+set "PYTHONUTF8=1"
 
 if not exist "%UI_DIR%\dist\index.html" (
     if not exist "%UI_DIR%\package.json" (
