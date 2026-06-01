@@ -88,11 +88,6 @@ python scripts/seed_data.py
 |------|--------|------|------|
 | 管理员 | `admin1` | `Admin123456` | `admin1@example.com` |
 | 教师 | `teacher1` | `Test123456` | `teacher1@example.com` |
-| 教师 | `teacher2` | `Test123456` | `teacher2@example.com` |
-| 教师 | `teacher3` | `Test123456` | `teacher3@example.com` |
-| 教师 | `teacher4` | `Test123456` | `teacher4@example.com` |
-| 教师 | `teacher5` | `Test123456` | `teacher5@example.com` |
-| 教师 | `teacher6` | `Test123456` | `teacher6@example.com` |
 | 学生 | `student1` | `Test123456` | `student1@example.com` |
 | 学生 | `student2` | `Test123456` | `student2@example.com` |
 
