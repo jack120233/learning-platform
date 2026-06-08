@@ -31,14 +31,13 @@ async def init_database() -> None:
         async with engine.begin() as conn:
             # 测试数据库连接
             await conn.execute(text("SELECT 1"))
-            print("✅ 数据库连接成功")
+            print("数据库连接成功")
 
             # 创建所有表
             await conn.run_sync(Base.metadata.create_all)
-            print("✅ 数据库表初始化完成")
+            print("数据库表初始化完成")
             for message in await ensure_database_compatibility(conn):
-                prefix = "⚠️" if "请手动检查" in message else "✅"
-                print(f"{prefix} {message}")
+                print(message)
 
         # 显示创建的表
         async with engine.connect() as conn:
@@ -51,7 +50,7 @@ async def init_database() -> None:
                 print(f"  - {t}")
 
     except Exception as e:
-        print(f"❌ 初始化失败: {e}")
+        print(f"初始化失败: {e}")
         sys.exit(1)
 
     print("\n" + "=" * 50)

@@ -46,16 +46,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     处理应用启动和关闭时的资源初始化与清理。
     """
     # 启动时执行
-    logger.info(f"🚀 {settings.app_name} v{settings.app_version} 启动中...")
-    logger.info(f"📝 环境: {settings.environment}")
-    logger.info(f"🌐 API 文档: http://{settings.host}:{settings.port}/docs")
-    logger.info(f"📁 日志目录: {settings.resolved_log_dir}")
-    logger.info(f"🖼️ 上传目录: {settings.resolved_upload_dir}")
+    logger.info(f"{settings.app_name} v{settings.app_version} 启动中...")
+    logger.info(f"环境: {settings.environment}")
+    logger.info(f"API 文档: http://{settings.host}:{settings.port}/docs")
+    logger.info(f"日志目录: {settings.resolved_log_dir}")
+    logger.info(f"上传目录: {settings.resolved_upload_dir}")
     if settings.is_windows_edition:
-        logger.info(f"🗂️ 本地数据目录: {settings.resolved_local_database_path.parent}")
-        logger.info(f"🧰 缓存后端: {settings.effective_cache_backend}")
+        logger.info(f"本地数据目录: {settings.resolved_local_database_path.parent}")
+        logger.info(f"缓存后端: {settings.effective_cache_backend}")
     if settings.is_sqlite_file_database:
-        logger.info(f"🛢️ SQLite 数据库: {settings.async_database_url}")
+        logger.info(f"SQLite 数据库: {settings.async_database_url}")
     if settings.app_edition == "windows_local":
         _, startup_messages, seeded = await ensure_windows_local_startup(engine, AsyncSessionLocal)
         for message in startup_messages:
@@ -77,7 +77,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     # 关闭时执行
-    logger.info(f"👋 {settings.app_name} 正在关闭...")
+    logger.info(f"{settings.app_name} 正在关闭...")
 
 
 # 创建 FastAPI 应用实例

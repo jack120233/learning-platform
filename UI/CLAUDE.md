@@ -111,7 +111,7 @@ Vite 配置了 `unplugin-auto-import` 和 `unplugin-vue-components`：
 
 ### 认证状态管理规范（最高优先级）
 
-> ⚠️ **强制要求**：本项目必须遵循单一数据源原则，所有认证状态统一由 Pinia Store 管理。
+> **强制要求**：本项目必须遵循单一数据源原则，所有认证状态统一由 Pinia Store 管理。
 
 **核心原则**：
 - **禁止**业务代码直接读取 `localStorage`（唯一例外：API 请求拦截器注入 Token）
@@ -126,21 +126,21 @@ Vite 配置了 `unplugin-auto-import` 和 `unplugin-vue-components`：
 
 **正确示例**：
 ```ts
-// ✅ 路由守卫 - 使用 Store
+// 路由守卫 - 使用 Store
 router.beforeEach((to, _from, next) => {
   const userStore = useUserStore()
   if (userStore.isLoggedIn) { ... }
   if (to.meta.requiresAuth && !userStore.isLoggedIn) { ... }
 })
 
-// ✅ 组件 - 使用 Store
+// 组件 - 使用 Store
 const userStore = useUserStore()
 if (userStore.isTeacher) { ... }
 ```
 
 **禁止示例**：
 ```ts
-// ❌ 禁止直接读 localStorage
+// 禁止直接读 localStorage
 const token = localStorage.getItem('access_token')
 const userInfo = JSON.parse(localStorage.getItem('user_info'))
 ```

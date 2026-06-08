@@ -27,12 +27,12 @@ async def migrate_author() -> None:
                 await conn.execute(
                     text("ALTER TABLE courses ADD COLUMN author VARCHAR(100) NULL COMMENT '作者名字'")
                 )
-                print("✅ 字段添加成功")
+                print("字段添加成功")
             else:
-                print("ℹ️ courses 表中已存在 author 字段，无需重复添加")
+                print("courses 表中已存在 author 字段，无需重复添加")
 
     except Exception as e:
-        print(f"❌ 迁移失败: {e}")
+        print(f"迁移失败: {e}")
         sys.exit(1)
 
     print("\n" + "=" * 50)

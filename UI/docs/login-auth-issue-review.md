@@ -34,14 +34,14 @@
 ```ts
 // src/api/auth.ts - 修改前
 export interface LoginRequest {
-  login_id: string  // ❌ 错误字段名
+  login_id: string  // 错误字段名
   password: string
   remember_me: boolean
 }
 
 // src/api/auth.ts - 修改后
 export interface LoginRequest {
-  username: string  // ✅ 正确字段名
+  username: string  // 正确字段名
   password: string
   remember_me: boolean
 }
@@ -90,7 +90,7 @@ export interface LoginRequest {
 ```ts
 // src/router/index.ts - 问题代码
 router.beforeEach((to, _from, next) => {
-  // ❌ 直接读 localStorage，与 store 无关
+  // 直接读 localStorage，与 store 无关
   const token = localStorage.getItem('access_token')
   const isLoggedIn = !!token
 
@@ -106,9 +106,9 @@ router.beforeEach((to, _from, next) => {
 ```ts
 // src/router/index.ts - 修复后
 router.beforeEach((to, _from, next) => {
-  const userStore = useUserStore()  // ✅ 统一使用 store
+  const userStore = useUserStore()  // 统一使用 store
 
-  // ✅ 所有判断基于 store
+  // 所有判断基于 store
   if (userStore.isLoggedIn && [...]) { ... }
   if (to.meta.requiresAuth && !userStore.isLoggedIn) { ... }
   if (to.meta.requiresTeacher && !userStore.isTeacher) { ... }
@@ -213,15 +213,15 @@ if (!userStore.isLoggedIn) {
 ```ts
 // src/api/auth.ts - 问题代码
 export interface LoginResponse {
-  user_id: number      // ❌ 后端没有这个字段
-  username: string     // ❌ 在 user 对象里，不在顶层
-  email: string        // ❌ 在 user 对象里
-  nickname: string     // ❌ 在 user 对象里
-  avatar_url: string   // ❌ 后端叫 avatar，且在 user 里
-  role: string         // ❌ 在 user 对象里
-  status: string       // ❌ 在 user 对象里
-  access_token: string // ✅ 正确
-  refresh_token: string // ✅ 正确
+  user_id: number      // 后端没有这个字段
+  username: string     // 在 user 对象里，不在顶层
+  email: string        // 在 user 对象里
+  nickname: string     // 在 user 对象里
+  avatar_url: string   // 后端叫 avatar，且在 user 里
+  role: string         // 在 user 对象里
+  status: string       // 在 user 对象里
+  access_token: string // 正确
+  refresh_token: string // 正确
 }
 ```
 
@@ -244,7 +244,7 @@ export interface LoginResponse {
   refresh_token: string
   token_type: string
   expires_in: number
-  user: LoginUser  // ✅ 用户信息在 user 对象里
+  user: LoginUser  // 用户信息在 user 对象里
 }
 ```
 
@@ -261,10 +261,10 @@ userStore.setLoginInfo({
 
 // src/views/auth/LoginPage.vue - 修复后
 userStore.setLoginInfo({
-  user_id: response.user.id,       // ✅
-  username: response.user.username, // ✅
-  avatar_url: response.user.avatar || '', // ✅
-  role: response.user.role,        // ✅
+  user_id: response.user.id,
+  username: response.user.username,
+  avatar_url: response.user.avatar || '',
+  role: response.user.role,
   ...
 })
 ```
@@ -463,7 +463,7 @@ export interface LoginResponse {
 
 ## 九、开发规范约定（正式规范）
 
-> ⚠️ **强制要求**：以下规范为本次问题修复后确立的正式开发约定，后续所有开发工作必须严格遵守。
+> **强制要求**：以下规范为本次问题修复后确立的正式开发约定，后续所有开发工作必须严格遵守。
 
 ### 1. 认证状态管理规范（最高优先级）
 
@@ -475,17 +475,17 @@ export interface LoginResponse {
 ├──────────────────────────────────────────────────────────────┤
 │                                                              │
 │  【禁止】业务代码直接读取 localStorage                        │
-│  ├── ❌ 禁止在组件中写 localStorage.getItem('access_token')  │
-│  ├── ❌ 禁止在路由守卫中读 localStorage                      │
-│  ├── ❌ 禁止在任何业务逻辑中直接解析 localStorage            │
+│  ├── 禁止在组件中写 localStorage.getItem('access_token')  │
+│  ├── 禁止在路由守卫中读 localStorage                      │
+│  ├── 禁止在任何业务逻辑中直接解析 localStorage            │
 │  └── 唯一例外：api/index.ts 请求拦截器注入 Token             │
 │                                                              │
 │  【必须】统一使用 Pinia Store                                │
-│  ├── ✅ 所有组件通过 useUserStore() 获取状态                 │
-│  ├── ✅ 路由守卫通过 useUserStore() 判断权限                 │
-│  ├── ✅ 登录成功后调用 userStore.setLoginInfo()              │
-│  ├── ✅ 退出登录调用 userStore.logout()                      │
-│  └── ✅ 刷新后由 store.restoreFromStorage() 自动恢复         │
+│  ├── 所有组件通过 useUserStore() 获取状态                 │
+│  ├── 路由守卫通过 useUserStore() 判断权限                 │
+│  ├── 登录成功后调用 userStore.setLoginInfo()              │
+│  ├── 退出登录调用 userStore.logout()                      │
+│  └── 刷新后由 store.restoreFromStorage() 自动恢复         │
 │                                                              │
 │  【Store 提供的计算属性】                                     │
 │  ├── isLoggedIn  - 是否已登录（accessToken + userId 双重校验）│
@@ -499,13 +499,13 @@ export interface LoginResponse {
 **代码示例**：
 
 ```ts
-// ❌ 错误写法 - 直接读 localStorage
+// 错误写法 - 直接读 localStorage
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('access_token')
   if (token) { ... }
 })
 
-// ✅ 正确写法 - 使用 Store
+// 正确写法 - 使用 Store
 router.beforeEach((to, _from, next) => {
   const userStore = useUserStore()
   if (userStore.isLoggedIn) { ... }
@@ -526,7 +526,7 @@ router.beforeEach((to, _from, next) => {
 **类型定义规范**：
 
 ```ts
-// ✅ 推荐：嵌套结构，与后端一致
+// 推荐：嵌套结构，与后端一致
 export interface LoginUser {
   id: number
   username: string
@@ -540,7 +540,7 @@ export interface LoginResponse {
   user: LoginUser  // 嵌套对象
 }
 
-// ❌ 禁止：平铺结构，容易与后端不一致
+// 禁止：平铺结构，容易与后端不一致
 export interface LoginResponse {
   user_id: number      // 后端可能叫 id
   username: string     // 后端可能在 user 对象里
@@ -582,14 +582,14 @@ router.replace(redirectUrl || '/')
 **禁止事项**：
 
 ```ts
-// ❌ 禁止：直接写 localStorage
+// 禁止：直接写 localStorage
 localStorage.setItem('access_token', response.access_token)
 localStorage.setItem('user_info', JSON.stringify(response.user))
 
-// ❌ 禁止：校验时混用 response 和 store
+// 禁止：校验时混用 response 和 store
 if (userStore.userInfo.role !== response.role) { ... }
 
-// ❌ 禁止：跳转前不校验状态
+// 禁止：跳转前不校验状态
 router.replace('/')  // 应先校验 userStore.isLoggedIn
 ```
 
@@ -671,11 +671,11 @@ router.beforeEach((to, _from, next) => {
 
 | 规范编号 | 规范名称 | 适用范围 | 强制级别 |
 |----------|----------|----------|----------|
-| 1 | 认证状态管理规范 | 全项目所有组件、路由、API层 | ⚠️ 强制 |
-| 2 | 接口对接规范 | 所有新增/修改的 API 接口 | ⚠️ 强制 |
-| 3 | 登录流程规范 | 登录、注册、找回密码等认证页面 | ⚠️ 强制 |
-| 4 | 路由守卫规范 | 路由配置文件 | ⚠️ 强制 |
-| 5 | 问题排查清单 | 认证相关问题调试 | 📋 参考 |
+| 1 | 认证状态管理规范 | 全项目所有组件、路由、API层 | 强制 |
+| 2 | 接口对接规范 | 所有新增/修改的 API 接口 | 强制 |
+| 3 | 登录流程规范 | 登录、注册、找回密码等认证页面 | 强制 |
+| 4 | 路由守卫规范 | 路由配置文件 | 强制 |
+| 5 | 问题排查清单 | 认证相关问题调试 | 参考 |
 
 ---
 
