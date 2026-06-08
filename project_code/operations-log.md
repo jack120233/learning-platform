@@ -1,5 +1,37 @@
 # 操作记录
 
+## 后端历史测试与测试计划清理
+时间：2026-06-08 13:34:38 CST
+
+- 变更原因：将当前工作区中尚未提交的后端测试删除和测试计划样例收缩整理为独立提交，避免与邮箱校验热修复混在同一分支。
+- 涉及文件：
+  - `backend/tests/conftest.py`
+  - `backend/tests/test_async_orm_defaults.py`
+  - `backend/tests/test_auth.py`
+  - `backend/tests/test_content.py`
+  - `backend/tests/test_courses.py`
+  - `backend/tests/test_feedbacks.py`
+  - `backend/tests/test_health.py`
+  - `backend/tests/test_learning.py`
+  - `backend/tests/test_logging.py`
+  - `backend/tests/test_orm_safety.py`
+  - `backend/tests/test_permissions.py`
+  - `backend/tests/test_system.py`
+  - `backend/tests/test_uploads.py`
+  - `backend/tests/test_users.py`
+  - `docs/test-plan.md`
+  - `operations-log.md`
+- 核心改动：
+  - 删除现有 `backend/tests/` 下的 14 个 pytest 测试文件与共享 `conftest.py`。
+  - 从 `docs/test-plan.md` 的示例测试账号中移除 `teacher2` 到 `teacher6`。
+  - 将这批原本悬挂在工作区中的改动独立到单独分支，便于后续追踪。
+- 验证结果：
+  - 已执行：`git diff --stat`
+  - 结果：确认本批次包含 15 个文件、共 `8623` 行删除。
+  - 已执行：`git diff -- project_code/docs/test-plan.md`
+  - 结果：确认仅删除 5 个 teacher 测试账号样例。
+  - 说明：本次未运行测试；当前变更本身即为删除测试文件。
+
 ## 邮箱校验依赖热修复
 时间：2026-06-08 11:53:40 CST
 
@@ -17,11 +49,11 @@
   - 已执行：`rg -n "\\bEmailStr\\b|email-validator|pydantic\\[email\\]" project_code/backend/app project_code/backend/requirements.txt -S`
   - 结果：业务 schema 中已无 `EmailStr` 残留，requirements 仍未显式声明 `email-validator`。
   - 已执行：`cd project_code/backend && python3 -m py_compile app/schemas/auth.py app/schemas/user.py app/schemas/validators.py`
-- 结果：通过。
-- 已执行：`cd project_code/backend && ../.venv/bin/python -c "from app.schemas.auth import RegisterRequest, SendEmailCodeRequest, ResetPasswordRequest; from app.schemas.user import TeacherAuditApply; ..."`
-- 结果：合法邮箱样例校验通过，schema 导入正常。
-- 已执行：`cd project_code/backend && ../.venv/bin/python -c $'from pydantic import ValidationError\\nfrom app.schemas.auth import RegisterRequest\\ntry:\\n    RegisterRequest(...)\\nexcept ValidationError as exc:\\n    print(exc.errors()[0][\"msg\"])'`
-- 结果：非法邮箱返回 `Value error, 邮箱格式不正确`。
+  - 结果：通过。
+  - 已执行：`cd project_code/backend && ../.venv/bin/python -c "from app.schemas.auth import RegisterRequest, SendEmailCodeRequest, ResetPasswordRequest; from app.schemas.user import TeacherAuditApply; ..."`
+  - 结果：合法邮箱样例校验通过，schema 导入正常。
+  - 已执行：`cd project_code/backend && ../.venv/bin/python -c $'from pydantic import ValidationError\\nfrom app.schemas.auth import RegisterRequest\\ntry:\\n    RegisterRequest(...)\\nexcept ValidationError as exc:\\n    print(exc.errors()[0][\"msg\"])'`
+  - 结果：非法邮箱返回 `Value error, 邮箱格式不正确`。
 
 ## Windows 默认种子账号精简
 时间：2026-05-19
