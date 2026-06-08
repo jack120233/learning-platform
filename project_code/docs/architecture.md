@@ -295,17 +295,17 @@ Announcement (公告)
 
 | 模块 | 路由前缀 | API数量 | 状态 |
 |------|---------|--------|------|
-| 健康检查 | /health, /ping | 2 | ✅ 完成 |
-| 用户认证 | /auth | 7 | ✅ 完成 |
-| 用户管理 | /users | 11 | ✅ 完成 |
-| 课程管理 | /courses | 12 | ✅ 完成 |
-| 课程内容 | /courses/{id}/chapters... | 10 | ✅ 完成 |
-| 学习模块 | /learning | 6 | ✅ 完成 |
-| 反馈管理 | /feedbacks | 4 | ✅ 完成 |
-| 消息管理 | /messages | 7 | ✅ 完成 |
-| 分类管理 | /categories | 4 | ✅ 完成 |
-| 标签管理 | /tags | 2 | ✅ 完成 |
-| 公告管理 | /announcements | 3 | ✅ 完成 |
+| 健康检查 | /health, /ping | 2 | 完成 |
+| 用户认证 | /auth | 7 | 完成 |
+| 用户管理 | /users | 11 | 完成 |
+| 课程管理 | /courses | 12 | 完成 |
+| 课程内容 | /courses/{id}/chapters... | 10 | 完成 |
+| 学习模块 | /learning | 6 | 完成 |
+| 反馈管理 | /feedbacks | 4 | 完成 |
+| 消息管理 | /messages | 7 | 完成 |
+| 分类管理 | /categories | 4 | 完成 |
+| 标签管理 | /tags | 2 | 完成 |
+| 公告管理 | /announcements | 3 | 完成 |
 
 ### 4.2 模块详情
 
