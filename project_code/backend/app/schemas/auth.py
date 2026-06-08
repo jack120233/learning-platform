@@ -10,11 +10,12 @@ from pydantic import (
     AliasChoices,
     BaseModel,
     ConfigDict,
-    EmailStr,
     Field,
     field_validator,
     model_validator,
 )
+
+from app.schemas.validators import EmailAddress
 
 
 # ==================== 请求模型 ====================
@@ -29,7 +30,7 @@ class RegisterRequest(BaseModel):
         description="真实姓名/登录名",
         examples=["张三"],
     )
-    email: EmailStr = Field(
+    email: EmailAddress = Field(
         ...,
         description="邮箱地址",
         examples=["zhangsan@example.com"],
@@ -135,7 +136,7 @@ class RefreshTokenRequest(BaseModel):
 class SendEmailCodeRequest(BaseModel):
     """发送邮箱验证码请求"""
 
-    email: EmailStr = Field(
+    email: EmailAddress = Field(
         ...,
         description="邮箱地址",
         examples=["zhangsan@example.com"],
@@ -161,7 +162,7 @@ class SendEmailCodeRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     """密码重置请求"""
 
-    email: EmailStr = Field(
+    email: EmailAddress = Field(
         ...,
         description="邮箱地址",
     )

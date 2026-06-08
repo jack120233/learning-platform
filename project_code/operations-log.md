@@ -1,5 +1,28 @@
 # 操作记录
 
+## 邮箱校验依赖热修复
+时间：2026-06-08 11:53:40 CST
+
+- 变更原因：新电脑按 `backend/requirements.txt` 安装依赖后启动项目，`app/schemas/auth.py` 和 `app/schemas/user.py` 中的 `Pydantic EmailStr` 会额外要求可选依赖 `email-validator`；但当前 requirements 未显式声明该包，导致全新环境容易在导入 schema 时直接报错。
+- 涉及文件：
+  - `backend/app/schemas/auth.py`
+  - `backend/app/schemas/user.py`
+  - `backend/app/schemas/validators.py`
+  - `operations-log.md`
+- 核心改动：
+  - 新增共享邮箱校验类型 `EmailAddress`，基于正则和统一校验函数完成邮箱格式校验，不再依赖 `EmailStr`。
+  - 将注册、发送邮箱验证码、重置密码、老师申请中的邮箱字段统一改为使用 `EmailAddress`。
+  - 保持原有接口字段名和业务流程不变，只替换底层校验实现，避免新环境因缺少 `email-validator` 无法启动。
+- 验证结果：
+  - 已执行：`rg -n "\\bEmailStr\\b|email-validator|pydantic\\[email\\]" project_code/backend/app project_code/backend/requirements.txt -S`
+  - 结果：业务 schema 中已无 `EmailStr` 残留，requirements 仍未显式声明 `email-validator`。
+  - 已执行：`cd project_code/backend && python3 -m py_compile app/schemas/auth.py app/schemas/user.py app/schemas/validators.py`
+- 结果：通过。
+- 已执行：`cd project_code/backend && ../.venv/bin/python -c "from app.schemas.auth import RegisterRequest, SendEmailCodeRequest, ResetPasswordRequest; from app.schemas.user import TeacherAuditApply; ..."`
+- 结果：合法邮箱样例校验通过，schema 导入正常。
+- 已执行：`cd project_code/backend && ../.venv/bin/python -c $'from pydantic import ValidationError\\nfrom app.schemas.auth import RegisterRequest\\ntry:\\n    RegisterRequest(...)\\nexcept ValidationError as exc:\\n    print(exc.errors()[0][\"msg\"])'`
+- 结果：非法邮箱返回 `Value error, 邮箱格式不正确`。
+
 ## Windows 默认种子账号精简
 时间：2026-05-19
 
