@@ -6,7 +6,9 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
+
+from app.schemas.validators import EmailAddress
 
 
 # ==================== 用户信息模型 ====================
@@ -162,7 +164,7 @@ class TeacherAuditApply(BaseModel):
         max_length=20,
         description="联系电话",
     )
-    email: EmailStr = Field(
+    email: EmailAddress = Field(
         ...,
         description="联系邮箱",
     )
