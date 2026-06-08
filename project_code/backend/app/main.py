@@ -43,11 +43,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     处理应用启动和关闭时的资源初始化与清理。
     """
     # 启动时执行
-    logger.info(f"🚀 {settings.app_name} v{settings.app_version} 启动中...")
-    logger.info(f"📝 环境: {settings.environment}")
-    logger.info(f"🌐 API 文档: http://{settings.host}:{settings.port}/docs")
-    logger.info(f"📁 日志目录: {settings.log_dir}")
-    logger.info(f"🖼️ 上传目录: {settings.upload_dir}")
+    logger.info(f"{settings.app_name} v{settings.app_version} 启动中...")
+    logger.info(f"环境: {settings.environment}")
+    logger.info(f"API 文档: http://{settings.host}:{settings.port}/docs")
+    logger.info(f"日志目录: {settings.log_dir}")
+    logger.info(f"上传目录: {settings.upload_dir}")
     async with engine.begin() as conn:
         schema_messages = await ensure_database_compatibility(conn)
     for message in schema_messages:
@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     # 关闭时执行
-    logger.info(f"👋 {settings.app_name} 正在关闭...")
+    logger.info(f"{settings.app_name} 正在关闭...")
 
 
 # 创建 FastAPI 应用实例

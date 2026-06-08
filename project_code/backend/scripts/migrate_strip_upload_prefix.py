@@ -144,7 +144,7 @@ async def main() -> None:
                 print(f"  {table}.{column} (JSON list): 更新 {count} 行")
 
     except Exception as exc:  # noqa: BLE001
-        print(f"❌ 迁移失败: {exc}")
+        print(f"迁移失败: {exc}")
         sys.exit(1)
 
     print("\n" + "=" * 50)

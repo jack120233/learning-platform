@@ -55,46 +55,6 @@ async def seed_users(session) -> list[User]:
             role="teacher",
             status="active",
         ),
-        User(
-            username="teacher2",
-            email="teacher2@example.com",
-            password_hash=hash_password("Test123456"),
-            nickname="李老师",
-            role="teacher",
-            status="active",
-        ),
-        User(
-            username="teacher3",
-            email="teacher3@example.com",
-            password_hash=hash_password("Test123456"),
-            nickname="王老师",
-            role="teacher",
-            status="active",
-        ),
-        User(
-            username="teacher4",
-            email="teacher4@example.com",
-            password_hash=hash_password("Test123456"),
-            nickname="赵老师",
-            role="teacher",
-            status="active",
-        ),
-        User(
-            username="teacher5",
-            email="teacher5@example.com",
-            password_hash=hash_password("Test123456"),
-            nickname="陈老师",
-            role="teacher",
-            status="active",
-        ),
-        User(
-            username="teacher6",
-            email="teacher6@example.com",
-            password_hash=hash_password("Test123456"),
-            nickname="刘老师",
-            role="teacher",
-            status="active",
-        ),
         # 学生
         User(
             username="student1",
@@ -116,7 +76,7 @@ async def seed_users(session) -> list[User]:
 
     session.add_all(users)
     await session.flush()
-    print(f"    ✅ 创建 {len(users)} 个用户")
+    print(f"    创建 {len(users)} 个用户")
     return users
 
 
@@ -134,7 +94,7 @@ async def seed_categories(session) -> list[Category]:
 
     session.add_all(categories)
     await session.flush()
-    print(f"    ✅ 创建 {len(categories)} 个分类")
+    print(f"    创建 {len(categories)} 个分类")
     return categories
 
 
@@ -157,7 +117,7 @@ async def seed_tags(session) -> list[Tag]:
 
     session.add_all(tags)
     await session.flush()
-    print(f"    ✅ 创建 {len(tags)} 个标签")
+    print(f"    创建 {len(tags)} 个标签")
     return tags
 
 
@@ -199,7 +159,7 @@ async def seed_courses(session, users: list[User], categories: list[Category], t
     courses[0].tags = [tags[0], tags[8]]  # Python, 入门
     courses[1].tags = [tags[0], tags[9]]  # Python, 进阶
 
-    print(f"    ✅ 创建 {len(courses)} 门课程")
+    print(f"    创建 {len(courses)} 门课程")
     return courses
 
 
@@ -276,7 +236,7 @@ async def seed_course_content(session, courses: list[Course]) -> None:
                 session.add_all(resources)
 
     await session.flush()
-    print("    ✅ 创建课程内容完成")
+    print("    创建课程内容完成")
 
 
 async def seed_announcements(session) -> None:
@@ -304,7 +264,7 @@ async def seed_announcements(session) -> None:
 
     session.add_all(announcements)
     await session.flush()
-    print(f"    ✅ 创建 {len(announcements)} 条公告")
+    print(f"    创建 {len(announcements)} 条公告")
 
 
 async def seed_database() -> None:
@@ -319,7 +279,7 @@ async def seed_database() -> None:
             # 检查是否已有数据
             result = await session.execute(select(User).limit(1))
             if result.scalar_one_or_none():
-                print("⚠️  数据库已有数据，跳过种子数据导入")
+                print("数据库已有数据，跳过种子数据导入")
                 print("   如需重新导入，请先清空数据库表")
                 return
 
@@ -338,7 +298,7 @@ async def seed_database() -> None:
 
         print()
         print("=" * 50)
-        print("✅ 种子数据导入完成")
+        print("种子数据导入完成")
         print()
         print("测试账号（与 test-plan.md 一致）:")
         print("  管理员: admin1 / Admin123456")
@@ -348,7 +308,7 @@ async def seed_database() -> None:
         print("=" * 50)
 
     except Exception as e:
-        print(f"❌ 导入失败: {e}")
+        print(f"导入失败: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

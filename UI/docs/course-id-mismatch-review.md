@@ -43,8 +43,8 @@
 
 ```ts
 export interface CourseBaseItem {
-  id?: number          // ✅ 增加后端物理主键
-  course_id?: number   // ✅ 变为可选
+  id?: number          // 增加后端物理主键
+  course_id?: number   // 变为可选
   title: string
   ...
 }
