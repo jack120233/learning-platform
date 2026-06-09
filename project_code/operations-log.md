@@ -1,5 +1,25 @@
 # 操作记录
 
+## 小节删除级联资源热修复
+时间：2026-06-09 12:05:54 CST
+
+- 变更原因：讲师端删除带资源的小节时，页面提示会级联删除资源，但后端 `DELETE /api/v1/courses/{course_id}/chapters/{chapter_id}/sections/{section_id}` 实际仍拦截并返回“存在资源，无法删除”，导致小节和资源都无法删除。
+- 涉及文件：
+  - `backend/app/services/content_service.py`
+  - `backend/app/api/v1/content.py`
+  - `backend/tests/test_content.py`
+  - `operations-log.md`
+- 核心改动：
+  - 为资源删除提取共享内部逻辑，统一维护小节资源数、章节总时长和课程总时长等聚合字段。
+  - 将小节删除从“存在资源时报错”改为真正级联删除该小节下的全部资源，并同步更新章节/课程统计字段。
+  - 同步修正删除小节接口的 OpenAPI 描述，明确删除小节时会一并删除下属资源。
+  - 重新补充 `backend/tests/test_content.py`，覆盖 OpenAPI 路由暴露和“带资源的小节可删除”的回归场景。
+- 验证结果：
+  - 已执行：`cd project_code/backend && python3 -m py_compile app/services/content_service.py app/api/v1/content.py tests/test_content.py`
+  - 结果：通过。
+  - 已执行：`cd project_code/backend && ../.venv/bin/python -m pytest tests/test_content.py -q`
+  - 结果：`2 passed`，有 1 条既有 `passlib` 的 Python 3.13 弃用警告。
+
 ## 后端历史测试与测试计划清理
 时间：2026-06-08 13:34:38 CST
 

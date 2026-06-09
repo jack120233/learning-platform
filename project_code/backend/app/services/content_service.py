@@ -81,6 +81,31 @@ def _ensure_resource_belongs_to_path(
     return resource
 
 
+async def _delete_resource_record(
+    db: AsyncSession,
+    resource: Resource,
+    *,
+    update_section: bool = True,
+) -> None:
+    """删除资源记录并同步聚合字段。"""
+    if update_section and resource.section_id:
+        section = await db.get(Section, resource.section_id)
+        if section:
+            section.resource_count = max(0, section.resource_count - 1)
+            if resource.type == "video":
+                section.duration = max(0, section.duration - resource.duration)
+
+    chapter = await db.get(Chapter, resource.chapter_id)
+    if chapter and resource.type == "video":
+        chapter.total_duration = max(0, chapter.total_duration - resource.duration)
+
+    course = await db.get(Course, resource.course_id)
+    if course and resource.type == "video":
+        course.total_duration = max(0, course.total_duration - resource.duration)
+
+    await db.delete(resource)
+
+
 class ChapterService:
     """章节服务类"""
 
@@ -330,19 +355,19 @@ class SectionService:
             chapter_id,
         )
 
-        resources = await db.execute(
-            select(func.count()).where(Resource.section_id == section_id)
+        resources_result = await db.execute(
+            select(Resource).where(Resource.section_id == section_id)
         )
-        if resources.scalar() > 0:
-            raise ValidationException("存在资源，无法删除")
+        for resource in resources_result.scalars().all():
+            await _delete_resource_record(db, resource, update_section=False)
 
         chapter = await db.get(Chapter, section.chapter_id)
         if chapter:
-            chapter.section_count -= 1
+            chapter.section_count = max(0, chapter.section_count - 1)
 
         course = await db.get(Course, section.course_id)
         if course:
-            course.total_sections -= 1
+            course.total_sections = max(0, course.total_sections - 1)
 
         await db.delete(section)
 
@@ -515,22 +540,7 @@ class ResourceService:
             chapter_id=chapter_id,
             section_id=section_id,
         )
-
-        section = await db.get(Section, resource.section_id) if resource.section_id else None
-        if section:
-            section.resource_count -= 1
-            if resource.type == "video":
-                section.duration -= resource.duration
-
-        chapter = await db.get(Chapter, resource.chapter_id)
-        if chapter and resource.type == "video":
-            chapter.total_duration -= resource.duration
-
-        course = await db.get(Course, resource.course_id)
-        if course and resource.type == "video":
-            course.total_duration -= resource.duration
-
-        await db.delete(resource)
+        await _delete_resource_record(db, resource)
 
 
 # 创建全局服务实例

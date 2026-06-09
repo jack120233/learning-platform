@@ -225,7 +225,7 @@ async def update_section(
     "/courses/{course_id}/chapters/{chapter_id}/sections/{section_id}",
     response_model=ApiResponse[None],
     summary="删除小节",
-    description="删除指定小节（存在资源时无法删除）",
+    description="删除指定小节及其下属资源",
 )
 async def delete_section(
     course_id: int,
@@ -243,7 +243,7 @@ async def delete_section(
     "/courses/{course_id}/chapters/{chapter_id}/sections/{section_id}/delete",
     response_model=ApiResponse[None],
     summary="删除小节（兼容旧前端）",
-    description="兼容旧版前端仍使用的 POST 删除路径，建议优先使用 DELETE 接口",
+    description="兼容旧版前端仍使用的 POST 删除路径，会同步删除小节下属资源",
     include_in_schema=False,
 )
 async def delete_section_legacy(
