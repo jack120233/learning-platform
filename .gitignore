@@ -7,7 +7,7 @@
 .claude/
 .ccpanes/
 .playwright-mcp/
-.trellis/workspace/
+.trellis/
 
 # Dependencies and build output
 node_modules/
