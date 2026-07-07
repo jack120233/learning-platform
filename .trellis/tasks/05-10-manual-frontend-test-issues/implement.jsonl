@@ -1,6 +1,0 @@
-{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
-{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Vue SFC and scoped SCSS patterns for visible UI updates"}
-{"file": ".trellis/spec/frontend/state-management.md", "reason": "User store permission and role rules"}
-{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Router access control, validation, and operations log requirements"}
-{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Frontend file locations and route guard conventions"}
