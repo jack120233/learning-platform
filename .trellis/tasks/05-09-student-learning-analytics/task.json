@@ -1,0 +1,57 @@
+{
+  "id": "student-learning-analytics",
+  "name": "student-learning-analytics",
+  "title": "brainstorm: student learning analytics",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Jacob",
+  "assignee": "Jacob",
+  "createdAt": "2026-05-09",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "brainstorm"
+    },
+    {
+      "phase": 2,
+      "action": "research"
+    },
+    {
+      "phase": 3,
+      "action": "implement"
+    },
+    {
+      "phase": 4,
+      "action": "check"
+    },
+    {
+      "phase": 5,
+      "action": "update-spec"
+    },
+    {
+      "phase": 6,
+      "action": "record-session"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "05-09-learning-statistics-foundation",
+    "05-09-student-self-statistics",
+    "05-09-teacher-admin-learning-statistics"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "Child progress: 2/3 completed. Completed 05-09-learning-statistics-foundation and 05-09-student-self-statistics. Student self-statistics includes student-only statistics APIs, 学习统计 profile page, real PC/mobile validation, real learning-record single/batch delete validation, and a backend regression fix preventing hidden records from reappearing through legacy fallback. Remaining child: 05-09-teacher-admin-learning-statistics.",
+  "meta": {}
+}

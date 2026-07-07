@@ -1,0 +1,12 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Feedback routing crosses frontend API, backend API, service query, permissions, and tests."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Backend changes must follow api/schema/service/model layering."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Feedback routing needs SQLAlchemy joins against Course.teacher_id."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Backend permission failures must use project exception patterns."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend tests and operations-log updates are required."}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Frontend route/API/page changes must follow UI layout."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Teacher feedback page should follow Vue SFC and Element Plus patterns."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Frontend API and feedback item types must stay aligned."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend build/typecheck and operations-log updates are required."}

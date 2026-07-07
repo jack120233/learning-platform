@@ -1,0 +1,53 @@
+{
+  "id": "student-self-statistics",
+  "name": "student-self-statistics",
+  "title": "Student self-statistics",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Jacob",
+  "assignee": "Jacob",
+  "createdAt": "2026-05-09",
+  "completedAt": "2026-05-10",
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "current_phase": 4,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "brainstorm"
+    },
+    {
+      "phase": 2,
+      "action": "research"
+    },
+    {
+      "phase": 3,
+      "action": "implement"
+    },
+    {
+      "phase": 4,
+      "action": "check"
+    },
+    {
+      "phase": 5,
+      "action": "update-spec"
+    },
+    {
+      "phase": 6,
+      "action": "record-session"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "05-09-student-learning-analytics",
+  "relatedFiles": [],
+  "notes": "Implementation, Trellis self-check, and browser validation completed. Added student-only statistics APIs, frontend 学习统计 profile page, record delete UI, docs/log updates. Validation: implementation agent ran backend test_learning.py (13 passed), frontend build passed, compileall and diff check passed; check agent fixed aggregate/current-day precedence and added tests, then ran test_learning.py + test_users.py (40 passed, 16 warnings) and diff check. Page validation: real API checks confirmed student statistics endpoints return 200 and teacher/admin return 403; Playwright desktop 1280px and mobile 390px checks passed with no console errors and no horizontal overflow after switching trend to 30d. Follow-up real data validation created learning records through the learning flow, verified single delete, verified learning again creates a new visible record, and verified select-all batch delete. This exposed and fixed legacy fallback re-showing hidden records after all visible entries were hidden; backend test_users.py regression now covers the behavior. Final validation: UI build passed, test_users.py passed (27 passed, 13 warnings), focused delete/get tests passed, and diff whitespace check passed.",
+  "meta": {}
+}

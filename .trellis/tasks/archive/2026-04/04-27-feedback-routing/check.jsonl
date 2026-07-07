@@ -1,0 +1,11 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check cross-layer contract alignment for feedback routing."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify backend layering conventions."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify ORM query and compatibility patterns."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify error handling and response consistency."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify backend quality and test expectations."}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Verify frontend file placement."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify component conventions."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify TypeScript API contract alignment."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify frontend quality expectations."}
