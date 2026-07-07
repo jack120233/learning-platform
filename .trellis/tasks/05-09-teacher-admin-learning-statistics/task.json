@@ -1,0 +1,53 @@
+{
+  "id": "teacher-admin-learning-statistics",
+  "name": "teacher-admin-learning-statistics",
+  "title": "Teacher and admin learning statistics",
+  "description": "Teacher and admin learning statistics planning has been refined from the completed foundation and student subtasks. Ready for implementation preparation.",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Jacob",
+  "assignee": "Jacob",
+  "createdAt": "2026-05-09",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "brainstorm"
+    },
+    {
+      "phase": 2,
+      "action": "research"
+    },
+    {
+      "phase": 3,
+      "action": "implement"
+    },
+    {
+      "phase": 4,
+      "action": "check"
+    },
+    {
+      "phase": 5,
+      "action": "update-spec"
+    },
+    {
+      "phase": 6,
+      "action": "record-session"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "05-09-student-learning-analytics",
+  "relatedFiles": [],
+  "notes": "Planning refined on 2026-05-10. PRD now incorporates completed foundation and student self-statistics baseline, current repo findings, backend authorization/statistics API plan, frontend teacher/admin UX plan, acceptance criteria, validation plan, risks, and implementation phases. Next step: run Trellis implementation-prep/research for this task, then dispatch trellis-implement. MVP decision confirmed: course statistics authorization UI belongs in admin course management as a course-level operation; if no dedicated admin course management page exists, implementation should add/expose the minimal admin course management surface needed for the 统计授权 action.",
+  "meta": {}
+}
