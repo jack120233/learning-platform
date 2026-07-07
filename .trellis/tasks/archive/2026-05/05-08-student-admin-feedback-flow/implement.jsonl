@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Feedback UI component conventions"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Role and auth store conventions"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality and responsive rules"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend tests and API quality"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Backend response and validation patterns"}

@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Vue component and page composition conventions"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Role and user store message-entry behavior"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality and responsive validation"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Type safety for API/page changes"}
