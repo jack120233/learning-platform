@@ -91,7 +91,7 @@ onMounted(async () => {
 <template>
   <div class="home-page">
     <div class="page-container">
-      <!-- Banner轮播 -->
+      <!-- 顶部展示区 -->
       <BannerCarousel />
 
       <!-- 搜索筛选 -->
@@ -121,5 +121,15 @@ onMounted(async () => {
   max-width: 1440px;
   margin: 0 auto;
   padding: 0 24px;
+}
+
+@media (max-width: 768px) {
+  .home-page {
+    padding-top: 16px;
+  }
+
+  .page-container {
+    padding: 0 14px;
+  }
 }
 </style>
