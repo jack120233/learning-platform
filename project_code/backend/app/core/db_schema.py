@@ -86,18 +86,7 @@ async def ensure_database_compatibility(conn: AsyncConnection) -> list[str]:
             None,
         )
         if section_column and not bool(section_column.get("nullable")):
-            if conn.dialect.name == "mysql":
-                await conn.execute(
-                    text(
-                        "ALTER TABLE resources "
-                        "MODIFY COLUMN section_id INTEGER NULL COMMENT '小节ID'"
-                    )
-                )
-                messages.append("已将 resources.section_id 调整为可空，支持章节级资源")
-            else:
-                messages.append(
-                    "当前数据库方言不支持自动调整 resources.section_id 可空性，请手动检查"
-                )
+            messages.append("检测到 resources.section_id 仍为非空，请手动调整为可空")
 
     if await conn.run_sync(has_table, "resource_progress"):
         progress_columns = await conn.run_sync(get_columns, "resource_progress")
@@ -106,15 +95,7 @@ async def ensure_database_compatibility(conn: AsyncConnection) -> list[str]:
             None,
         )
         if progress_section_column and not bool(progress_section_column.get("nullable")):
-            if conn.dialect.name == "mysql":
-                await conn.execute(
-                    text(
-                        "ALTER TABLE resource_progress "
-                        "MODIFY COLUMN section_id INTEGER NULL COMMENT '小节ID'"
-                    )
-                )
-                messages.append("已将 resource_progress.section_id 调整为可空，支持章节级资源进度")
-            elif conn.dialect.name == "sqlite":
+            if conn.dialect.name == "sqlite":
                 await conn.execute(text("ALTER TABLE resource_progress RENAME TO resource_progress_old"))
                 await conn.execute(
                     text(

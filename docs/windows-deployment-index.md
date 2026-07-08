@@ -45,7 +45,7 @@ git branch --show-current
 - 支持 `development`、`windows_local`、`windows_classroom`、`server`。
 - Windows 版本默认 SQLite 文件数据库。
 - Windows 版本默认 `diskcache`。
-- server 版默认 Redis 后端。
+- 非 Windows 当前运行形态默认内存缓存。
 - 开发环境默认内存缓存。
 - 启动时自动创建运行目录。
 - SQLite 文件库连接 `timeout`。
@@ -103,14 +103,14 @@ git switch future/windows-classroom
 
 详细任务见：[`windows-classroom-development-checklist.md`](./windows-classroom-development-checklist.md)。
 
-## 6. 与 Linux 服务器版的边界
+## 6. 与后续服务器部署的边界
 
-Windows 单机版和 Windows 局域网课堂版不替代 Linux 服务器版。
+Windows 单机版和 Windows 局域网课堂版不替代后续服务器部署方案。
 
-Linux 服务器版继续保留：
+后续服务器部署可单独规划：
 
-- MySQL。
-- Redis。
+- 独立数据库配置。
+- 独立缓存配置。
 - Nginx 或正式静态服务。
 - Docker/Compose 或系统服务化部署。
 - 后续集群扩容空间。
@@ -126,14 +126,15 @@ Windows 相关开发中禁止：
 - 在 `future/windows-classroom` 中实现只适合个人本机的 localhost-only 假设。
 - 把视频文件、大课件、大图片原文件放进 `diskcache`。
 - 要求 Windows 普通用户手动执行数据库初始化命令。
-- 要求 Windows 普通用户安装或管理 MySQL/Redis。
-- 为 Windows 改动破坏 Linux 服务器版 MySQL/Redis 路线。
+- 要求 Windows 普通用户安装或管理数据库服务或额外缓存服务。
+- 为 Windows 改动耦合后续服务器部署方案。
 
 ## 8. 验收总览
 
 ### Windows 单机版
 
-- 普通用户不需要安装 MySQL/Redis。
+- 普通用户不需要安装 MySQL。
+- 普通用户不需要安装额外缓存服务。
 - 普通用户不需要执行数据库初始化命令。
 - 双击启动后可打开页面。
 - 首次启动自动建库、建表、初始化必要数据。
@@ -148,7 +149,7 @@ Windows 相关开发中禁止：
 - 学习进度不会每秒高频写库。
 - 10～50 人轻量课堂使用时不出现明显数据库写爆问题。
 
-### Linux 服务器版
+### 后续服务器部署
 
-- MySQL + Redis 路线保持可用。
-- 可继续面向正式在线部署和后续集群扩容。
+- 数据库、缓存和正式部署拓扑单独配置。
+- 不阻塞当前 Windows 版本交付和验收。

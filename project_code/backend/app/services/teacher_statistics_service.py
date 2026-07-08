@@ -396,7 +396,7 @@ class TeacherStatisticsService:
         return {user_id: started_at for user_id, started_at in result.all() if started_at is not None}
 
     def _to_naive_utc(self, value: datetime | None) -> datetime | None:
-        """Normalize datetimes for SQLite/MySQL-safe comparison."""
+        """Normalize datetimes for cross-database comparison."""
         if value is None:
             return None
         if value.tzinfo is None:

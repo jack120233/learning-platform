@@ -77,12 +77,8 @@ class Settings(BaseSettings):
     sqlite_timeout_seconds: float = 30.0
     sqlite_busy_timeout_ms: int = 30_000
 
-    # Redis 配置
-    redis_url: str = "redis://localhost:6379/0"
-    redis_password: str | None = None
-
     # 缓存配置
-    cache_backend: Literal["auto", "memory", "diskcache", "redis"] = "auto"
+    cache_backend: Literal["auto", "memory", "diskcache"] = "auto"
     cache_default_ttl_seconds: int | None = 300
     cache_size_limit_bytes: int = 256 * 1024 * 1024
     cache_max_item_size_bytes: int = 1024 * 1024
@@ -242,14 +238,12 @@ class Settings(BaseSettings):
         return DEFAULT_DEVELOPMENT_DATABASE_URL
 
     @property
-    def effective_cache_backend(self) -> Literal["memory", "diskcache", "redis"]:
+    def effective_cache_backend(self) -> Literal["memory", "diskcache"]:
         """获取按运行版本解析后的缓存后端。"""
         if self.cache_backend != "auto":
             return self.cache_backend
         if self.is_windows_edition:
             return "diskcache"
-        if self.app_edition == "server":
-            return "redis"
         return "memory"
 
     @property

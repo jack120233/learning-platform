@@ -5,10 +5,6 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$ROOT_DIR/project_code/backend"
 FRONTEND_DIR="$ROOT_DIR/UI"
 LOG_DIR="$ROOT_DIR/logs/dev"
-MYSQL_BIN="/opt/homebrew/opt/mysql@8.4/bin"
-REDIS_BIN="/opt/homebrew/opt/redis/bin"
-MYSQL_DATA_DIR="/opt/homebrew/var/mysql"
-REDIS_CONF="/opt/homebrew/etc/redis.conf"
 PYTHON_BIN="$ROOT_DIR/project_code/.venv/bin/python"
 
 mkdir -p "$LOG_DIR"
@@ -80,46 +76,22 @@ stop_all_services() {
   echo "正在关闭当前项目相关服务..."
   kill_port_process 3000 "前端" || true
   kill_port_process 8000 "后端" || true
-
-  if port_open 6379; then
-    "$REDIS_BIN/redis-cli" -n 0 shutdown nosave >/dev/null 2>&1 || kill_port_process 6379 "Redis" || true
-    if port_open 6379; then
-      echo "  警告: Redis 端口 6379 仍未释放" >&2
-    else
-      echo "  已关闭 Redis（port: 6379）"
-    fi
-  fi
-
-  if port_open 3306; then
-    "$MYSQL_BIN/mysqladmin" -u root shutdown >/dev/null 2>&1 || kill_port_process 3306 "MySQL" || true
-    if port_open 3306; then
-      echo "  警告: MySQL 端口 3306 仍未释放" >&2
-    else
-      echo "  已关闭 MySQL（port: 3306）"
-    fi
-  fi
 }
 
 status() {
   echo "服务状态："
-  show_port 3306 MySQL
-  show_port 6379 Redis
   show_port 8000 Backend
   show_port 3000 Frontend
 }
 
 prompt_start_action() {
-  local mysql_pid redis_pid be_pid fe_pid choice=""
+  local be_pid fe_pid choice=""
 
-  mysql_pid=$(get_pid_on_port 3306)
-  redis_pid=$(get_pid_on_port 6379)
   be_pid=$(get_pid_on_port 8000)
   fe_pid=$(get_pid_on_port 3000)
 
   echo ""
   echo "当前服务状态："
-  [[ -n "$mysql_pid" ]] && echo "  MySQL  (PID: $mysql_pid, port: 3306)" || echo "  MySQL  stopped  port 3306"
-  [[ -n "$redis_pid" ]] && echo "  Redis  (PID: $redis_pid, port: 6379)" || echo "  Redis  stopped  port 6379"
   [[ -n "$be_pid" ]] && echo "  后端   (PID: $be_pid, port: 8000)" || echo "  后端   stopped  port 8000"
   [[ -n "$fe_pid" ]] && echo "  前端   (PID: $fe_pid, port: 3000)" || echo "  前端   stopped  port 3000"
   echo ""
@@ -175,48 +147,31 @@ fi
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   echo "用法: ./start-dev-macos.sh [--status|--stop]"
-  echo "默认固定显示操作菜单；--stop 关闭当前项目的前端、后端、Redis、MySQL。"
+  echo "默认固定显示操作菜单；--stop 关闭当前项目的前端、后端。"
   echo "脚本运行期间按 Ctrl+C 或关闭窗口，会关闭当前项目相关服务。"
   exit 0
 fi
 
-require_file "$MYSQL_BIN/mysqld_safe"
-require_file "$MYSQL_BIN/mysql"
-require_file "$MYSQL_BIN/mysqladmin"
-require_file "$REDIS_BIN/redis-server"
-require_file "$REDIS_BIN/redis-cli"
 require_file "$PYTHON_BIN"
 require_file "$FRONTEND_DIR/package.json"
 require_file "$BACKEND_DIR/.env"
 
 echo "依赖检查通过。"
+
+if grep -Eiq "^[[:space:]]*DATABASE_URL[[:space:]]*=[[:space:]]*['\"]?mysql" "$BACKEND_DIR/.env"; then
+  echo "错误：后端 .env 仍在使用 MySQL，请改为 SQLite 配置后再启动。" >&2
+  exit 1
+fi
+
+if grep -Eiq "^[[:space:]]*DATABASE_URL[[:space:]]*=[[:space:]]*['\"]?sqlite" "$BACKEND_DIR/.env"; then
+  echo "后端 .env 当前使用 SQLite。"
+else
+  echo "后端 .env 未显式设置 SQLite，将按应用默认数据库配置启动。"
+fi
+
 prompt_start_action
 trap 'cleanup; exit 0' INT TERM HUP
 trap cleanup EXIT
-
-if grep -q '^DATABASE_URL=mysql+aiomysql://' "$BACKEND_DIR/.env"; then
-  echo "后端 .env 当前使用 MySQL。"
-else
-  echo "警告：后端 .env 可能未使用 MySQL，请检查 $BACKEND_DIR/.env" >&2
-fi
-
-if port_open 3306; then
-  echo "MySQL 已在 3306 运行，复用现有服务。"
-else
-  echo "启动 MySQL 8.4..."
-  "$MYSQL_BIN/mysqld_safe" --datadir="$MYSQL_DATA_DIR" >"$LOG_DIR/mysql.out.log" 2>"$LOG_DIR/mysql.err.log" &
-  wait_for_port 3306 MySQL
-fi
-
-"$MYSQL_BIN/mysql" -u root -e "CREATE DATABASE IF NOT EXISTS learning_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-if port_open 6379; then
-  echo "Redis 已在 6379 运行，复用现有服务。"
-else
-  echo "启动 Redis..."
-  "$REDIS_BIN/redis-server" "$REDIS_CONF" >"$LOG_DIR/redis.out.log" 2>"$LOG_DIR/redis.err.log" &
-  wait_for_port 6379 Redis
-fi
 
 if port_open 8000; then
   echo "后端已在 8000 运行，复用现有服务。"

@@ -7,7 +7,7 @@
 
 ## 1. 实施目标
 
-Windows 单机版的目标是让普通用户安装或解压后可以直接使用在线学习平台，不需要理解数据库、命令行、MySQL、Redis 或后端启动细节。
+Windows 单机版的目标是让普通用户安装或解压后可以直接使用在线学习平台，不需要理解数据库、命令行或后端启动细节。
 
 最终用户体验应接近：
 
@@ -49,7 +49,6 @@ git switch future/windows-base
 - Windows 版本默认回落到本地 SQLite 文件库。
 - Windows 版本默认缓存后端解析为 `diskcache`。
 - 开发环境默认使用内存缓存。
-- 服务器版默认缓存后端解析为 Redis。
 - 启动时自动创建运行目录。
 - SQLite 文件库启用 `busy_timeout`。
 - 课堂版基础层预留 WAL 初始化。
@@ -131,7 +130,6 @@ project_code/backend/data/
 
 - 数据库命令行。
 - MySQL 安装步骤。
-- Redis 安装步骤。
 - 手动执行 `init_db.py`。
 - 手动执行 `seed_data.py`。
 
@@ -247,7 +245,6 @@ zip/解压目录 + 默认配置 + 前端 dist + 后端运行环境 + start-windo
 
 - 公网暴露。
 - 多机数据库访问。
-- Redis 会话共享。
 - 集群能力。
 
 默认监听应优先使用本机地址：
@@ -336,7 +333,7 @@ project_code/.venv/bin/python -m pytest project_code/backend/tests/test_runtime_
 - 设置 `APP_EDITION=windows_local` 后启动后端。
 - 确认 SQLite 文件自动创建。
 - 确认 `data/cache` 自动创建。
-- 确认无 Redis 服务时仍可启动。
+- 确认无需额外缓存服务也可启动。
 - 确认 `/docs` 和 `/api/v1/...` 可访问。
 - 确认上传目录可自动创建并挂载。
 
@@ -359,7 +356,7 @@ npm run build
 Windows 单机版达到可用状态时，应满足：
 
 - 普通用户不需要安装 MySQL。
-- 普通用户不需要安装 Redis。
+- 普通用户不需要安装额外缓存服务。
 - 普通用户不需要执行数据库初始化命令。
 - 首次启动自动建库、建表、初始化必要数据。
 - 重复启动不破坏已有数据。

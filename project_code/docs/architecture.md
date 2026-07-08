@@ -12,7 +12,7 @@
 | Web框架 | FastAPI | >=0.110.0 |
 | ASGI服务器 | Uvicorn | >=0.27.0 |
 | ORM | SQLAlchemy (asyncio) | >=2.0.0 |
-| 数据库驱动 | aiomysql / aiosqlite | >=0.2.0 |
+| 数据库驱动 | aiosqlite | >=0.19.0 |
 | 数据迁移 | Alembic | >=1.13.0 |
 | 数据验证 | Pydantic | >=2.6.0 |
 | 配置管理 | pydantic-settings | >=2.1.0 |
@@ -135,7 +135,7 @@ backend/
                           ▼
 ┌─────────────────────────────────────────────────────────┐
 │                     数据库                               │
-│  MySQL / SQLite                                         │
+│  SQLite                                                 │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -144,6 +144,7 @@ backend/
 #### 3.2.1 配置管理 (config.py)
 - 使用 `pydantic-settings` 管理环境变量
 - 支持 `.env` 文件加载
+- 当前开发运行链路默认使用 SQLite
 - 包含数据库、JWT、Redis、CORS 等配置
 
 #### 3.2.2 依赖注入 (core/dependencies.py)
@@ -427,7 +428,7 @@ DEBUG=false
 ENVIRONMENT=production
 
 # 数据库
-DATABASE_URL=mysql+aiomysql://user:pass@localhost:3306/dbname
+DATABASE_URL=sqlite+aiosqlite:///./data/learning_platform.db
 
 # Redis
 REDIS_URL=redis://localhost:6379/0

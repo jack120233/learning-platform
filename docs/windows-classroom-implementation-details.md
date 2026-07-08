@@ -404,7 +404,7 @@ project_code/.venv/bin/python -m pytest project_code/backend/tests/test_runtime_
 - 确认 SQLite 文件自动创建。
 - 确认 WAL 模式启用。
 - 确认 `busy_timeout` 生效。
-- 确认无 Redis 服务时仍可启动。
+- 确认无需额外缓存服务也可启动。
 
 前端验证：
 
@@ -429,7 +429,7 @@ Windows 局域网课堂版达到可用状态时，应满足：
 - 一台 Windows 主机可启动服务。
 - 同一局域网其他设备可通过浏览器访问。
 - 不要求安装 MySQL。
-- 不要求安装 Redis。
+- 不要求安装额外缓存服务。
 - 数据库端口不暴露给局域网用户。
 - 视频可播放并支持拖动。
 - 学习进度不会每秒高频写入。

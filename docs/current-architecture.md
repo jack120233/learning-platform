@@ -231,7 +231,7 @@ UI/src/
 - Pydantic / pydantic-settings
 - JWT
 - Passlib bcrypt
-- Redis 相关依赖
+- `diskcache` 与内存缓存
 - pytest / pytest-asyncio / httpx
 
 常用命令在 `project_code/backend/` 下执行：

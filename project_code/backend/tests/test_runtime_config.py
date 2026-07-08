@@ -1,11 +1,11 @@
 """运行版本配置与缓存抽象测试。"""
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import Settings
-from app.core.cache import InMemoryCache, RedisCachePlaceholder
+from app.core.cache import DiskCacheAdapter, InMemoryCache
 from app.core.runtime import (
     configure_sqlite_runtime,
     initialize_database_schema,
@@ -49,10 +49,10 @@ def test_explicit_database_url_keeps_in_memory_sqlite_for_tests():
     assert settings.sqlalchemy_connect_args == {}
 
 
-def test_server_defaults_to_redis_cache_without_requiring_connection():
+def test_server_defaults_to_memory_cache():
     settings = Settings(_env_file=None, app_edition="server")
 
-    assert settings.effective_cache_backend == "redis"
+    assert settings.effective_cache_backend == "memory"
     assert settings.async_database_url == "sqlite+aiosqlite:///:memory:"
 
 
@@ -102,11 +102,31 @@ async def test_memory_cache_basic_operations():
 
 
 @pytest.mark.asyncio
-async def test_redis_placeholder_does_not_require_live_redis():
-    cache = RedisCachePlaceholder()
+async def test_diskcache_adapter_delegates_operations():
+    class FakeCache:
+        def __init__(self) -> None:
+            self.store: dict[str, object] = {}
+
+        def get(self, key: str, default: object = None) -> object:
+            return self.store.get(key, default)
+
+        def set(self, key: str, value: object, expire: int | None = None) -> bool:
+            self.store[key] = value
+            return True
+
+        def delete(self, key: str) -> bool:
+            return self.store.pop(key, None) is not None
+
+        def clear(self) -> None:
+            self.store.clear()
+
+    cache = DiskCacheAdapter(cache=FakeCache())
 
     assert await cache.set("health", "ok", ttl=60) is True
     assert await cache.get("health") == "ok"
+    assert await cache.delete("health") is True
+    assert await cache.get("health") is None
+    await cache.set("health", "ok", ttl=60)
     await cache.clear()
     assert await cache.get("health") is None
 
@@ -210,5 +230,63 @@ async def test_initialize_permission_defaults_fills_new_database_completely(tmp_
             assert grouped["student"] == [1, 11, 12, 13, 14]
             assert grouped["teacher"] == [1, 2, 11, 12, 13, 14, 21, 22, 23]
             assert grouped["admin"] == [1, 2, 3, 11, 12, 13, 14, 21, 22, 23, 31, 32, 33, 35, 36, 37, 38, 39]
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_initialize_database_schema_repairs_sqlite_resource_progress_section_nullability(tmp_path):
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'legacy-resource-progress.db'}")
+
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "CREATE TABLE resource_progress ("
+                    "id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, "
+                    "user_id INTEGER NOT NULL, "
+                    "course_id INTEGER NOT NULL, "
+                    "chapter_id INTEGER NOT NULL, "
+                    "section_id INTEGER NOT NULL, "
+                    "resource_id INTEGER NOT NULL, "
+                    "progress FLOAT NOT NULL DEFAULT 0.0, "
+                    "position INTEGER NOT NULL DEFAULT 0, "
+                    "is_completed BOOLEAN NOT NULL DEFAULT 0, "
+                    "completed_at DATETIME NULL, "
+                    "last_play_at DATETIME NULL, "
+                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                    ")"
+                )
+            )
+            await conn.execute(text("CREATE INDEX idx_resource_progress_user_id ON resource_progress (user_id)"))
+            await conn.execute(text("CREATE INDEX idx_resource_progress_course_id ON resource_progress (course_id)"))
+            await conn.execute(text("CREATE INDEX idx_resource_progress_chapter_id ON resource_progress (chapter_id)"))
+            await conn.execute(text("CREATE INDEX idx_resource_progress_section_id ON resource_progress (section_id)"))
+            await conn.execute(text("CREATE INDEX idx_resource_progress_resource_id ON resource_progress (resource_id)"))
+            await conn.execute(
+                text(
+                    "INSERT INTO resource_progress ("
+                    "user_id, course_id, chapter_id, section_id, resource_id, "
+                    "progress, position, is_completed, created_at, updated_at"
+                    ") VALUES (1, 2, 3, 4, 5, 0.5, 12, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                )
+            )
+
+            messages = await initialize_database_schema(conn)
+
+            pragma_rows = await conn.execute(text("PRAGMA table_info(resource_progress)"))
+            columns = {row[1]: row for row in pragma_rows.fetchall()}
+            data_rows = await conn.execute(
+                text(
+                    "SELECT user_id, course_id, chapter_id, section_id, resource_id, progress, position "
+                    "FROM resource_progress"
+                )
+            )
+            data = data_rows.one()
+
+        assert "已将 resource_progress.section_id 调整为可空，支持章节级资源进度" in messages
+        assert columns["section_id"][3] == 0
+        assert data == (1, 2, 3, 4, 5, 0.5, 12)
     finally:
         await engine.dispose()

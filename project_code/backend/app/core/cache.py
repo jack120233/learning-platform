@@ -78,28 +78,6 @@ class DiskCacheAdapter:
         await asyncio.to_thread(self.cache.clear)
 
 
-class RedisCachePlaceholder:
-    """Redis 缓存占位实现。
-
-    当前首个切片仅建立接口，避免在未接入 Redis 时破坏导入。
-    """
-
-    def __init__(self) -> None:
-        self._fallback = InMemoryCache()
-
-    async def get(self, key: str, default: Any = None) -> Any:
-        return await self._fallback.get(key, default=default)
-
-    async def set(self, key: str, value: Any, ttl: int | None = None) -> bool:
-        return await self._fallback.set(key, value, ttl=ttl)
-
-    async def delete(self, key: str) -> bool:
-        return await self._fallback.delete(key)
-
-    async def clear(self) -> None:
-        await self._fallback.clear()
-
-
 _cache_backend: CacheBackend | None = None
 
 
@@ -126,8 +104,6 @@ def get_cache_backend() -> CacheBackend:
     backend = settings.effective_cache_backend
     if backend == "diskcache":
         _cache_backend = _create_diskcache_backend()
-    elif backend == "redis":
-        _cache_backend = RedisCachePlaceholder()
     else:
         _cache_backend = InMemoryCache()
     return _cache_backend
