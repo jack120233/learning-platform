@@ -49,6 +49,23 @@ async def ensure_database_compatibility(conn: AsyncConnection) -> list[str]:
     await conn.run_sync(lambda sync_conn: Base.metadata.create_all(bind=sync_conn))
 
     await ensure_column(
+        "users",
+        "original_username",
+        lambda _: "ALTER TABLE users ADD COLUMN original_username TEXT",
+        "已为 users 表补充 original_username 字段",
+    )
+    await ensure_column(
+        "users",
+        "username_change_remaining",
+        lambda dialect: (
+            "ALTER TABLE users ADD COLUMN username_change_remaining INTEGER NOT NULL DEFAULT 1"
+            if dialect == "sqlite"
+            else "ALTER TABLE users ADD COLUMN username_change_remaining INTEGER NOT NULL DEFAULT 1 COMMENT '剩余用户名修改次数'"
+        ),
+        "已为 users 表补充 username_change_remaining 字段",
+    )
+
+    await ensure_column(
         "courses",
         "summary",
         lambda _: "ALTER TABLE courses ADD COLUMN summary VARCHAR(500)",

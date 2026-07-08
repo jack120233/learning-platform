@@ -207,6 +207,66 @@ async def test_initialize_database_schema_does_not_preseed_teacher_only_permissi
 
 
 @pytest.mark.asyncio
+async def test_initialize_database_schema_backfills_legacy_user_columns(tmp_path):
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'legacy-users.db'}")
+
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "CREATE TABLE users ("
+                    "username VARCHAR(50) NOT NULL, "
+                    "email VARCHAR(100) NOT NULL, "
+                    "phone VARCHAR(20), "
+                    "password_hash VARCHAR(255) NOT NULL, "
+                    "nickname VARCHAR(50), "
+                    "avatar VARCHAR(500), "
+                    "bio TEXT, "
+                    "role VARCHAR(20) NOT NULL, "
+                    "status VARCHAR(20) NOT NULL, "
+                    "last_login_at DATETIME, "
+                    "login_fail_count INTEGER NOT NULL DEFAULT 0, "
+                    "locked_until DATETIME, "
+                    "id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, "
+                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                    ")"
+                )
+            )
+            await conn.execute(text("CREATE UNIQUE INDEX ix_users_username ON users (username)"))
+            await conn.execute(text("CREATE UNIQUE INDEX ix_users_email ON users (email)"))
+            await conn.execute(text("CREATE INDEX ix_users_status ON users (status)"))
+            await conn.execute(text("CREATE INDEX ix_users_role ON users (role)"))
+            await conn.execute(
+                text(
+                    "INSERT INTO users (username, email, password_hash, role, status, login_fail_count) "
+                    "VALUES ('admin1', 'admin1@example.com', 'x', 'admin', 'active', 0)"
+                )
+            )
+
+            messages = await initialize_database_schema(conn)
+
+            pragma_rows = await conn.execute(text("PRAGMA table_info(users)"))
+            columns = {row[1]: row for row in pragma_rows.fetchall()}
+            data_row = await conn.execute(
+                text(
+                    "SELECT username, email, original_username, username_change_remaining "
+                    "FROM users WHERE email = 'admin1@example.com'"
+                )
+            )
+            data = data_row.one()
+
+        assert "已为 users 表补充 original_username 字段" in messages
+        assert "已为 users 表补充 username_change_remaining 字段" in messages
+        assert "original_username" in columns
+        assert "username_change_remaining" in columns
+        assert columns["username_change_remaining"][3] == 1
+        assert data == ("admin1", "admin1@example.com", None, 1)
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_initialize_permission_defaults_fills_new_database_completely(tmp_path):
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'windows-local.db'}")
     async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
