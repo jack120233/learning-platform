@@ -22,8 +22,8 @@ const skeletonCount = 8
         <div v-for="i in skeletonCount" :key="i" class="skeleton-card">
           <el-skeleton animated>
             <template #template>
-              <el-skeleton-item variant="image" style="width: 100%; height: 160px" />
-              <div style="padding: 14px">
+              <el-skeleton-item variant="image" style="width: 100%; height: 136px" />
+              <div style="padding: 12px">
                 <el-skeleton-item variant="h3" style="width: 80%" />
                 <el-skeleton-item variant="text" style="margin-top: 8px" />
                 <el-skeleton-item variant="text" style="width: 60%; margin-top: 8px" />
@@ -70,13 +70,13 @@ const skeletonCount = 8
 
 <style lang="scss" scoped>
 .course-list-section {
-  min-height: 400px;
+  min-height: 320px;
 }
 
 .skeleton-grid {
   display: grid;
-  gap: 20px;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
 }
 
 .skeleton-card {
@@ -88,20 +88,8 @@ const skeletonCount = 8
 
 .course-grid {
   display: grid;
-  gap: 20px;
-  grid-template-columns: repeat(5, 1fr);
-
-  @media (max-width: 1919px) {
-    grid-template-columns: repeat(4, 1fr);
-  }
-
-  @media (max-width: 1439px) {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  @media (max-width: 1279px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
 }
 
 .error-state,
@@ -128,5 +116,13 @@ const skeletonCount = 8
   font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.2px;
+}
+
+@media (max-width: 768px) {
+  .skeleton-grid,
+  .course-grid {
+    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
 }
 </style>

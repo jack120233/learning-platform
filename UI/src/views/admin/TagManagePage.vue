@@ -238,11 +238,19 @@ onMounted(() => {
           {{ formatTime(row.created_at) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="120" fixed="right">
+      <el-table-column label="操作" width="120" fixed="right" align="center">
         <template #default="{ row }">
-          <el-button text size="small" type="danger" :icon="Delete" @click="handleDelete(row)">
-            删除
-          </el-button>
+          <div class="table-action-surface soft-action-surface">
+            <el-button
+              class="table-action-btn soft-action-btn soft-action-btn--danger soft-action-btn--small"
+              size="small"
+              type="danger"
+              :icon="Delete"
+              @click="handleDelete(row)"
+            >
+              删除
+            </el-button>
+          </div>
         </template>
       </el-table-column>
     </el-table>

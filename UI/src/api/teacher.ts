@@ -46,9 +46,9 @@ export interface ManageCoursesParams extends TeacherCoursesParams {
 /** 课程表单数据 */
 export interface CourseFormData {
   title: string
-  cover_url: string
-  summary: string
-  description?: string
+  cover_url?: string | null
+  summary?: string | null
+  description?: string | null
   category_id: number | null
   tags?: string[]
 }
@@ -56,9 +56,9 @@ export interface CourseFormData {
 /** 创建课程请求 */
 export interface CreateCourseRequest {
   title: string
-  cover_url: string
-  summary: string
-  description?: string
+  cover_url?: string | null
+  summary?: string | null
+  description?: string | null
   category_id: number
   author?: string | null
   tag_ids?: number[]
@@ -73,9 +73,9 @@ export interface TeacherCourseDetail {
   id?: number
   course_id: number
   title: string
-  cover_url: string
-  summary: string
-  description?: string
+  cover_url?: string | null
+  summary?: string | null
+  description?: string | null
   category_id: number
   author?: string | null
   status: CourseStatus

@@ -25,6 +25,7 @@ import {
   type TagItem,
 } from '@/api/teacher'
 import { fetchCategories, type CategoryItem } from '@/api/category'
+import { DEFAULT_COURSE_COVER, resolveCourseCoverUrl } from '@/utils/course'
 import ChapterManager from './components/ChapterManager.vue'
 
 const route = useRoute()
@@ -82,6 +83,13 @@ const materials = ref<MaterialItem[]>([])
 // 课程详情（编辑模式）
 const courseDetail = ref<TeacherCourseDetail | null>(null)
 const isPublishedCourse = computed(() => courseDetail.value?.status === 'published')
+const hasCustomCover = computed(() => Boolean(form.value.cover_url?.trim()))
+const resolvedCoverPreview = computed(() => resolveCourseCoverUrl(form.value.cover_url))
+
+function normalizeCoverUrl(value: string | null | undefined) {
+  const normalized = value?.trim()
+  return normalized ? normalized : null
+}
 
 // 表单校验规则
 const rules = {
@@ -89,12 +97,9 @@ const rules = {
     { required: true, message: '请输入课程标题', trigger: 'blur' },
     { min: 2, max: 30, message: '标题长度在 2-30 个字符', trigger: 'blur' },
   ],
-  cover_url: [
-    { required: true, message: '请上传课程封面', trigger: 'change' },
-  ],
   summary: [
     { required: true, message: '请输入课程简介', trigger: 'blur' },
-    { min: 10, max: 500, message: '简介长度在 10-500 个字符', trigger: 'blur' },
+    { max: 500, message: '简介最多 500 个字符', trigger: 'blur' },
   ],
   category_id: [
     { required: true, message: '请选择课程分类', trigger: 'change' },
@@ -137,7 +142,7 @@ async function loadCourseDetail() {
 
     // 填充表单
     form.value.title = detail.title
-    form.value.cover_url = detail.cover_url
+    form.value.cover_url = detail.cover_url || ''
     form.value.summary = detail.summary || ''
     form.value.description = detail.description || ''
     form.value.category_id = detail.category_id
@@ -258,6 +263,10 @@ function confirmCrop() {
       isUploading.value = false
     }
   }, 'image/jpeg', 0.9)
+}
+
+function handleClearCover() {
+  form.value.cover_url = ''
 }
 
 // 添加标签
@@ -416,7 +425,6 @@ async function validateCourseForm() {
 function checkPublishReady() {
   const missing: string[] = []
   if (!form.value.title) missing.push('课程标题')
-  if (!form.value.cover_url) missing.push('课程封面')
   if (!form.value.summary) missing.push('课程简介')
   if (!form.value.category_id) missing.push('课程分类')
   if (chapters.value.length === 0) missing.push('至少 1 个章节')
@@ -443,7 +451,7 @@ async function handleSaveDraft(isSilent = false) {
   try {
     const data = {
       title: form.value.title,
-      cover_url: form.value.cover_url,
+      cover_url: normalizeCoverUrl(form.value.cover_url),
       summary: form.value.summary,
       description: form.value.description || undefined,
       category_id: form.value.category_id!,
@@ -618,7 +626,7 @@ onMounted(async () => {
         />
       </el-form-item>
 
-      <el-form-item label="课程封面" prop="cover_url">
+      <el-form-item label="课程封面">
         <div class="cover-uploader">
           <el-upload
             class="cover-upload"
@@ -627,20 +635,26 @@ onMounted(async () => {
             :on-change="handleCoverChange"
             accept=".jpg,.jpeg,.png"
           >
-            <template v-if="form.cover_url">
-              <el-image :src="form.cover_url" fit="cover" class="cover-preview" />
-              <div class="cover-actions">
-                <el-button size="small" :loading="isUploading">更换封面</el-button>
+            <el-image :src="resolvedCoverPreview" fit="cover" class="cover-preview">
+              <template #error>
+                <img :src="DEFAULT_COURSE_COVER" alt="" class="cover-preview cover-preview--fallback" />
+              </template>
+            </el-image>
+            <div class="cover-actions">
+              <div class="cover-action-buttons">
+                <el-button size="small" :loading="isUploading">{{ hasCustomCover ? '更换封面' : '上传封面' }}</el-button>
+                <el-button
+                  v-if="hasCustomCover"
+                  size="small"
+                  text
+                  @click.stop="handleClearCover"
+                >
+                  恢复默认
+                </el-button>
               </div>
-            </template>
-            <template v-else>
-              <div class="cover-placeholder">
-                <el-icon><Plus /></el-icon>
-                <span>上传封面</span>
-              </div>
-            </template>
+            </div>
           </el-upload>
-          <div class="cover-tip">建议 16:9 比例，JPG/PNG 格式，不超过 10MB</div>
+          <div class="cover-tip">选填，16:9，10MB内</div>
         </div>
       </el-form-item>
 
@@ -732,7 +746,7 @@ onMounted(async () => {
           v-model="form.summary"
           type="textarea"
           :rows="3"
-          placeholder="请输入课程简介（10-500 字符）"
+          placeholder="请输入课程简介"
           maxlength="500"
           show-word-limit
         />
@@ -874,19 +888,8 @@ onMounted(async () => {
     height: 100%;
   }
 
-  .cover-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    color: $text-tertiary;
-
-    .el-icon {
-      font-size: 32px;
-    }
+  .cover-preview--fallback {
+    display: block;
   }
 
   .cover-actions {
@@ -897,6 +900,12 @@ onMounted(async () => {
     padding: 8px;
     background: rgba(0, 0, 0, 0.5);
     text-align: center;
+  }
+
+  .cover-action-buttons {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .cover-tip {

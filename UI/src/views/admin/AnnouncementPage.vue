@@ -138,10 +138,10 @@ async function handlePublish(announcement: AnnouncementItem) {
   try {
     if (announcement.status === 'published') {
       await ElMessageBox.confirm(
-        `确定要再次发布公告「${announcement.title}」吗？本次会向非管理员用户重新发送一批公告消息，公告内容不会改变。`,
-        '再次发布确认',
+        `确定要重发公告「${announcement.title}」吗？本次会向非管理员用户重新发送一批公告消息，公告内容不会改变。`,
+        '重发确认',
         {
-          confirmButtonText: '再次发布',
+          confirmButtonText: '重发',
           cancelButtonText: '取消',
           type: 'warning',
         }
@@ -151,7 +151,7 @@ async function handlePublish(announcement: AnnouncementItem) {
     await updateAnnouncement(announcement.announcement_id, {
       status: 'published',
     })
-    ElMessage.success(announcement.status === 'published' ? '公告已再次发布' : '公告已发布')
+    ElMessage.success(announcement.status === 'published' ? '公告已重发' : '公告已发布')
     fetchData()
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
@@ -300,7 +300,7 @@ onMounted(() => {
                 :icon="RefreshRight"
                 @click="handlePublish(row)"
               >
-                再次发布
+                重发
               </el-button>
             </el-tooltip>
             <el-button

@@ -54,7 +54,7 @@ const handleMenuClick = (path?: string) => {
 
 <template>
   <div class="admin-layout">
-    <el-container>
+    <el-container :class="{ 'admin-container--desktop': !isMobile && !isTablet }">
       <!-- 移动端顶部栏 -->
       <header v-if="isMobile || isTablet" class="mobile-header">
         <button class="hamburger-btn" @click="showMobileMenu = true">
@@ -172,7 +172,7 @@ const handleMenuClick = (path?: string) => {
     min-height: inherit;
     flex-direction: column;
 
-    @media (min-width: $breakpoint-lg) {
+    &.admin-container--desktop {
       flex-direction: row;
     }
   }
@@ -185,7 +185,9 @@ const handleMenuClick = (path?: string) => {
   justify-content: space-between;
   padding: 0 16px;
   height: 56px;
-  background: #333;
+  background: #ffffff;
+  border-bottom: 1px solid #e0ecff;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
   position: sticky;
   top: 64px;
   z-index: 10;
@@ -197,14 +199,14 @@ const handleMenuClick = (path?: string) => {
     width: 40px;
     height: 40px;
     border: none;
-    background: transparent;
+    background: #eff6ff;
     cursor: pointer;
     border-radius: 8px;
-    color: #fff;
+    color: #2563eb;
     transition: background-color 0.2s;
 
     &:hover {
-      background-color: #444;
+      background-color: #dbeafe;
     }
   }
 
@@ -214,7 +216,7 @@ const handleMenuClick = (path?: string) => {
     gap: 8px;
     font-size: 16px;
     font-weight: 600;
-    color: #fff;
+    color: #1e293b;
   }
 
   .header-placeholder {
@@ -223,7 +225,9 @@ const handleMenuClick = (path?: string) => {
 }
 
 .side-menu {
-  background: #333;
+  background: linear-gradient(180deg, #ffffff 0%, #f5f9ff 100%);
+  border-right: 1px solid #e0ecff;
+  box-shadow: 10px 0 28px rgba(15, 23, 42, 0.04);
   min-height: inherit;
   display: flex;
   flex-direction: column;
@@ -233,13 +237,13 @@ const handleMenuClick = (path?: string) => {
     align-items: center;
     gap: 12px;
     padding: 20px 20px 16px;
-    border-bottom: 1px solid #444;
+    border-bottom: 1px solid #e0ecff;
   }
 
   .menu-title {
     font-size: 18px;
     font-weight: 600;
-    color: #fff;
+    color: #1e293b;
   }
 }
 
@@ -247,33 +251,46 @@ const handleMenuClick = (path?: string) => {
   flex: 1;
   border-right: none;
   background: transparent;
+  padding-top: 8px;
 
   :deep(.el-menu-item) {
-    color: #fff;
+    color: #475569;
     height: 48px;
     line-height: 48px;
     margin: 4px 12px;
-    border-radius: $radius-sm;
+    border-radius: $radius-md;
+    font-weight: 600;
 
     &:hover {
-      background: #444;
+      color: #2563eb;
+      background: #eff6ff;
     }
 
     &.is-active {
-      background: $primary-color;
+      color: #2563eb;
+      background: #eaf3ff;
+      box-shadow: inset 0 0 0 1px #bfdbfe;
+    }
+
+    .el-icon {
+      color: #60a5fa;
     }
   }
 }
 
 .menu-footer {
   padding: 16px 20px;
-  border-top: 1px solid #444;
+  border-top: 1px solid #e0ecff;
 
   .el-button {
-    color: #fff;
+    width: 100%;
+    justify-content: flex-start;
+    color: #475569;
+    border-radius: $radius-md;
 
     &:hover {
-      color: $primary-color;
+      color: #2563eb;
+      background: #eff6ff;
     }
   }
 }
@@ -299,7 +316,7 @@ const handleMenuClick = (path?: string) => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: #333;
+  background: linear-gradient(180deg, #ffffff 0%, #f5f9ff 100%);
 }
 
 .drawer-header {
@@ -307,7 +324,7 @@ const handleMenuClick = (path?: string) => {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid #444;
+  border-bottom: 1px solid #e0ecff;
 
   .drawer-logo {
     display: flex;
@@ -315,54 +332,65 @@ const handleMenuClick = (path?: string) => {
     gap: 10px;
     font-size: 16px;
     font-weight: 600;
-    color: #fff;
+    color: #1e293b;
   }
 
   .el-button {
-    color: #fff;
+    color: #475569;
 
     &:hover {
-      color: $primary-color;
+      color: #2563eb;
     }
   }
 }
 
 .drawer-nav {
   flex: 1;
-  padding: 8px 0;
+  padding: 8px 12px;
   overflow-y: auto;
 
   .nav-item {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 14px 20px;
+    padding: 14px 12px;
     font-size: 15px;
-    color: #fff;
+    color: #475569;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    border-left: 3px solid transparent;
+    border-radius: $radius-md;
 
     &:hover {
-      background-color: #444;
+      color: #2563eb;
+      background-color: #eff6ff;
     }
 
     &.active {
-      background-color: $primary-color;
-      border-left-color: $primary-color;
+      color: #2563eb;
+      background-color: #eaf3ff;
+      box-shadow: inset 0 0 0 1px #bfdbfe;
+    }
+
+    .el-icon {
+      color: #60a5fa;
     }
   }
 }
 
 .drawer-footer {
   padding: 16px 20px;
-  border-top: 1px solid #444;
+  border-top: 1px solid #e0ecff;
 
   .el-button {
-    color: #fff;
+    width: 100%;
+    justify-content: flex-start;
+    color: #475569;
+    border-radius: $radius-md;
 
     &:hover {
-      color: $primary-color;
+      color: #2563eb;
+      background: #eff6ff;
     }
   }
 }

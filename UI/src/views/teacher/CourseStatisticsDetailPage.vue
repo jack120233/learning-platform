@@ -124,7 +124,6 @@ onMounted(() => {
         <el-button class="back-link" text :icon="Back" @click="router.push('/teacher/statistics')">
           返回课程统计
         </el-button>
-        <span class="hero-eyebrow">课程学习数据</span>
         <h2 class="page-title">{{ overview?.course_title || '课程统计详情' }}</h2>
         <p class="page-desc">聚焦课程学习进度、活跃情况和完成表现，帮助老师快速识别需要跟进的学习状态。</p>
       </div>
@@ -324,7 +323,6 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.hero-eyebrow,
 .section-eyebrow {
   color: #2563eb;
   font-size: 12px;
@@ -334,7 +332,7 @@ onMounted(() => {
 }
 
 .page-title {
-  margin: 8px 0 0;
+  margin: 0;
   color: #0f172a;
   font-size: 28px;
   font-weight: 800;
