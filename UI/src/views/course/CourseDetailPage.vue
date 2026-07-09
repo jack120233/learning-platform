@@ -28,6 +28,7 @@ import {
   type CourseResource,
 } from '@/api/learning'
 import { formatFileSize, formatDuration, formatDate } from '@/utils/format'
+import { DEFAULT_COURSE_COVER, resolveCourseCoverUrl } from '@/utils/course'
 import FeedbackForm from '@/components/feedback/FeedbackForm.vue'
 
 const route = useRoute()
@@ -62,6 +63,7 @@ const previewType = ref<'pdf' | 'docx' | 'pptx' | 'image' | null>(null)
 const courseId = computed(() => Number(route.params.courseId))
 const hasLearningRecord = computed(() => learnStore.hasLearningRecord)
 const continueInfo = computed(() => learnStore.continueInfo)
+const resolvedCourseCoverUrl = computed(() => resolveCourseCoverUrl(course.value?.cover_url))
 
 // 反馈区：当前选中的老师名称（联动右侧卡片）
 const selectedTeacherName = ref('')
@@ -386,14 +388,12 @@ function openChapterResource(resource: CourseResource) {
       <div class="hero-section">
         <div class="cover-area">
           <el-image
-            :src="course.cover_url"
+            :src="resolvedCourseCoverUrl"
             fit="cover"
             class="cover-image"
           >
             <template #error>
-              <div class="cover-placeholder">
-                <el-icon :size="48"><Picture /></el-icon>
-              </div>
+              <img :src="DEFAULT_COURSE_COVER" alt="" class="cover-image cover-image--fallback" />
             </template>
           </el-image>
         </div>

@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import type { CourseBaseItem } from '@/api/course'
+import { DEFAULT_COURSE_COVER, resolveCourseCoverUrl } from '@/utils/course'
 
 interface Props {
   data: CourseBaseItem
@@ -8,6 +10,7 @@ interface Props {
 
 const props = defineProps<Props>()
 const router = useRouter()
+const resolvedCoverUrl = computed(() => resolveCourseCoverUrl(props.data.cover_url))
 
 // 点击卡片跳转课程详情
 const handleClick = () => {
@@ -24,15 +27,13 @@ const handleClick = () => {
   <div class="course-card" @click="handleClick">
     <div class="cover-wrapper">
       <el-image
-        :src="data.cover_url"
+        :src="resolvedCoverUrl"
         fit="cover"
         lazy
         class="cover-image"
       >
         <template #error>
-          <div class="cover-placeholder">
-            <el-icon :size="48" color="#bfdbfe"><Picture /></el-icon>
-          </div>
+          <img :src="DEFAULT_COURSE_COVER" alt="" class="cover-image cover-image--fallback" />
         </template>
       </el-image>
       <div class="cover-glow"></div>
@@ -56,12 +57,13 @@ const handleClick = () => {
 .course-card {
   position: relative;
   height: 100%;
+  min-width: 0;
   overflow: hidden;
   cursor: pointer;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   border: 1px solid rgba(219, 234, 254, 0.9);
-  border-radius: 18px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+  border-radius: 16px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
   transition: transform 0.28s ease, border-color 0.28s ease, box-shadow 0.28s ease;
 
   &::after {
@@ -75,9 +77,9 @@ const handleClick = () => {
   }
 
   &:hover {
-    transform: translateY(-5px);
+    transform: translateY(-4px);
     border-color: #bfdbfe;
-    box-shadow: 0 18px 38px rgba(37, 99, 235, 0.16);
+    box-shadow: 0 14px 30px rgba(37, 99, 235, 0.14);
 
     &::after {
       opacity: 1;
@@ -101,7 +103,7 @@ const handleClick = () => {
 .cover-wrapper {
   position: relative;
   width: 100%;
-  padding-top: 56.25%;
+  padding-top: 58%;
   overflow: hidden;
   background: #eef6ff;
 
@@ -113,18 +115,10 @@ const handleClick = () => {
     height: 100%;
     transition: transform 0.32s ease;
   }
+}
 
-  .cover-placeholder {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, #eff6ff 0%, #f8fbff 100%);
-  }
+.cover-image--fallback {
+  display: block;
 }
 
 .cover-glow {
@@ -139,15 +133,15 @@ const handleClick = () => {
 
 .course-info {
   position: relative;
-  padding: 16px;
+  padding: 14px 14px 12px;
 }
 
 .course-title {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   color: #1e293b;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
-  line-height: 1.45;
+  line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -157,11 +151,11 @@ const handleClick = () => {
 }
 
 .course-summary {
-  min-height: 39px;
-  margin: 0 0 14px;
+  min-height: 36px;
+  margin: 0 0 12px;
   color: #64748b;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -174,7 +168,7 @@ const handleClick = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   font-size: 12px;
   color: #64748b;
 }
@@ -184,11 +178,12 @@ const handleClick = () => {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 9px;
+  padding: 4px 8px;
   color: #2563eb;
   background: #f4f8ff;
   border: 1px solid #dbeafe;
   border-radius: 999px;
+  font-size: 12px;
 
   :deep(.el-icon) {
     flex-shrink: 0;
@@ -199,6 +194,7 @@ const handleClick = () => {
   flex-shrink: 0;
   color: #2563eb;
   font-weight: 600;
+  font-size: 12px;
   opacity: 0;
   transform: translateX(-4px);
   transition: opacity 0.28s ease, transform 0.28s ease;

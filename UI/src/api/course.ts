@@ -5,9 +5,9 @@ export interface CourseBaseItem {
   id?: number
   course_id?: number
   title: string
-  cover_url: string
-  summary: string
-  teacher_name: string
+  cover_url?: string | null
+  summary?: string | null
+  teacher_name?: string | null
   author?: string | null
 }
 

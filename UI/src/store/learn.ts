@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { CourseChapter, ContinueLearningInfo, CourseResource } from '@/api/learning'
+import { resolveCourseCoverUrl } from '@/utils/course'
 
 // ==================== 类型定义 ====================
 
@@ -118,7 +119,7 @@ export const useLearnStore = defineStore('learn', () => {
   function initCourseContext(courseId: number, title: string, cover: string, chapters: CourseChapter[], status: 'published' | 'archived' | 'draft' = 'published') {
     currentCourseId.value = courseId
     currentCourseTitle.value = title
-    currentCourseCover.value = cover
+    currentCourseCover.value = resolveCourseCoverUrl(cover)
     currentCourseChapters.value = chapters
     courseStatus.value = status
   }
