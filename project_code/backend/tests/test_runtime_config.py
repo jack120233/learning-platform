@@ -1,24 +1,54 @@
-"""运行版本配置与缓存抽象测试。"""
+"""运行版本配置与 SQLite bootstrap 测试。"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import sqlite3
+import subprocess
+import sys
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.config import Settings
+from app.config import BASE_DIR, DEFAULT_ENV_FILE, REPOSITORY_ROOT, Settings, settings
 from app.core.cache import DiskCacheAdapter, InMemoryCache
+from app.core.dependencies import get_db
 from app.core.runtime import (
+    SQLITE_BOOTSTRAP_VERSION,
     configure_sqlite_runtime,
+    describe_sqlite_bootstrap_status,
+    ensure_sqlite_file_startup,
+    get_sqlite_bootstrap_manifest_path,
+    get_sqlite_temporary_database_path,
+    get_temporary_manifest_path,
     initialize_database_schema,
-    initialize_permission_defaults,
-    seed_database_if_empty,
+    install_sqlite_runtime_hooks,
+    reset_local_state,
 )
-from app.main import should_serve_frontend_spa
-from app.models.permission import RolePermission
-from app.services.permission_service import permission_service
+from app.main import app, should_serve_frontend_spa
+from app.models import Announcement, Category, Chapter, Course, Permission, Resource, RolePermission, Section, Tag, User
+from app.services.permission_service import DEFAULT_ROLE_PERMISSION_IDS
+from scripts.seed_data import (
+    get_demo_document_runtime_paths,
+    get_expected_demo_document_file_names,
+    resolve_demo_document_runtime_path,
+)
+
+
+def test_settings_model_config_points_to_backend_env_file():
+    env_file = Path(Settings.model_config["env_file"])
+
+    assert env_file.is_absolute() is True
+    assert env_file == DEFAULT_ENV_FILE
+    assert env_file == BASE_DIR / ".env"
 
 
 def test_windows_local_defaults_to_sqlite_file_and_diskcache(tmp_path):
-    settings = Settings(
+    instance = Settings(
         _env_file=None,
         app_edition="windows_local",
         windows_local_data_dir=str(tmp_path / "data"),
@@ -27,41 +57,103 @@ def test_windows_local_defaults_to_sqlite_file_and_diskcache(tmp_path):
         windows_local_log_dir=str(tmp_path / "logs"),
     )
 
-    assert settings.async_database_url.startswith("sqlite+aiosqlite:///")
-    assert settings.async_database_url.endswith("windows-local.db")
-    assert settings.effective_cache_backend == "diskcache"
-    assert settings.resolved_cache_dir == tmp_path / "data" / "cache"
-    assert settings.resolved_upload_dir == tmp_path / "uploads"
-    assert settings.resolved_log_dir == tmp_path / "logs"
-    assert settings.sqlalchemy_connect_args == {"timeout": settings.sqlite_timeout_seconds}
+    assert instance.async_database_url.startswith("sqlite+aiosqlite:///")
+    assert instance.async_database_url.endswith("windows-local.db")
+    assert instance.effective_cache_backend == "diskcache"
+    assert instance.resolved_cache_dir == tmp_path / "data" / "cache"
+    assert instance.resolved_upload_dir == tmp_path / "uploads"
+    assert instance.resolved_log_dir == tmp_path / "logs"
+    assert instance.sqlalchemy_connect_args == {"timeout": instance.sqlite_timeout_seconds}
+    assert instance.resolved_sqlite_database_path == tmp_path / "data" / "windows-local.db"
+
+
+def test_relative_sqlite_paths_resolve_to_backend_root():
+    instance = Settings(
+        _env_file=None,
+        app_edition="development",
+        database_url="sqlite+aiosqlite:///./data/learning_platform.db",
+        local_data_dir="./data",
+        local_cache_dir="./data/cache",
+        upload_dir="uploads",
+        log_dir="logs",
+    )
+
+    expected_database_path = (BASE_DIR / "data" / "learning_platform.db").resolve()
+    expected_cache_dir = (BASE_DIR / "data" / "cache").resolve()
+    expected_upload_dir = (BASE_DIR / "uploads").resolve()
+    expected_log_dir = (BASE_DIR / "logs").resolve()
+
+    assert instance.resolved_sqlite_database_path == expected_database_path
+    assert instance.async_database_url == f"sqlite+aiosqlite:///{expected_database_path.as_posix()}"
+    assert instance.resolved_cache_dir == expected_cache_dir
+    assert instance.resolved_upload_dir == expected_upload_dir
+    assert instance.resolved_log_dir == expected_log_dir
 
 
 def test_explicit_database_url_keeps_in_memory_sqlite_for_tests():
-    settings = Settings(
+    instance = Settings(
         _env_file=None,
         app_edition="windows_classroom",
         database_url="sqlite+aiosqlite:///:memory:",
     )
 
-    assert settings.async_database_url == "sqlite+aiosqlite:///:memory:"
-    assert settings.is_sqlite_memory_database is True
-    assert settings.is_sqlite_file_database is False
-    assert settings.sqlalchemy_connect_args == {}
+    assert instance.async_database_url == "sqlite+aiosqlite:///:memory:"
+    assert instance.is_sqlite_memory_database is True
+    assert instance.is_sqlite_file_database is False
+    assert instance.resolved_sqlite_database_path is None
+    assert instance.sqlalchemy_connect_args == {}
 
 
 def test_server_defaults_to_memory_cache():
-    settings = Settings(_env_file=None, app_edition="server")
+    instance = Settings(_env_file=None, app_edition="server")
 
-    assert settings.effective_cache_backend == "memory"
-    assert settings.async_database_url == "sqlite+aiosqlite:///:memory:"
+    assert instance.effective_cache_backend == "memory"
+    assert instance.async_database_url == "sqlite+aiosqlite:///:memory:"
 
 
 def test_windows_local_frontend_paths_point_to_ui_dist():
-    settings = Settings(_env_file=None, app_edition="windows_local")
+    instance = Settings(_env_file=None, app_edition="windows_local")
 
-    assert settings.parsed_frontend_dist_dir.name == "dist"
-    assert settings.parsed_frontend_index_path.name == "index.html"
-    assert settings.windows_local_frontend_ready in {True, False}
+    assert instance.parsed_frontend_dist_dir.name == "dist"
+    assert instance.parsed_frontend_index_path.name == "index.html"
+    assert instance.windows_local_frontend_ready in {True, False}
+
+
+def test_init_db_script_bootstraps_standard_database_from_repo_root(tmp_path):
+    data_dir = tmp_path / "data"
+    uploads_dir = tmp_path / "uploads"
+    logs_dir = tmp_path / "logs"
+    cache_dir = tmp_path / "cache"
+    database_path = data_dir / "script-init.db"
+    manifest_path = get_sqlite_bootstrap_manifest_path(database_path)
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PYTHONPATH": str(BASE_DIR),
+            "APP_EDITION": "development",
+            "DATABASE_URL": f"sqlite+aiosqlite:///{database_path.as_posix()}",
+            "UPLOAD_DIR": str(uploads_dir),
+            "LOG_DIR": str(logs_dir),
+            "LOCAL_DATA_DIR": str(data_dir),
+            "LOCAL_CACHE_DIR": str(cache_dir),
+        }
+    )
+
+    result = subprocess.run(
+        [sys.executable, str(REPOSITORY_ROOT / "project_code" / "backend" / "scripts" / "init_db.py")],
+        cwd=REPOSITORY_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert "已完成标准 SQLite 初始化" in result.stdout
+    assert database_path.exists() is True
+    assert manifest_path.exists() is True
+    demo_document_paths = sorted((uploads_dir / "demo-documents").glob("*.md"))
+    assert [path.name for path in demo_document_paths] == sorted(get_expected_demo_document_file_names())
 
 
 @pytest.mark.parametrize(
@@ -142,67 +234,341 @@ async def test_sqlite_runtime_skips_pragmas_for_memory_database():
         await engine.dispose()
 
 
+@pytest.fixture
+def sqlite_runtime_settings(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    uploads_dir = tmp_path / "uploads"
+    logs_dir = tmp_path / "logs"
+    cache_dir = tmp_path / "cache"
+    database_path = data_dir / "learning_platform.db"
+    manifest_path = get_sqlite_bootstrap_manifest_path(database_path)
+    database_url = f"sqlite+aiosqlite:///{database_path.as_posix()}"
+
+    monkeypatch.setattr(settings, "app_edition", "development")
+    monkeypatch.setattr(settings, "database_url", database_url)
+    monkeypatch.setattr(settings, "upload_dir", str(uploads_dir))
+    monkeypatch.setattr(settings, "log_dir", str(logs_dir))
+    monkeypatch.setattr(settings, "local_data_dir", str(data_dir))
+    monkeypatch.setattr(settings, "local_cache_dir", str(cache_dir))
+    monkeypatch.setattr(settings, "windows_local_data_dir", str(data_dir))
+    monkeypatch.setattr(settings, "windows_local_upload_dir", str(uploads_dir))
+    monkeypatch.setattr(settings, "windows_local_log_dir", str(logs_dir))
+    monkeypatch.setattr(settings, "windows_local_cache_dir", str(cache_dir))
+
+    return {
+        "tmp_path": tmp_path,
+        "data_dir": data_dir,
+        "uploads_dir": uploads_dir,
+        "logs_dir": logs_dir,
+        "cache_dir": cache_dir,
+        "database_path": database_path,
+        "database_url": database_url,
+        "manifest_path": manifest_path,
+        "temporary_database_path": get_sqlite_temporary_database_path(database_path),
+        "temporary_manifest_path": get_temporary_manifest_path(manifest_path),
+    }
+
+
+async def _open_session_factory(database_path: Path) -> tuple[Any, async_sessionmaker[AsyncSession]]:
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{database_path.as_posix()}",
+        connect_args={"timeout": settings.sqlite_timeout_seconds},
+    )
+    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    return engine, session_factory
+
+
 @pytest.mark.asyncio
-async def test_seed_database_if_empty_runs_only_when_empty(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'seed.db'}")
-    async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    calls: list[str] = []
+async def test_ensure_sqlite_file_startup_bootstraps_standard_database(sqlite_runtime_settings):
+    database_path = sqlite_runtime_settings["database_path"]
+    manifest_path = sqlite_runtime_settings["manifest_path"]
 
-    async def seed_runner() -> None:
-        calls.append("called")
+    result = await ensure_sqlite_file_startup()
 
+    assert result.status == "bootstrapped"
+    assert database_path.exists() is True
+    assert manifest_path.exists() is True
+    assert sqlite_runtime_settings["uploads_dir"] in result.directories
+    assert sqlite_runtime_settings["logs_dir"] in result.directories
+    assert sqlite_runtime_settings["cache_dir"] in result.directories
+    assert any("已写入默认权限与角色权限" in message for message in result.messages)
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["bootstrap_version"] == SQLITE_BOOTSTRAP_VERSION
+    assert manifest["seed_profile"] == "base,demo"
+    assert manifest["initialized_at"]
+
+    engine, session_factory = await _open_session_factory(database_path)
     try:
-        async with engine.begin() as conn:
-            from app.models import Base
+        async with session_factory() as session:
+            users = await session.execute(select(User.username).order_by(User.id.asc()))
+            categories = await session.execute(select(Category.id))
+            tags = await session.execute(select(Tag.id))
+            courses = await session.execute(
+                select(Course.title, Course.total_sections, Course.total_duration).order_by(Course.id.asc())
+            )
+            chapters = await session.execute(
+                select(Chapter.section_count, Chapter.total_duration).order_by(Chapter.id.asc())
+            )
+            sections = await session.execute(
+                select(Section.resource_count, Section.duration).order_by(Section.id.asc())
+            )
+            resources = await session.execute(
+                select(Resource.type, Resource.duration, Resource.file_url).order_by(Resource.id.asc())
+            )
+            announcements = await session.execute(select(Announcement.title).order_by(Announcement.id.asc()))
+            permissions = await session.execute(select(Permission.id))
+            role_permissions = await session.execute(select(RolePermission.id))
+            admin_role_permissions = await session.execute(
+                select(RolePermission.permission_id)
+                .where(RolePermission.role == "admin")
+                .order_by(RolePermission.permission_id.asc())
+            )
 
-            await conn.run_sync(Base.metadata.create_all)
+        assert list(users.scalars().all()) == ["admin1", "teacher1", "student1"]
+        assert len(categories.scalars().all()) == 5
+        assert len(tags.scalars().all()) == 10
+        assert courses.all() == [
+            ("Python入门", 4, 0),
+            ("FastAPI实战", 4, 0),
+        ]
+        assert chapters.all() == [(2, 0), (2, 0), (2, 0), (2, 0)]
+        assert sections.all() == [(1, 0)] * 8
+        resource_rows = resources.all()
+        assert len(resource_rows) == 8
+        assert all(resource_type == "document" for resource_type, _duration, _file_url in resource_rows)
+        assert all(duration == 0 for _resource_type, duration, _file_url in resource_rows)
+        actual_document_names = {
+            resolve_demo_document_runtime_path(file_url).name
+            for _resource_type, _duration, file_url in resource_rows
+        }
+        assert actual_document_names == set(get_expected_demo_document_file_names())
+        assert all(path.is_file() for path in get_demo_document_runtime_paths())
+        assert len(announcements.scalars().all()) == 2
+        assert len(permissions.scalars().all()) == 19
+        assert len(role_permissions.scalars().all()) == 33
+        assert list(admin_role_permissions.scalars().all()) == sorted(DEFAULT_ROLE_PERMISSION_IDS["admin"])
 
-        seeded = await seed_database_if_empty(async_session_factory, seed_runner)
-        assert seeded is True
-        assert calls == ["called"]
-
-        async with async_session_factory() as session:
-            from app.models.user import User
-
-            session.add(User(username="existing", email="existing@example.com", password_hash="x", role="student", status="active"))
-            await session.flush()
-            await session.commit()
-
-        calls.clear()
-        seeded_again = await seed_database_if_empty(async_session_factory, seed_runner)
-        assert seeded_again is False
-        assert calls == []
+        inspection = describe_sqlite_bootstrap_status(database_path)
+        assert inspection.status == "standard"
     finally:
         await engine.dispose()
 
 
 @pytest.mark.asyncio
-async def test_initialize_database_schema_does_not_preseed_teacher_only_permissions(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'bootstrap.db'}")
-    async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+async def test_ensure_sqlite_file_startup_skips_standard_database_without_writing(sqlite_runtime_settings):
+    database_path = sqlite_runtime_settings["database_path"]
+    manifest_path = sqlite_runtime_settings["manifest_path"]
+
+    first_result = await ensure_sqlite_file_startup()
+    assert first_result.status == "bootstrapped"
+
+    database_mtime = database_path.stat().st_mtime_ns
+    manifest_mtime = manifest_path.stat().st_mtime_ns
+    demo_document_path = get_demo_document_runtime_paths()[0]
+    demo_document_mtime = demo_document_path.stat().st_mtime_ns
+
+    second_result = await ensure_sqlite_file_startup()
+
+    assert second_result.status == "skipped"
+    assert any("检测到标准 SQLite 初始化状态" in message for message in second_result.messages)
+    assert database_path.stat().st_mtime_ns == database_mtime
+    assert manifest_path.stat().st_mtime_ns == manifest_mtime
+    assert demo_document_path.stat().st_mtime_ns == demo_document_mtime
+
+
+@pytest.mark.asyncio
+async def test_ensure_sqlite_file_startup_bootstrap_enables_wal_for_windows_classroom(
+    sqlite_runtime_settings,
+    monkeypatch,
+):
+    database_path = sqlite_runtime_settings["database_path"]
+    monkeypatch.setattr(settings, "app_edition", "windows_classroom")
+
+    result = await ensure_sqlite_file_startup()
+
+    assert result.status == "bootstrapped"
+    with sqlite3.connect(database_path) as conn:
+        journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+
+    assert journal_mode.lower() == "wal"
+
+
+@pytest.mark.asyncio
+async def test_install_sqlite_runtime_hooks_configure_new_file_connections(
+    sqlite_runtime_settings,
+    monkeypatch,
+):
+    monkeypatch.setattr(settings, "app_edition", "windows_classroom")
+    sqlite_runtime_settings["database_path"].parent.mkdir(parents=True, exist_ok=True)
+    runtime_engine = create_async_engine(
+        sqlite_runtime_settings["database_url"],
+        connect_args={"timeout": 0},
+    )
+    install_sqlite_runtime_hooks(runtime_engine)
 
     try:
-        async with engine.begin() as conn:
-            await initialize_database_schema(conn)
+        async with runtime_engine.connect() as conn:
+            busy_timeout = (await conn.execute(text("PRAGMA busy_timeout"))).scalar()
+            journal_mode = (await conn.execute(text("PRAGMA journal_mode"))).scalar()
 
-        async with async_session_factory() as session:
-            result = await session.execute(select(RolePermission.role, RolePermission.permission_id))
-            assert result.all() == []
-
-            await permission_service.ensure_schema_and_seed(session)
-
-            role_permissions = await session.execute(
-                select(RolePermission.role, RolePermission.permission_id)
-                .order_by(RolePermission.role.asc(), RolePermission.permission_id.asc())
-            )
-            grouped: dict[str, list[int]] = {}
-            for role, permission_id in role_permissions.all():
-                grouped.setdefault(role, []).append(permission_id)
-
-            assert grouped["student"] == [1, 11, 12, 13, 14]
-            assert grouped["teacher"] == [1, 2, 11, 12, 13, 14, 21, 22, 23]
-            assert grouped["admin"] == [1, 2, 3, 11, 12, 13, 14, 21, 22, 23, 31, 32, 33, 35, 36, 37, 38, 39]
+        assert busy_timeout == settings.sqlite_busy_timeout_ms
+        assert str(journal_mode).lower() == "wal"
     finally:
+        await runtime_engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_ensure_sqlite_file_startup_blocks_database_without_manifest(sqlite_runtime_settings):
+    database_path = sqlite_runtime_settings["database_path"]
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+    database_path.touch()
+
+    result = await ensure_sqlite_file_startup()
+
+    assert result.status == "blocked"
+    assert any("缺少 bootstrap 清单" in message for message in result.messages)
+    assert any("reset_local_state.py" in message for message in result.messages)
+
+
+@pytest.mark.asyncio
+async def test_ensure_sqlite_file_startup_blocks_manifest_without_database(sqlite_runtime_settings):
+    manifest_path = sqlite_runtime_settings["manifest_path"]
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "bootstrap_version": SQLITE_BOOTSTRAP_VERSION,
+                "seed_profile": "base,demo",
+                "initialized_at": "2026-07-08T00:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = await ensure_sqlite_file_startup()
+
+    assert result.status == "blocked"
+    assert any("缺少 SQLite 数据库" in message for message in result.messages)
+    assert any("reset_local_state.py" in message for message in result.messages)
+
+
+@pytest.mark.asyncio
+async def test_ensure_sqlite_file_startup_blocks_manifest_version_mismatch(sqlite_runtime_settings):
+    database_path = sqlite_runtime_settings["database_path"]
+    manifest_path = sqlite_runtime_settings["manifest_path"]
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+    database_path.touch()
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "bootstrap_version": "2025-01-01.0",
+                "seed_profile": "base,demo",
+                "initialized_at": "2026-07-08T00:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = await ensure_sqlite_file_startup()
+
+    assert result.status == "blocked"
+    assert any("版本不匹配" in message for message in result.messages)
+    assert any("reset_local_state.py" in message for message in result.messages)
+
+
+@pytest.mark.asyncio
+async def test_reset_local_state_clears_database_manifest_uploads_cache_and_logs(sqlite_runtime_settings):
+    database_path = sqlite_runtime_settings["database_path"]
+    manifest_path = sqlite_runtime_settings["manifest_path"]
+    temporary_database_path = sqlite_runtime_settings["temporary_database_path"]
+    temporary_manifest_path = sqlite_runtime_settings["temporary_manifest_path"]
+    uploads_dir = sqlite_runtime_settings["uploads_dir"]
+    logs_dir = sqlite_runtime_settings["logs_dir"]
+    cache_dir = sqlite_runtime_settings["cache_dir"]
+
+    result = await ensure_sqlite_file_startup()
+    assert result.status == "bootstrapped"
+    assert all(path.is_file() for path in get_demo_document_runtime_paths())
+
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    (uploads_dir / "demo.txt").write_text("upload", encoding="utf-8")
+    (logs_dir / "app.log").write_text("log", encoding="utf-8")
+    (cache_dir / "cache.bin").write_text("cache", encoding="utf-8")
+    temporary_database_path.write_text("temp-db", encoding="utf-8")
+    Path(f"{temporary_database_path}-wal").write_text("temp-wal", encoding="utf-8")
+    temporary_manifest_path.write_text("{}", encoding="utf-8")
+
+    messages = reset_local_state()
+
+    assert database_path.exists() is False
+    assert manifest_path.exists() is False
+    assert temporary_database_path.exists() is False
+    assert temporary_manifest_path.exists() is False
+    assert list(uploads_dir.iterdir()) == []
+    assert all(path.exists() is False for path in get_demo_document_runtime_paths())
+    assert list(logs_dir.iterdir()) == []
+    assert list(cache_dir.iterdir()) == []
+    assert any("下次启动将执行首次初始化" in message for message in messages)
+
+
+@pytest.mark.asyncio
+async def test_reset_and_rebootstrap_recreates_demo_documents(sqlite_runtime_settings):
+    reset_local_state()
+
+    result = await ensure_sqlite_file_startup()
+
+    assert result.status == "bootstrapped"
+    assert all(path.is_file() for path in get_demo_document_runtime_paths())
+
+
+@pytest.mark.asyncio
+async def test_login_api_succeeds_after_reset_and_bootstrap(sqlite_runtime_settings):
+    database_path = sqlite_runtime_settings["database_path"]
+
+    reset_local_state()
+    startup_result = await ensure_sqlite_file_startup()
+    assert startup_result.status == "bootstrapped"
+
+    engine, session_factory = await _open_session_factory(database_path)
+
+    async def override_get_db():
+        async with session_factory() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://testserver",
+        ) as client:
+            response = await client.post(
+                "/api/v1/auth/login",
+                json={
+                    "login_id": "admin1@example.com",
+                    "password": "Admin123456",
+                    "remember_me": False,
+                },
+            )
+
+        payload = response.json()
+        assert response.status_code == 200
+        assert payload["code"] == 200
+        assert payload["data"]["user"]["username"] == "admin1"
+        assert payload["data"]["user"]["email"] == "admin1@example.com"
+        assert payload["data"]["access_token"]
+        assert payload["data"]["refresh_token"]
+    finally:
+        app.dependency_overrides.clear()
         await engine.dispose()
 
 
@@ -262,34 +628,6 @@ async def test_initialize_database_schema_backfills_legacy_user_columns(tmp_path
         assert "username_change_remaining" in columns
         assert columns["username_change_remaining"][3] == 1
         assert data == ("admin1", "admin1@example.com", None, 1)
-    finally:
-        await engine.dispose()
-
-
-@pytest.mark.asyncio
-async def test_initialize_permission_defaults_fills_new_database_completely(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'windows-local.db'}")
-    async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-    try:
-        async with engine.begin() as conn:
-            await initialize_database_schema(conn)
-
-        messages = await initialize_permission_defaults(async_session_factory)
-        assert messages == []
-
-        async with async_session_factory() as session:
-            role_permissions = await session.execute(
-                select(RolePermission.role, RolePermission.permission_id)
-                .order_by(RolePermission.role.asc(), RolePermission.permission_id.asc())
-            )
-            grouped: dict[str, list[int]] = {}
-            for role, permission_id in role_permissions.all():
-                grouped.setdefault(role, []).append(permission_id)
-
-            assert grouped["student"] == [1, 11, 12, 13, 14]
-            assert grouped["teacher"] == [1, 2, 11, 12, 13, 14, 21, 22, 23]
-            assert grouped["admin"] == [1, 2, 3, 11, 12, 13, 14, 21, 22, 23, 31, 32, 33, 35, 36, 37, 38, 39]
     finally:
         await engine.dispose()
 

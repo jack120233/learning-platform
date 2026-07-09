@@ -13,13 +13,12 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import router as api_v1_router
 from app.config import settings
-from app.core.dependencies import AsyncSessionLocal, engine
+from app.core.dependencies import engine
 from app.core.exceptions import AppException, app_exception_to_http_exception
 from app.core.logging import get_logger, setup_logging
 from app.core.runtime import (
-    configure_sqlite_runtime,
     ensure_runtime_directories,
-    ensure_windows_local_startup,
+    ensure_sqlite_file_startup,
     initialize_database_schema,
 )
 from app.middleware import RequestLoggingMiddleware
@@ -56,23 +55,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f"缓存后端: {settings.effective_cache_backend}")
     if settings.is_sqlite_file_database:
         logger.info(f"SQLite 数据库: {settings.async_database_url}")
-    if settings.app_edition == "windows_local":
-        _, startup_messages, seeded = await ensure_windows_local_startup(engine, AsyncSessionLocal)
-        for message in startup_messages:
-            if "请手动检查" in message:
-                logger.warning(message)
+        startup_result = await ensure_sqlite_file_startup()
+        for message in startup_result.messages:
+            if startup_result.status == "blocked":
+                logger.error(message)
             else:
                 logger.info(message)
-        logger.info("已导入 Windows 单机版种子数据" if seeded else "Windows 单机版种子数据已存在，跳过导入")
+        if startup_result.status == "blocked":
+            raise RuntimeError("\n".join(startup_result.messages))
     else:
         async with engine.begin() as conn:
-            startup_messages = await configure_sqlite_runtime(conn)
-            startup_messages.extend(await initialize_database_schema(conn))
+            startup_messages = await initialize_database_schema(conn)
         for message in startup_messages:
             if "请手动检查" in message:
                 logger.warning(message)
             else:
                 logger.info(message)
+
+    if settings.is_sqlite_file_database:
+        logger.info(
+            "已完成 SQLite 标准初始化"
+            if startup_result.status == "bootstrapped"
+            else "SQLite 已处于标准初始化状态"
+        )
 
     yield
 

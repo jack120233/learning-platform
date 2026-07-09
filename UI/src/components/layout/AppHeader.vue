@@ -12,8 +12,7 @@ import UserIdentity from '@/components/common/UserIdentity.vue'
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
-// 响应式断点检测（可用于 JS 级别的条件判断）
-useBreakpoint()
+const { isMobile } = useBreakpoint()
 
 // 移动端导航抽屉状态
 const showMobileNav = ref(false)
@@ -120,13 +119,19 @@ onMounted(() => {
 watch(() => route.fullPath, () => {
   void syncUnreadCount()
 })
+
+watch(isMobile, (mobile) => {
+  if (!mobile) {
+    showMobileNav.value = false
+  }
+})
 </script>
 
 <template>
   <header class="app-header">
     <div class="header-content">
       <!-- 汉堡菜单按钮（移动端显示） -->
-      <button class="hamburger-btn" @click="showMobileNav = true">
+      <button v-if="isMobile" class="hamburger-btn" @click="showMobileNav = true">
         <el-icon :size="24"><Menu /></el-icon>
       </button>
 
@@ -139,7 +144,7 @@ watch(() => route.fullPath, () => {
       </router-link>
 
       <!-- 主导航菜单（PC端显示） -->
-      <nav class="main-nav">
+      <nav v-if="!isMobile" class="main-nav">
         <el-menu
           mode="horizontal"
           :ellipsis="false"
@@ -239,10 +244,12 @@ watch(() => route.fullPath, () => {
 
     <!-- 移动端导航抽屉 -->
     <el-drawer
+      v-if="isMobile"
       v-model="showMobileNav"
       direction="ltr"
       :size="280"
       :with-header="false"
+      append-to-body
       class="mobile-nav-drawer"
     >
       <div class="drawer-content">
@@ -534,7 +541,7 @@ watch(() => route.fullPath, () => {
 
 // 汉堡菜单按钮（移动端）
 .hamburger-btn {
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   width: 40px;
@@ -707,14 +714,6 @@ watch(() => route.fullPath, () => {
 }
 
 @media (max-width: 1280px) {
-  .main-nav {
-    display: none;
-  }
-
-  .hamburger-btn {
-    display: flex;
-  }
-
   .search-box {
     width: 180px;
   }

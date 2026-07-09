@@ -20,6 +20,7 @@ FRONTEND_DIST_DIR = FRONTEND_ROOT / "dist"
 FRONTEND_INDEX_PATH = FRONTEND_DIST_DIR / "index.html"
 WINDOWS_EDITIONS = {"windows_local", "windows_classroom"}
 DEFAULT_DEVELOPMENT_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+DEFAULT_ENV_FILE = BASE_DIR / ".env"
 
 
 class Settings(BaseSettings):
@@ -30,7 +31,7 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(DEFAULT_ENV_FILE),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -173,23 +174,67 @@ class Settings(BaseSettings):
         """是否为 Windows 单机/机房运行版本。"""
         return self.app_edition in WINDOWS_EDITIONS
 
+    def _resolve_runtime_path(self, value: str | Path) -> Path:
+        """将相对路径统一解析到 backend 运行根目录。"""
+        path = Path(value).expanduser()
+        if path.is_absolute():
+            return path
+        return (BASE_DIR / path).resolve()
+
+    def _raw_async_database_url(self) -> str:
+        """返回未规范化的数据库连接字符串。"""
+        if self.database_url:
+            return self.database_url
+        if self.is_windows_edition:
+            return self.windows_sqlite_database_url
+        return DEFAULT_DEVELOPMENT_DATABASE_URL
+
+    def _resolve_sqlite_database_path_from_url(self, database_url: str) -> Path | None:
+        """从数据库连接字符串解析 SQLite 文件路径。"""
+        try:
+            url = make_url(database_url)
+        except Exception:
+            return None
+
+        if not url.drivername.startswith("sqlite"):
+            return None
+
+        database = url.database or ""
+        if database in {"", ":memory:"} or url.query.get("mode") == "memory":
+            return None
+
+        return self._resolve_runtime_path(database)
+
     @property
     def resolved_local_database_path(self) -> Path:
         """Windows 版本默认 SQLite 文件路径。"""
         if self.local_database_path:
-            return Path(self.local_database_path)
-        if self.app_edition == "windows_local":
-            return Path(self.windows_local_data_dir) / self.windows_local_database_filename
-        return Path(self.local_data_dir) / "learning_platform.db"
+            return self._resolve_runtime_path(self.local_database_path)
+        filename = (
+            self.windows_local_database_filename
+            if self.app_edition == "windows_local"
+            else "learning_platform.db"
+        )
+        return self.resolved_local_data_dir / filename
+
+    @property
+    def resolved_local_data_dir(self) -> Path:
+        """解析后的本地数据目录。"""
+        data_dir = (
+            self.windows_local_data_dir
+            if self.app_edition == "windows_local"
+            else self.local_data_dir
+        )
+        return self._resolve_runtime_path(data_dir)
 
     @property
     def resolved_cache_dir(self) -> Path:
         """本地磁盘缓存目录。"""
         if self.local_cache_dir:
-            return Path(self.local_cache_dir)
+            return self._resolve_runtime_path(self.local_cache_dir)
         if self.app_edition == "windows_local":
-            return Path(self.windows_local_cache_dir)
-        return Path(self.local_data_dir) / "cache"
+            return self._resolve_runtime_path(self.windows_local_cache_dir)
+        return self.resolved_local_data_dir / "cache"
 
     @property
     def windows_sqlite_database_url(self) -> str:
@@ -201,15 +246,15 @@ class Settings(BaseSettings):
     def resolved_upload_dir(self) -> Path:
         """解析后的上传目录。"""
         if self.app_edition == "windows_local" and self.upload_dir == str(BASE_DIR / "uploads"):
-            return Path(self.windows_local_upload_dir)
-        return Path(self.upload_dir)
+            return self._resolve_runtime_path(self.windows_local_upload_dir)
+        return self._resolve_runtime_path(self.upload_dir)
 
     @property
     def resolved_log_dir(self) -> Path:
         """解析后的日志目录。"""
         if self.app_edition == "windows_local" and self.log_dir == "logs":
-            return Path(self.windows_local_log_dir)
-        return Path(self.log_dir)
+            return self._resolve_runtime_path(self.windows_local_log_dir)
+        return self._resolve_runtime_path(self.log_dir)
 
     @property
     def parsed_frontend_dist_dir(self) -> Path:
@@ -231,11 +276,14 @@ class Settings(BaseSettings):
     @property
     def async_database_url(self) -> str:
         """获取异步数据库连接字符串。"""
-        if self.database_url:
-            return self.database_url
-        if self.is_windows_edition:
-            return self.windows_sqlite_database_url
-        return DEFAULT_DEVELOPMENT_DATABASE_URL
+        raw_database_url = self._raw_async_database_url()
+        database_path = self._resolve_sqlite_database_path_from_url(raw_database_url)
+        if database_path is None:
+            return raw_database_url
+
+        return make_url(raw_database_url).set(
+            database=database_path.as_posix()
+        ).render_as_string(hide_password=False)
 
     @property
     def effective_cache_backend(self) -> Literal["memory", "diskcache"]:
@@ -269,6 +317,11 @@ class Settings(BaseSettings):
         return self.is_sqlite_database and not self.is_sqlite_memory_database
 
     @property
+    def resolved_sqlite_database_path(self) -> Path | None:
+        """解析 SQLite 文件数据库的真实路径。"""
+        return self._resolve_sqlite_database_path_from_url(self._raw_async_database_url())
+
+    @property
     def sqlalchemy_connect_args(self) -> dict[str, float]:
         """SQLAlchemy 连接参数。"""
         if not self.is_sqlite_file_database:
@@ -279,14 +332,9 @@ class Settings(BaseSettings):
     def runtime_directories(self) -> list[Path]:
         """需要在本地运行时确保存在的目录。"""
         directories = [self.resolved_upload_dir, self.resolved_log_dir]
-        if self.app_edition == "windows_local":
-            directories.extend(
-                [
-                    Path(self.windows_local_data_dir),
-                    self.resolved_local_database_path.parent,
-                    self.resolved_cache_dir,
-                ]
-            )
+        if self.resolved_sqlite_database_path is not None:
+            directories.append(self.resolved_sqlite_database_path.parent)
+            directories.append(self.resolved_cache_dir)
         return list(dict.fromkeys(directories))
 
     @property

@@ -244,8 +244,12 @@ pytest tests/test_auth.py -v
 pytest tests/test_auth.py::test_register -v
 pytest tests/ --cov=app --cov-report=html
 python scripts/init_db.py
-python scripts/seed_data.py
+python scripts/reset_local_state.py
 ```
+
+文件型 SQLite 只在首次启动或空状态时执行标准初始化。
+后续启动不会自动建表、补字段、补权限、补种子。
+如果本地库与 bootstrap 清单不一致，需先执行 `reset_local_state.py`。
 
 ### 5.2 应用入口与配置
 

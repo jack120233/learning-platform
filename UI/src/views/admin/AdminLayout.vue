@@ -111,6 +111,7 @@ const handleMenuClick = (path?: string) => {
         direction="ltr"
         :size="280"
         :with-header="false"
+        append-to-body
         class="mobile-menu-drawer"
       >
         <div class="drawer-content">

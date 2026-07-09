@@ -5,6 +5,7 @@
 
 from collections import defaultdict
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Literal
 
 from sqlalchemy import func, or_, select
@@ -181,6 +182,7 @@ class CourseService:
                 file_url=resource.file_url,
                 file_name=resource.title,
             )
+            resource_item.file_name = Path(resource.file_url).name or resource.title
             resource_item.type = normalized_type
             resource_item.resource_type = normalized_type
             if resource.section_id is None:

@@ -8,9 +8,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 根级协作入口
 
-如果 Claude 是从工作区根目录 `E:\video_project\proj_ui` 启动的，必须先遵循根级 `E:\video_project\proj_ui\CLAUDE.md` 的目录路由规则，再下钻到本文件。
+如果 Claude 是从工作区根目录启动的，必须先遵循根级 `CLAUDE.md` 的目录路由规则，再下钻到本文件。
 
-本文件只负责 `E:\video_project\proj_ui\project_code` 后端目录内的实现规则，不负责前端目录定位。
+本文件只负责 `project_code` 后端目录内的实现规则，不负责前端目录定位。
 
 ## 技术栈
 
@@ -39,7 +39,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 项目结构
 ```
-E:\video_project\proj_ui\project_code\backend\
+project_code/backend/
 ├── app/                    # 应用主目录
 │   ├── api/v1/             # API路由（12个模块，80个端点）
 │   ├── schemas/            # Pydantic模型
@@ -65,11 +65,11 @@ E:\video_project\proj_ui\project_code\backend\
 ### 核心文档
 | 文档 | 说明 |
 |------|------|
-| [architecture.md](docs/architecture.md) | 项目架构文档（位于 `E:\video_project\proj_ui\project_code\docs\architecture.md`） |
-| [api-endpoint-inventory.md](docs/api-endpoint-inventory.md) | 实际已挂载 API 接口清单（80个端点，位于 `E:\video_project\proj_ui\project_code\docs\api-endpoint-inventory.md`） |
-| [test-plan.md](docs/test-plan.md) | pytest+httpx 测试计划（位于 `E:\video_project\proj_ui\project_code\docs\test-plan.md`） |
-| [api-testing-guide.md](docs/api-testing-guide.md) | API 手动测试指南（位于 `E:\video_project\proj_ui\project_code\docs\api-testing-guide.md`） |
-| [worktree-guide.md](docs/worktree-guide.md) | Git Worktree 使用指南（位于 `E:\video_project\proj_ui\project_code\docs\worktree-guide.md`） |
+| [architecture.md](docs/architecture.md) | 项目架构文档（位于 `project_code/docs/architecture.md`） |
+| [api-endpoint-inventory.md](docs/api-endpoint-inventory.md) | 实际已挂载 API 接口清单（80个端点，位于 `project_code/docs/api-endpoint-inventory.md`） |
+| [test-plan.md](docs/test-plan.md) | pytest+httpx 测试计划（位于 `project_code/docs/test-plan.md`） |
+| [api-testing-guide.md](docs/api-testing-guide.md) | API 手动测试指南（位于 `project_code/docs/api-testing-guide.md`） |
+| [worktree-guide.md](docs/worktree-guide.md) | Git Worktree 使用指南（位于 `project_code/docs/worktree-guide.md`） |
 
 ### 需求文档
 | 文档 | 模块 | API数量 |
@@ -84,7 +84,7 @@ E:\video_project\proj_ui\project_code\backend\
 
 ## 测试
 
-在 `E:\video_project\proj_ui\project_code\backend` 目录下执行：
+在 `project_code/backend` 目录下执行：
 
 ```bash
 # 运行所有测试
@@ -98,10 +98,10 @@ pytest tests/test_auth.py::test_register -v
 
 # 生成覆盖率报告
 pytest tests/ --cov=app --cov-report=html
-# 报告位置: E:\video_project\proj_ui\project_code\backend\htmlcov\index.html
+# 报告位置: project_code/backend/htmlcov/index.html
 ```
 
-测试使用内存 SQLite 数据库，无需额外配置。详见 `E:\video_project\proj_ui\project_code\backend\tests\conftest.py`。
+测试使用内存 SQLite 数据库，无需额外配置。详见 `project_code/backend/tests/conftest.py`。
 
 ## 关键安全配置
 
@@ -114,15 +114,15 @@ pytest tests/ --cov=app --cov-report=html
 
 ## Spec Workflow
 
-项目使用 `E:\video_project\proj_ui\project_code\.spec-workflow\` 目录管理工作流文档：
-- `E:\video_project\proj_ui\project_code\.spec-workflow\specs\` - 规格文档
-- `E:\video_project\proj_ui\project_code\.spec-workflow\approvals\` - 审批记录
-- `E:\video_project\proj_ui\project_code\.spec-workflow\archive\` - 归档文档
-- `E:\video_project\proj_ui\project_code\.spec-workflow\templates\` - 文档模板（需求、设计、技术、任务等）
+项目使用 `project_code/.spec-workflow/` 目录管理工作流文档：
+- `project_code/.spec-workflow/specs/` - 规格文档
+- `project_code/.spec-workflow/approvals/` - 审批记录
+- `project_code/.spec-workflow/archive/` - 归档文档
+- `project_code/.spec-workflow/templates/` - 文档模板（需求、设计、技术、任务等）
 
 ## 开发命令
 
-在 `E:\video_project\proj_ui\project_code\backend` 目录下执行：
+在 `project_code/backend` 目录下执行：
 
 ```bash
 # 激活虚拟环境（项目根目录）
@@ -146,12 +146,19 @@ pytest tests/test_auth.py::test_register -v
 # 生成覆盖率报告
 pytest tests/ --cov=app --cov-report=html
 
-# 初始化数据库表结构
+# 标准 SQLite 初始化
 python scripts/init_db.py
 
-# 导入种子数据（测试账号）
+# 清空本地状态
+python scripts/reset_local_state.py
+
+# 兼容导入演示数据
 python scripts/seed_data.py
 ```
+
+文件型 SQLite 只在首次启动或空状态时执行标准初始化。
+后续启动不会自动建表、补字段、补权限、补种子。
+遇到旧库或非标准库时，只能先执行 `reset_local_state.py`。
 
 ### 测试账号
 
@@ -161,18 +168,12 @@ python scripts/seed_data.py
 |------|--------|------|------|
 | 管理员 | `admin1` | `Admin123456` | `admin1@example.com` |
 | 教师 | `teacher1` | `Test123456` | `teacher1@example.com` |
-| 教师 | `teacher2` | `Test123456` | `teacher2@example.com` |
-| 教师 | `teacher3` | `Test123456` | `teacher3@example.com` |
-| 教师 | `teacher4` | `Test123456` | `teacher4@example.com` |
-| 教师 | `teacher5` | `Test123456` | `teacher5@example.com` |
-| 教师 | `teacher6` | `Test123456` | `teacher6@example.com` |
 | 学生 | `student1` | `Test123456` | `student1@example.com` |
-| 学生 | `student2` | `Test123456` | `student2@example.com` |
 
 ## 文件写入规范
 
 - 每次只写入 100～200 行，然后使用 edits 自动接收模式完成编写。
-- 在新增文件或修改现有文件前，先确认是否需要同步更新 `E:\video_project\proj_ui\project_code\operations-log.md`。
-- 只要本次工作产生了文件新增或文件变更，必须在 `E:\video_project\proj_ui\project_code\operations-log.md` 追加一条记录。
+- 在新增文件或修改现有文件前，先确认是否需要同步更新 `project_code/operations-log.md`。
+- 只要本次工作产生了文件新增或文件变更，必须在 `project_code/operations-log.md` 追加一条记录。
 - 记录内容至少包含：变更时间、变更原因、涉及文件、核心改动、验证结果（如未验证需明确说明）。
-- `E:\video_project\proj_ui\project_code\operations-log.md` 的记录要与实际落盘文件保持一致，后续若继续追加修改，同一任务也要补充到日志中。
+- `project_code/operations-log.md` 的记录要与实际落盘文件保持一致，后续若继续追加修改，同一任务也要补充到日志中。

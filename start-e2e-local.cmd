@@ -22,8 +22,6 @@ set "DEBUG=true"
 pushd "%BACKEND_ROOT%"
 "%PYTHON_EXE%" scripts\init_db.py
 if errorlevel 1 exit /b 1
-"%PYTHON_EXE%" scripts\seed_data.py
-if errorlevel 1 exit /b 1
 popd
 
 netstat -ano | findstr ":8000" >nul

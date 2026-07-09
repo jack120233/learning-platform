@@ -1,6 +1,6 @@
-"""数据库初始化脚本
+"""SQLite 统一初始化脚本。
 
-用于首次部署时初始化数据库表结构。
+默认执行标准首启 bootstrap，而不是仅建表。
 
 用法:
     cd backend
@@ -14,30 +14,33 @@ from pathlib import Path
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect
 
+from app.config import settings
 from app.core.dependencies import engine
-from app.core.db_schema import ensure_database_compatibility
-from app.models import Base
+from app.core.runtime import ensure_runtime_directories, ensure_sqlite_file_startup, initialize_database_schema
 
 
 async def init_database() -> None:
-    """初始化数据库表结构"""
+    """执行统一初始化。"""
     print("=" * 50)
-    print("数据库初始化脚本")
+    print("SQLite 统一初始化脚本")
     print("=" * 50)
 
     try:
-        async with engine.begin() as conn:
-            # 测试数据库连接
-            await conn.execute(text("SELECT 1"))
-            print("数据库连接成功")
+        ensure_runtime_directories()
 
-            # 创建所有表
-            await conn.run_sync(Base.metadata.create_all)
-            print("数据库表初始化完成")
-            for message in await ensure_database_compatibility(conn):
+        if settings.is_sqlite_file_database:
+            startup_result = await ensure_sqlite_file_startup()
+            for message in startup_result.messages:
                 print(message)
+            if startup_result.status == "blocked":
+                raise RuntimeError("\n".join(startup_result.messages))
+            print("已完成标准 SQLite 初始化" if startup_result.status == "bootstrapped" else "已初始化，跳过")
+        else:
+            async with engine.begin() as conn:
+                for message in await initialize_database_schema(conn):
+                    print(message)
 
         # 显示创建的表
         async with engine.connect() as conn:

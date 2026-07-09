@@ -1077,3 +1077,70 @@
   - 新增测试覆盖新库初始化完整写入，以及半初始化库/部分缺失库会补齐缺失角色权限。
 - 验证结果：
   - 待执行：`cd project_code/backend && ../.venv/bin/pytest tests/test_permissions.py tests/test_runtime_config.py -q`
+
+## 统一 SQLite 初始化与首启重置
+时间：2026-07-08 17:29
+
+- 变更原因：开发版 SQLite 与 `windows_local` 初始化链路长期分叉，导致旧库、半初始化库和运行时补权限/补字段混用；切换 SQLite 后容易出现缺列、残留账号和初始化结果不一致问题。
+- 涉及文件：
+  - `project_code/backend/app/config.py`
+  - `project_code/backend/app/main.py`
+  - `project_code/backend/app/core/runtime.py`
+  - `project_code/backend/app/models/__init__.py`
+  - `project_code/backend/app/models/bootstrap.py`
+  - `project_code/backend/scripts/init_db.py`
+  - `project_code/backend/scripts/reset_local_state.py`
+  - `project_code/backend/scripts/seed_data.py`
+  - `project_code/backend/tests/test_runtime_config.py`
+  - `start-e2e-local.cmd`
+  - `README.md`
+  - `CLAUDE.md`
+  - `project_code/CLAUDE.md`
+  - `docs/current-architecture.md`
+  - `project_code/operations-log.md`
+- 核心改动：
+  - 所有文件型 SQLite 启动统一走标准 bootstrap：准备目录、检查 `bootstrap_state`、必要时删旧库重建、建表、写默认权限、基础数据和演示数据。
+  - 新增 `bootstrap_state` 元数据表和 `bootstrap_version` 校验；缺元数据、缺关键字段或层级不匹配的旧库一律视为非标准库，直接重建，不再运行时缝补。
+  - 演示数据固定收敛为 `admin1`、`teacher1`、`student1` 三个账号，加 2 门课程、章节/小节/资源和 2 条公告；分类、标签归入基础层种子。
+  - `init_db.py` 改为统一初始化入口；新增 `reset_local_state.py`，显式清空 SQLite、uploads、cache、logs 并恢复到第一次打开后的标准状态。
+  - `start-e2e-local.cmd` 不再执行 `init_db.py + seed_data.py` 双命令链，避免重复初始化；相关说明与账号清单同步更新。
+  - 补充运行时测试，覆盖空库 bootstrap、重复启动幂等、旧库自动重建、全量重置和历史 schema 兼容修复。
+- 验证结果：
+  - 已执行：`python -m compileall project_code/backend/app project_code/backend/scripts project_code/backend/tests`
+  - 结果：通过。
+  - 已执行：`cd project_code/backend && ../.venv/bin/pytest tests/test_runtime_config.py -q`
+  - 结果：`21 passed, 1 warning`。
+  - 待执行：对当前工作区真实 `learning_platform.db` 执行 `reset_local_state.py`，并复验启动后登录与基础数据状态。
+
+## SQLite 三态阻断与真实库复验
+时间：2026-07-08 23:45
+
+- 变更原因：上一版 SQLite bootstrap 仍会自动重建旧库、reset 后自动重新初始化，和“只允许首启初始化，非标准库直接阻断并提示 reset”的边界不一致；同时需要补齐真实工作区的 reset/init/二次启动验证。
+- 涉及文件：
+  - `project_code/.gitignore`
+  - `project_code/backend/app/config.py`
+  - `project_code/backend/app/core/runtime.py`
+  - `project_code/backend/app/main.py`
+  - `project_code/backend/app/models/__init__.py`
+  - `project_code/backend/scripts/init_db.py`
+  - `project_code/backend/scripts/reset_local_state.py`
+  - `project_code/backend/tests/test_runtime_config.py`
+  - `README.md`
+  - `project_code/CLAUDE.md`
+  - `docs/current-architecture.md`
+  - `project_code/operations-log.md`
+- 核心改动：
+  - 配置改为固定从 `project_code/backend/.env` 读取，并把相对 SQLite/上传/缓存/日志路径统一解析到 backend 运行根目录，保证从仓库根目录和 backend 目录运行时命中同一份本地数据。
+  - 文件型 SQLite 启动改为三态：空状态执行一次完整 bootstrap；数据库与 `.sqlite-bootstrap.json` 同时存在且版本/seed profile 匹配时直接跳过；其他组合一律阻断并提示运行 `reset_local_state.py`。
+  - 首启 bootstrap 改为临时库构建 + 原子替换：建表、写默认权限与角色权限、基础数据、演示数据、结果校验完成后才替换正式库并写 bootstrap 清单。
+  - 正常启动链路移除旧库自动修复/自动删库重建；`reset_local_state.py` 改为纯清理脚本，不再顺手重建数据库。
+  - 测试覆盖更新到新行为：路径解析、三态阻断、manifest 生成、二次启动不改库、reset 清理、reset 后登录接口可用；同时把新的 bootstrap 清单与临时库文件加入忽略规则，避免真实验证产物污染 `git status`。
+- 验证结果：
+  - 已执行：`project_code/.venv/bin/python -m pytest project_code/backend/tests/test_runtime_config.py -q -o log_cli=false`
+  - 结果：`27 passed, 1 warning`。
+  - 已执行：`project_code/.venv/bin/python project_code/backend/scripts/reset_local_state.py`
+  - 结果：真实工作区 SQLite、uploads、logs、cache 已清空，数据库文件与 bootstrap 清单均不存在。
+  - 已执行：`project_code/.venv/bin/python project_code/backend/scripts/init_db.py`
+  - 结果：真实工作区完成标准首启初始化，生成 `project_code/backend/data/learning_platform.db` 与 `.sqlite-bootstrap.json`。
+  - 已执行：`env PYTHONPATH=project_code/backend project_code/.venv/bin/python -c "...ensure_sqlite_file_startup()..."`
+  - 结果：返回 `status=skipped`，数据库与 manifest 的 `mtime` 均未变化。

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.config import settings
 from app.core.security import decode_token
 from app.core.sql_logging import install_sql_logging
+from app.core.runtime import install_sqlite_runtime_hooks
 from app.models.user import User
 from app.schemas.common import BusinessCode
 
@@ -28,6 +29,7 @@ engine = create_async_engine(
     pool_pre_ping=True,
     connect_args=settings.sqlalchemy_connect_args,
 )
+install_sqlite_runtime_hooks(engine)
 install_sql_logging(engine)
 
 # 异步会话工厂

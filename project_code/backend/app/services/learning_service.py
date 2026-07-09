@@ -4,6 +4,7 @@
 """
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -518,7 +519,7 @@ class LearningService:
             "play_url": resource.file_url,
             "file_url": resource.file_url,
             "resource_type": resource_type,
-            "file_name": resource.title,
+            "file_name": Path(resource.file_url).name or resource.title,
             "duration": resource.duration,
             "is_free": resource.is_free,
             "resolution": None,

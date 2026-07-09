@@ -62,10 +62,13 @@ pytest tests/test_auth.py::test_register -v
 # 生成覆盖率报告
 pytest tests/ --cov=app --cov-report=html
 
-# 初始化数据库表结构
+# 标准 SQLite 初始化
 python scripts/init_db.py
 
-# 导入种子数据
+# 恢复到第一次打开后的标准状态
+python scripts/reset_local_state.py
+
+# 兼容导入演示数据
 python scripts/seed_data.py
 ```
 
@@ -89,7 +92,6 @@ python scripts/seed_data.py
 | 管理员 | `admin1` | `Admin123456` | `admin1@example.com` |
 | 教师 | `teacher1` | `Test123456` | `teacher1@example.com` |
 | 学生 | `student1` | `Test123456` | `student1@example.com` |
-| 学生 | `student2` | `Test123456` | `student2@example.com` |
 
 ## 强制目录路由规则
 
