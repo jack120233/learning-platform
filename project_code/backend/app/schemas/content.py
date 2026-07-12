@@ -241,13 +241,51 @@ class ResourceCreate(BaseModel):
 class ResourceResponse(BaseModel):
     """资源响应"""
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_file_name(cls, data: object) -> object:
+        """优先返回原始文件名，缺失时回退到标题。"""
+        if isinstance(data, dict):
+            normalized = dict(data)
+            if not normalized.get("file_name") and normalized.get("title"):
+                normalized["file_name"] = normalized["title"]
+            return normalized
+
+        file_name = getattr(data, "file_name", None)
+        title = getattr(data, "title", None)
+        if file_name:
+            return data
+        if title is None:
+            return data
+
+        normalized = {
+            "id": getattr(data, "id"),
+            "resource_id": getattr(data, "resource_id", getattr(data, "id")),
+            "course_id": getattr(data, "course_id"),
+            "chapter_id": getattr(data, "chapter_id"),
+            "section_id": getattr(data, "section_id", None),
+            "title": title,
+            "file_name": title,
+            "type": getattr(data, "type"),
+            "resource_type": getattr(data, "resource_type", getattr(data, "type")),
+            "file_url": getattr(data, "file_url"),
+            "file_size": getattr(data, "file_size"),
+            "duration": getattr(data, "duration"),
+            "sort_order": getattr(data, "sort_order"),
+            "is_free": getattr(data, "is_free"),
+            "is_required": getattr(data, "is_required", True),
+            "view_count": getattr(data, "view_count"),
+            "created_at": getattr(data, "created_at"),
+        }
+        return normalized
+
     id: int = Field(description="资源ID")
     resource_id: int = Field(validation_alias=AliasChoices("id", "resource_id"), description="资源ID")
     course_id: int = Field(description="课程ID")
     chapter_id: int = Field(description="章节ID")
     section_id: int | None = Field(default=None, description="小节ID")
     title: str = Field(description="资源标题")
-    file_name: str = Field(validation_alias=AliasChoices("title", "file_name"), description="文件名")
+    file_name: str = Field(validation_alias=AliasChoices("file_name", "title"), description="文件名")
     type: str = Field(description="资源类型")
     resource_type: str = Field(validation_alias=AliasChoices("type", "resource_type"), description="资源类型")
     file_url: str = Field(description="文件URL")

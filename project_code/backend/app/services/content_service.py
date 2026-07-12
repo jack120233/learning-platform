@@ -420,7 +420,7 @@ class ResourceService:
         resource_type = normalize_resource_type(
             data.type,
             file_url=data.file_url,
-            file_name=data.title or data.file_name,
+            file_name=data.file_name or data.title,
         )
 
         resource = Resource(
@@ -428,6 +428,7 @@ class ResourceService:
             chapter_id=chapter_id,
             section_id=section_id,
             title=data.title,
+            file_name=data.file_name,
             type=resource_type,
             file_url=data.file_url,
             file_size=data.file_size,
@@ -471,7 +472,7 @@ class ResourceService:
         resource_type = normalize_resource_type(
             data.type,
             file_url=data.file_url,
-            file_name=data.title or data.file_name,
+            file_name=data.file_name or data.title,
         )
 
         resource = Resource(
@@ -479,6 +480,7 @@ class ResourceService:
             chapter_id=chapter_id,
             section_id=None,
             title=data.title,
+            file_name=data.file_name,
             type=resource_type,
             file_url=data.file_url,
             file_size=data.file_size,

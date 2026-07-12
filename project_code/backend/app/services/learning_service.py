@@ -4,8 +4,6 @@
 """
 
 from datetime import datetime, timezone
-from pathlib import Path
-
 from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -293,7 +291,7 @@ class LearningService:
         resource_type = normalize_resource_type(
             resource.type,
             file_url=resource.file_url,
-            file_name=resource.title,
+            file_name=resource.file_name or resource.title,
         )
         accepted_duration = self._normalize_session_duration(data, resource, resource_type)
 
@@ -467,7 +465,7 @@ class LearningService:
                 "last_resource_type": normalize_resource_type(
                     resource.type if resource else "",
                     file_url=resource.file_url if resource else None,
-                    file_name=resource.title if resource else None,
+                    file_name=(resource.file_name or resource.title) if resource else None,
                 ),
                 "current_time": progress.position,
                 "last_learn_at": progress.last_play_at,
@@ -510,7 +508,7 @@ class LearningService:
         resource_type = normalize_resource_type(
             resource.type,
             file_url=resource.file_url,
-            file_name=resource.title,
+            file_name=resource.file_name or resource.title,
         )
 
         return {
@@ -519,7 +517,7 @@ class LearningService:
             "play_url": resource.file_url,
             "file_url": resource.file_url,
             "resource_type": resource_type,
-            "file_name": Path(resource.file_url).name or resource.title,
+            "file_name": resource.file_name or resource.title,
             "duration": resource.duration,
             "is_free": resource.is_free,
             "resolution": None,

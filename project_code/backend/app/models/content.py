@@ -147,6 +147,7 @@ class Resource(BaseModel):
         chapter_id: 章节ID
         section_id: 小节ID
         title: 资源标题
+        file_name: 原始文件名
         type: 资源类型（video/document/quiz）
         file_url: 文件URL
         file_size: 文件大小（字节）
@@ -177,6 +178,11 @@ class Resource(BaseModel):
         String(200),
         nullable=False,
         comment="资源标题",
+    )
+    file_name: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="原始文件名",
     )
     type: Mapped[str] = mapped_column(
         String(20),

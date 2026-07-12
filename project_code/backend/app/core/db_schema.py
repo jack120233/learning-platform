@@ -74,6 +74,13 @@ async def ensure_database_compatibility(conn: AsyncConnection) -> list[str]:
 
     await ensure_column(
         "resources",
+        "file_name",
+        lambda _: "ALTER TABLE resources ADD COLUMN file_name VARCHAR(255)",
+        "已为 resources 表补充 file_name 字段",
+    )
+
+    await ensure_column(
+        "resources",
         "is_required",
         lambda dialect: (
             "ALTER TABLE resources ADD COLUMN is_required BOOLEAN NOT NULL DEFAULT 1"

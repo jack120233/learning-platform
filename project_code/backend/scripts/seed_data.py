@@ -472,6 +472,7 @@ async def _seed_course_sections(
                 chapter_id=chapter.id,
                 section_id=section.id,
                 title=str(section_spec["resource_title"]),
+                file_name=str(section_spec["document_file_name"]),
                 type="document",
                 file_url=get_demo_document_runtime_url(str(section_spec["document_file_name"])),
                 duration=0,
