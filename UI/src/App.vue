@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from '@/components/layout/AppHeader.vue'
-import AppFooter from '@/components/layout/AppFooter.vue'
 
 const route = useRoute()
 const hideAppChrome = computed(() => route.meta.hideAppChrome === true)
@@ -19,7 +18,6 @@ const hideAppChrome = computed(() => route.meta.hideAppChrome === true)
           </transition>
         </router-view>
       </main>
-      <AppFooter v-if="!hideAppChrome" />
     </div>
   </el-config-provider>
 </template>
