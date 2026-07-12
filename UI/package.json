@@ -8,6 +8,7 @@
     "dev:force": "vite --force",
     "dev:reset": "node scripts/reset-vite-cache.mjs && vite --force",
     "build": "vue-tsc -b && vite build",
+    "verify:upload-limits": "node scripts/verify-upload-limits.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

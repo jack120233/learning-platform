@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"API 文档: http://{settings.host}:{settings.port}/docs")
     logger.info(f"日志目录: {settings.resolved_log_dir}")
     logger.info(f"上传目录: {settings.resolved_upload_dir}")
-    if settings.is_windows_edition:
+    if settings.is_sqlite_file_database and settings.resolved_sqlite_database_path is not None:
         logger.info(f"本地数据目录: {settings.resolved_local_database_path.parent}")
         logger.info(f"缓存后端: {settings.effective_cache_backend}")
     if settings.is_sqlite_file_database:
@@ -130,7 +130,7 @@ app.mount(
 
 frontend_dist_dir = settings.parsed_frontend_dist_dir
 frontend_index_path = settings.parsed_frontend_index_path
-if settings.app_edition == "windows_local" and frontend_index_path.is_file():
+if frontend_index_path.is_file():
     app.mount(
         "/assets",
         StaticFiles(directory=frontend_dist_dir / "assets"),
@@ -168,7 +168,7 @@ async def root():
     Returns:
         服务信息
     """
-    if settings.app_edition == "windows_local" and settings.parsed_frontend_index_path.is_file():
+    if settings.parsed_frontend_index_path.is_file():
         return FileResponse(settings.parsed_frontend_index_path)
 
     return ApiResponse.success(
@@ -184,8 +184,7 @@ async def root():
 @app.get("/{frontend_path:path}", response_model=None, include_in_schema=False)
 async def frontend_spa_fallback(frontend_path: str):
     if (
-        settings.app_edition != "windows_local"
-        or not settings.parsed_frontend_index_path.is_file()
+        not settings.parsed_frontend_index_path.is_file()
         or not should_serve_frontend_spa(
             frontend_path,
             settings.api_v1_prefix,

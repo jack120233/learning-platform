@@ -255,6 +255,7 @@ export interface ChunkUploadInitRequest {
   file_name: string
   file_size: number
   chunk_size: number
+  content_type?: string
 }
 
 /** 分片上传初始化响应 */
