@@ -5,6 +5,7 @@ import json
 import shutil
 from math import ceil
 from pathlib import Path
+from typing import NamedTuple
 from uuid import uuid4
 
 from fastapi import UploadFile
@@ -16,6 +17,11 @@ from app.schemas.upload import ChunkUploadCompleteRequest, ChunkUploadInitReques
 
 class UploadService:
     """文件上传服务类。"""
+
+    class UploadPolicy(NamedTuple):
+        subdir: str
+        direct_max_size: int
+        chunk_max_size: int
 
     allowed_image_extensions = {".jpg", ".jpeg", ".png"}
     allowed_image_content_types = {"image/jpeg", "image/jpg", "image/png"}
@@ -69,16 +75,36 @@ class UploadService:
         """初始化上传服务。"""
         self._upload_locks: dict[str, asyncio.Lock] = {}
 
+    @staticmethod
+    def _format_size_limit(size_in_bytes: int) -> str:
+        """将字节数格式化为用于错误提示的大小文本。"""
+        gib = 1024 * 1024 * 1024
+        mib = 1024 * 1024
+        kib = 1024
+
+        if size_in_bytes >= gib and size_in_bytes % gib == 0:
+            return f"{size_in_bytes // gib}GB"
+        if size_in_bytes >= mib and size_in_bytes % mib == 0:
+            return f"{size_in_bytes // mib}MB"
+        if size_in_bytes >= kib and size_in_bytes % kib == 0:
+            return f"{size_in_bytes // kib}KB"
+        return f"{size_in_bytes}B"
+
+    @classmethod
+    def _size_limit_message(cls, size_in_bytes: int) -> str:
+        """构造统一的文件大小超限提示。"""
+        return f"文件大小不能超过{cls._format_size_limit(size_in_bytes)}"
+
     async def save_file(
         self,
         file: UploadFile,
     ) -> dict[str, str | int | None]:
         """保存上传文件并返回访问信息。"""
-        subdir, max_size = self._resolve_storage(
+        policy = self._resolve_upload_policy(
             Path(file.filename or "").suffix.lower(),
             file.content_type.lower() if file.content_type else None,
         )
-        return await self._save_upload_file(file, subdir, max_size)
+        return await self._save_upload_file(file, policy.subdir, policy.direct_max_size)
 
     async def save_avatar(
         self,
@@ -137,9 +163,7 @@ class UploadService:
             raise ValidationException("上传文件不能为空")
 
         if len(content) > max_size:
-            if subdir in {settings.course_cover_subdir, settings.avatar_subdir}:
-                raise ValidationException("文件大小不能超过10MB")
-            raise ValidationException("文件大小不能超过100MB")
+            raise ValidationException(self._size_limit_message(max_size))
 
         upload_dir = Path(settings.upload_dir) / subdir
         upload_dir.mkdir(parents=True, exist_ok=True)
@@ -168,10 +192,13 @@ class UploadService:
     ) -> dict[str, str | int]:
         """初始化分片上传任务。"""
         extension = Path(data.file_name).suffix.lower()
-        self._resolve_storage(extension, data.content_type.lower() if data.content_type else None)
+        policy = self._resolve_upload_policy(
+            extension,
+            data.content_type.lower() if data.content_type else None,
+        )
 
-        if data.file_size > settings.chunk_file_max_size:
-            raise ValidationException("文件大小不能超过500MB")
+        if data.file_size > policy.chunk_max_size:
+            raise ValidationException(self._size_limit_message(policy.chunk_max_size))
 
         upload_id = uuid4().hex
         total_chunks = ceil(data.file_size / data.chunk_size)
@@ -272,12 +299,12 @@ class UploadService:
 
                 extension = Path(data.file_name).suffix.lower()
                 content_type = manifest.get("content_type")
-                subdir, _ = self._resolve_storage(
+                policy = self._resolve_upload_policy(
                     extension,
                     content_type.lower() if isinstance(content_type, str) else None,
                 )
 
-                upload_dir = Path(settings.upload_dir) / subdir
+                upload_dir = Path(settings.upload_dir) / policy.subdir
                 upload_dir.mkdir(parents=True, exist_ok=True)
                 saved_name = f"{uuid4().hex}{extension}"
                 save_path = upload_dir / saved_name
@@ -294,7 +321,7 @@ class UploadService:
                     save_path.unlink(missing_ok=True)
                     raise ValidationException("合并后的文件大小校验失败")
 
-                file_url = f"{settings.upload_url_prefix.rstrip('/')}/{subdir}/{saved_name}"
+                file_url = f"{settings.upload_url_prefix.rstrip('/')}/{policy.subdir}/{saved_name}"
 
                 shutil.rmtree(session_dir, ignore_errors=True)
 
@@ -312,31 +339,47 @@ class UploadService:
                     self._write_manifest(session_dir, manifest)
                 raise
 
-    def _resolve_storage(
+    def _resolve_upload_policy(
         self,
         extension: str,
         content_type: str | None,
-    ) -> tuple[str, int]:
-        """根据扩展名和 MIME 类型决定存储目录与大小限制。"""
+    ) -> UploadPolicy:
+        """根据扩展名和 MIME 类型决定存储目录与普通/分片大小限制。"""
         if extension in self.allowed_image_extensions:
             if content_type and content_type not in self.allowed_image_content_types:
                 raise ValidationException("仅支持 JPG/PNG 格式图片")
-            return settings.course_cover_subdir, settings.course_cover_max_size
+            return self.UploadPolicy(
+                subdir=settings.course_cover_subdir,
+                direct_max_size=settings.course_cover_max_size,
+                chunk_max_size=settings.course_cover_max_size,
+            )
 
         if extension in self.allowed_document_extensions:
             if content_type and content_type not in self.allowed_document_content_types:
                 raise ValidationException("不支持的文件类型")
-            return settings.general_upload_subdir, settings.general_file_max_size
+            return self.UploadPolicy(
+                subdir=settings.general_upload_subdir,
+                direct_max_size=settings.general_file_max_size,
+                chunk_max_size=settings.chunk_file_max_size,
+            )
 
         if extension in self.allowed_video_extensions:
             if content_type and content_type not in self.allowed_video_content_types:
                 raise ValidationException("不支持的文件类型")
-            return settings.general_upload_subdir, settings.general_file_max_size
+            return self.UploadPolicy(
+                subdir=settings.general_upload_subdir,
+                direct_max_size=settings.general_file_max_size,
+                chunk_max_size=settings.chunk_file_max_size,
+            )
 
         if extension in self.allowed_audio_extensions:
             if content_type and content_type not in self.allowed_audio_content_types:
                 raise ValidationException("不支持的文件类型")
-            return settings.general_upload_subdir, settings.general_file_max_size
+            return self.UploadPolicy(
+                subdir=settings.general_upload_subdir,
+                direct_max_size=settings.general_file_max_size,
+                chunk_max_size=settings.chunk_file_max_size,
+            )
 
         if extension in self.known_image_extensions or (
             content_type and content_type.startswith("image/")

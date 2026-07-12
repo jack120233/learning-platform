@@ -22,6 +22,8 @@
 - 正常初始化：启动后端，或手动执行 `python project_code/backend/scripts/init_db.py`
 - 首启重置：执行 `python project_code/backend/scripts/reset_local_state.py`
 
+未显式配置 `DATABASE_URL` 时，后端默认会使用 `project_code/backend/data/windows-local.db`，不再使用内存型 SQLite。
+
 首次启动或空状态执行 `init_db.py` 时，会完成标准 SQLite 初始化：建表、默认权限、基础数据和演示数据。  
 后续启动只检查 SQLite 文件和 bootstrap 清单，不再自动建表、补字段、补权限、补种子，也不会自动删库重建。  
 `reset_local_state.py` 会清空 SQLite、bootstrap 清单、`uploads/`、缓存目录和日志目录。  

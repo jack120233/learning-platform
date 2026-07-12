@@ -284,6 +284,7 @@ async def seed_categories(session: AsyncSession) -> list[Category]:
         {"name": "数据分析", "slug": "data-analysis", "description": "数据分析和可视化课程", "sort_order": 3},
         {"name": "设计创意", "slug": "design", "description": "UI/UX设计课程", "sort_order": 4},
         {"name": "语言学习", "slug": "language", "description": "外语学习课程", "sort_order": 5},
+        {"name": "智能网联", "slug": "intelligent-connected", "description": "智能网联与车路协同课程", "sort_order": 6},
     ]
 
     categories: list[Category] = []
@@ -316,6 +317,7 @@ async def seed_tags(session: AsyncSession) -> list[Tag]:
         {"name": "后端开发", "slug": "backend"},
         {"name": "入门", "slug": "beginner"},
         {"name": "进阶", "slug": "advanced"},
+        {"name": "智能网联", "slug": "intelligent-connected"},
     ]
 
     tags: list[Tag] = []

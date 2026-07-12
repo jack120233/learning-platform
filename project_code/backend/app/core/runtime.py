@@ -28,8 +28,8 @@ SQLITE_BOOTSTRAP_MANIFEST_FILENAME = ".sqlite-bootstrap.json"
 SQLITE_DATABASE_ARTIFACT_SUFFIXES = ("", "-wal", "-shm", "-journal")
 STANDARD_SQLITE_EXPECTED_ROW_COUNTS: dict[str, int] = {
     "users": 3,
-    "categories": 5,
-    "tags": 10,
+    "categories": 6,
+    "tags": 11,
     "courses": 2,
     "chapters": 4,
     "sections": 8,
@@ -256,11 +256,6 @@ async def configure_sqlite_runtime(conn: AsyncConnection) -> list[str]:
     await conn.execute(text(f"PRAGMA busy_timeout={settings.sqlite_busy_timeout_ms}"))
     messages.append(f"已设置 SQLite busy_timeout={settings.sqlite_busy_timeout_ms}ms")
 
-    if settings.app_edition == "windows_classroom":
-        result = await conn.execute(text("PRAGMA journal_mode=WAL"))
-        journal_mode = (result.scalar() or "").upper()
-        messages.append(f"已设置 SQLite journal_mode={journal_mode or 'WAL'}")
-
     return messages
 
 
@@ -277,9 +272,6 @@ def install_sqlite_runtime_hooks(engine: AsyncEngine) -> None:
         cursor = dbapi_connection.cursor()
         try:
             cursor.execute(f"PRAGMA busy_timeout={settings.sqlite_busy_timeout_ms}")
-            if settings.app_edition == "windows_classroom":
-                cursor.execute("PRAGMA journal_mode=WAL")
-                cursor.fetchone()
         finally:
             cursor.close()
 

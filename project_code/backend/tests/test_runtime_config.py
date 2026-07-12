@@ -47,14 +47,13 @@ def test_settings_model_config_points_to_backend_env_file():
     assert env_file == BASE_DIR / ".env"
 
 
-def test_windows_local_defaults_to_sqlite_file_and_diskcache(tmp_path):
+def test_defaults_to_sqlite_file_and_diskcache(tmp_path):
     instance = Settings(
         _env_file=None,
-        app_edition="windows_local",
-        windows_local_data_dir=str(tmp_path / "data"),
-        windows_local_cache_dir=str(tmp_path / "data" / "cache"),
-        windows_local_upload_dir=str(tmp_path / "uploads"),
-        windows_local_log_dir=str(tmp_path / "logs"),
+        local_data_dir=str(tmp_path / "data"),
+        local_cache_dir=str(tmp_path / "data" / "cache"),
+        upload_dir=str(tmp_path / "uploads"),
+        log_dir=str(tmp_path / "logs"),
     )
 
     assert instance.async_database_url.startswith("sqlite+aiosqlite:///")
@@ -70,7 +69,6 @@ def test_windows_local_defaults_to_sqlite_file_and_diskcache(tmp_path):
 def test_relative_sqlite_paths_resolve_to_backend_root():
     instance = Settings(
         _env_file=None,
-        app_edition="development",
         database_url="sqlite+aiosqlite:///./data/learning_platform.db",
         local_data_dir="./data",
         local_cache_dir="./data/cache",
@@ -93,7 +91,6 @@ def test_relative_sqlite_paths_resolve_to_backend_root():
 def test_explicit_database_url_keeps_in_memory_sqlite_for_tests():
     instance = Settings(
         _env_file=None,
-        app_edition="windows_classroom",
         database_url="sqlite+aiosqlite:///:memory:",
     )
 
@@ -104,19 +101,20 @@ def test_explicit_database_url_keeps_in_memory_sqlite_for_tests():
     assert instance.sqlalchemy_connect_args == {}
 
 
-def test_server_defaults_to_memory_cache():
-    instance = Settings(_env_file=None, app_edition="server")
+def test_auto_cache_defaults_to_diskcache():
+    instance = Settings(_env_file=None)
 
-    assert instance.effective_cache_backend == "memory"
-    assert instance.async_database_url == "sqlite+aiosqlite:///:memory:"
+    assert instance.effective_cache_backend == "diskcache"
+    assert instance.async_database_url.endswith("windows-local.db")
+    assert instance.resolved_sqlite_database_path == (BASE_DIR / "data" / "windows-local.db").resolve()
 
 
-def test_windows_local_frontend_paths_point_to_ui_dist():
-    instance = Settings(_env_file=None, app_edition="windows_local")
+def test_frontend_paths_point_to_ui_dist():
+    instance = Settings(_env_file=None)
 
     assert instance.parsed_frontend_dist_dir.name == "dist"
     assert instance.parsed_frontend_index_path.name == "index.html"
-    assert instance.windows_local_frontend_ready in {True, False}
+    assert instance.frontend_ready in {True, False}
 
 
 def test_init_db_script_bootstraps_standard_database_from_repo_root(tmp_path):
@@ -131,7 +129,6 @@ def test_init_db_script_bootstraps_standard_database_from_repo_root(tmp_path):
     env.update(
         {
             "PYTHONPATH": str(BASE_DIR),
-            "APP_EDITION": "development",
             "DATABASE_URL": f"sqlite+aiosqlite:///{database_path.as_posix()}",
             "UPLOAD_DIR": str(uploads_dir),
             "LOG_DIR": str(logs_dir),
@@ -164,7 +161,7 @@ def test_init_db_script_bootstraps_standard_database_from_repo_root(tmp_path):
         "teacher/courses/create",
     ],
 )
-def test_windows_local_spa_fallback_allows_frontend_routes(path):
+def test_spa_fallback_allows_frontend_routes(path):
     assert should_serve_frontend_spa(path, "/api/v1", "/uploads") is True
 
 
@@ -178,7 +175,7 @@ def test_windows_local_spa_fallback_allows_frontend_routes(path):
         "uploads/missing.png",
     ],
 )
-def test_windows_local_spa_fallback_excludes_api_and_upload_routes(path):
+def test_spa_fallback_excludes_api_and_upload_routes(path):
     assert should_serve_frontend_spa(path, "/api/v1", "/uploads") is False
 
 
@@ -244,16 +241,12 @@ def sqlite_runtime_settings(tmp_path, monkeypatch):
     manifest_path = get_sqlite_bootstrap_manifest_path(database_path)
     database_url = f"sqlite+aiosqlite:///{database_path.as_posix()}"
 
-    monkeypatch.setattr(settings, "app_edition", "development")
     monkeypatch.setattr(settings, "database_url", database_url)
     monkeypatch.setattr(settings, "upload_dir", str(uploads_dir))
     monkeypatch.setattr(settings, "log_dir", str(logs_dir))
     monkeypatch.setattr(settings, "local_data_dir", str(data_dir))
     monkeypatch.setattr(settings, "local_cache_dir", str(cache_dir))
-    monkeypatch.setattr(settings, "windows_local_data_dir", str(data_dir))
-    monkeypatch.setattr(settings, "windows_local_upload_dir", str(uploads_dir))
-    monkeypatch.setattr(settings, "windows_local_log_dir", str(logs_dir))
-    monkeypatch.setattr(settings, "windows_local_cache_dir", str(cache_dir))
+    monkeypatch.setattr(settings, "local_database_filename", "learning_platform.db")
 
     return {
         "tmp_path": tmp_path,
@@ -302,8 +295,8 @@ async def test_ensure_sqlite_file_startup_bootstraps_standard_database(sqlite_ru
     try:
         async with session_factory() as session:
             users = await session.execute(select(User.username).order_by(User.id.asc()))
-            categories = await session.execute(select(Category.id))
-            tags = await session.execute(select(Tag.id))
+            categories = await session.execute(select(Category.name).order_by(Category.id.asc()))
+            tags = await session.execute(select(Tag.name).order_by(Tag.id.asc()))
             courses = await session.execute(
                 select(Course.title, Course.total_sections, Course.total_duration).order_by(Course.id.asc())
             )
@@ -326,8 +319,12 @@ async def test_ensure_sqlite_file_startup_bootstraps_standard_database(sqlite_ru
             )
 
         assert list(users.scalars().all()) == ["admin1", "teacher1", "student1"]
-        assert len(categories.scalars().all()) == 5
-        assert len(tags.scalars().all()) == 10
+        category_names = list(categories.scalars().all())
+        tag_names = list(tags.scalars().all())
+        assert len(category_names) == 6
+        assert "智能网联" in category_names
+        assert len(tag_names) == 11
+        assert "智能网联" in tag_names
         assert courses.all() == [
             ("Python入门", 4, 0),
             ("FastAPI实战", 4, 0),
@@ -378,28 +375,9 @@ async def test_ensure_sqlite_file_startup_skips_standard_database_without_writin
 
 
 @pytest.mark.asyncio
-async def test_ensure_sqlite_file_startup_bootstrap_enables_wal_for_windows_classroom(
-    sqlite_runtime_settings,
-    monkeypatch,
-):
-    database_path = sqlite_runtime_settings["database_path"]
-    monkeypatch.setattr(settings, "app_edition", "windows_classroom")
-
-    result = await ensure_sqlite_file_startup()
-
-    assert result.status == "bootstrapped"
-    with sqlite3.connect(database_path) as conn:
-        journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
-
-    assert journal_mode.lower() == "wal"
-
-
-@pytest.mark.asyncio
 async def test_install_sqlite_runtime_hooks_configure_new_file_connections(
     sqlite_runtime_settings,
-    monkeypatch,
 ):
-    monkeypatch.setattr(settings, "app_edition", "windows_classroom")
     sqlite_runtime_settings["database_path"].parent.mkdir(parents=True, exist_ok=True)
     runtime_engine = create_async_engine(
         sqlite_runtime_settings["database_url"],
@@ -410,10 +388,8 @@ async def test_install_sqlite_runtime_hooks_configure_new_file_connections(
     try:
         async with runtime_engine.connect() as conn:
             busy_timeout = (await conn.execute(text("PRAGMA busy_timeout"))).scalar()
-            journal_mode = (await conn.execute(text("PRAGMA journal_mode"))).scalar()
 
         assert busy_timeout == settings.sqlite_busy_timeout_ms
-        assert str(journal_mode).lower() == "wal"
     finally:
         await runtime_engine.dispose()
 

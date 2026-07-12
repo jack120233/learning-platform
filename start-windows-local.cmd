@@ -43,7 +43,6 @@ for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%CONFIG_FILE%") do (
     if not "%%a"=="" set "%%a=%%b"
 )
 
-if not defined APP_EDITION set "APP_EDITION=windows_local"
 if not defined HOST set "HOST=127.0.0.1"
 if not defined PORT set "PORT=8000"
 if not defined CACHE_BACKEND set "CACHE_BACKEND=auto"
@@ -97,7 +96,7 @@ if defined PORT_PID (
 
 >> "%STARTUP_LOG%" echo ==================================================
 >> "%STARTUP_LOG%" echo [%date% %time%] Starting Windows local backend
->> "%STARTUP_LOG%" echo APP_EDITION=%APP_EDITION%, HOST=%HOST%, PORT=%PORT%, CACHE_BACKEND=%CACHE_BACKEND%
+>> "%STARTUP_LOG%" echo HOST=%HOST%, PORT=%PORT%, CACHE_BACKEND=%CACHE_BACKEND%
 
 start "Learning Platform Backend" /D "%BACKEND_DIR%" cmd /d /s /c ""%PYTHON_EXE%" -m uvicorn app.main:app --host %HOST% --port %PORT% 1>>"%STARTUP_LOG%" 2>>"%STARTUP_ERROR_LOG%""
 

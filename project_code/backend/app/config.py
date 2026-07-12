@@ -18,8 +18,6 @@ REPOSITORY_ROOT = PROJECT_ROOT.parent
 FRONTEND_ROOT = REPOSITORY_ROOT / "UI"
 FRONTEND_DIST_DIR = FRONTEND_ROOT / "dist"
 FRONTEND_INDEX_PATH = FRONTEND_DIST_DIR / "index.html"
-WINDOWS_EDITIONS = {"windows_local", "windows_classroom"}
-DEFAULT_DEVELOPMENT_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 DEFAULT_ENV_FILE = BASE_DIR / ".env"
 
 
@@ -42,7 +40,6 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     debug: bool = False
     environment: Literal["development", "testing", "production"] = "development"
-    app_edition: Literal["development", "windows_local", "windows_classroom", "server"] = "development"
 
     # API 配置
     api_v1_prefix: str = "/api/v1"
@@ -51,9 +48,10 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
-    # 本地运行数据目录配置（Windows 单机/机房版默认使用）
+    # 本地运行数据目录配置
     local_data_dir: str = str(BASE_DIR / "data")
     local_database_path: str | None = None
+    local_database_filename: str = "windows-local.db"
     local_cache_dir: str | None = None
 
     # 启动器与前端产物配置
@@ -61,17 +59,10 @@ class Settings(BaseSettings):
     frontend_index_path: str = str(FRONTEND_INDEX_PATH)
     startup_log_dir: str = str(BASE_DIR / "logs")
 
-    # Windows local 默认把单机数据放在 backend/data 下
-    windows_local_data_dir: str = str(BASE_DIR / "data")
-    windows_local_log_dir: str = str(BASE_DIR / "logs")
-    windows_local_upload_dir: str = str(BASE_DIR / "uploads")
-    windows_local_cache_dir: str = str(BASE_DIR / "data" / "cache")
-    windows_local_database_filename: str = "windows-local.db"
-
     # 数据库配置
     database_url: str | None = Field(
         default=None,
-        description="异步数据库连接字符串；Windows 版本未显式配置时自动回落到本地 SQLite 文件",
+        description="异步数据库连接字符串；未显式配置时自动回落到本地 SQLite 文件",
     )
     database_echo: bool = False
     database_log_parameters: bool = False
@@ -129,8 +120,8 @@ class Settings(BaseSettings):
     general_upload_subdir: str = "files"
     chunk_upload_tmp_subdir: str = ".chunk-sessions"
     course_cover_max_size: int = 10 * 1024 * 1024
-    general_file_max_size: int = 100 * 1024 * 1024
-    chunk_file_max_size: int = 500 * 1024 * 1024
+    general_file_max_size: int = 500 * 1024 * 1024
+    chunk_file_max_size: int = 5 * 1024 * 1024 * 1024
 
     @field_validator("debug", mode="before")
     @classmethod
@@ -169,11 +160,6 @@ class Settings(BaseSettings):
             return [item.strip() for item in v.split(",") if item.strip()]
         return v
 
-    @property
-    def is_windows_edition(self) -> bool:
-        """是否为 Windows 单机/机房运行版本。"""
-        return self.app_edition in WINDOWS_EDITIONS
-
     def _resolve_runtime_path(self, value: str | Path) -> Path:
         """将相对路径统一解析到 backend 运行根目录。"""
         path = Path(value).expanduser()
@@ -185,9 +171,7 @@ class Settings(BaseSettings):
         """返回未规范化的数据库连接字符串。"""
         if self.database_url:
             return self.database_url
-        if self.is_windows_edition:
-            return self.windows_sqlite_database_url
-        return DEFAULT_DEVELOPMENT_DATABASE_URL
+        return self.local_sqlite_database_url
 
     def _resolve_sqlite_database_path_from_url(self, database_url: str) -> Path | None:
         """从数据库连接字符串解析 SQLite 文件路径。"""
@@ -207,53 +191,37 @@ class Settings(BaseSettings):
 
     @property
     def resolved_local_database_path(self) -> Path:
-        """Windows 版本默认 SQLite 文件路径。"""
+        """默认 SQLite 文件路径。"""
         if self.local_database_path:
             return self._resolve_runtime_path(self.local_database_path)
-        filename = (
-            self.windows_local_database_filename
-            if self.app_edition == "windows_local"
-            else "learning_platform.db"
-        )
-        return self.resolved_local_data_dir / filename
+        return self.resolved_local_data_dir / self.local_database_filename
 
     @property
     def resolved_local_data_dir(self) -> Path:
         """解析后的本地数据目录。"""
-        data_dir = (
-            self.windows_local_data_dir
-            if self.app_edition == "windows_local"
-            else self.local_data_dir
-        )
-        return self._resolve_runtime_path(data_dir)
+        return self._resolve_runtime_path(self.local_data_dir)
 
     @property
     def resolved_cache_dir(self) -> Path:
         """本地磁盘缓存目录。"""
         if self.local_cache_dir:
             return self._resolve_runtime_path(self.local_cache_dir)
-        if self.app_edition == "windows_local":
-            return self._resolve_runtime_path(self.windows_local_cache_dir)
         return self.resolved_local_data_dir / "cache"
 
     @property
-    def windows_sqlite_database_url(self) -> str:
-        """Windows 版本本地 SQLite 数据库连接字符串。"""
+    def local_sqlite_database_url(self) -> str:
+        """本地 SQLite 数据库连接字符串。"""
         database_path = self.resolved_local_database_path
         return f"sqlite+aiosqlite:///{database_path.as_posix()}"
 
     @property
     def resolved_upload_dir(self) -> Path:
         """解析后的上传目录。"""
-        if self.app_edition == "windows_local" and self.upload_dir == str(BASE_DIR / "uploads"):
-            return self._resolve_runtime_path(self.windows_local_upload_dir)
         return self._resolve_runtime_path(self.upload_dir)
 
     @property
     def resolved_log_dir(self) -> Path:
         """解析后的日志目录。"""
-        if self.app_edition == "windows_local" and self.log_dir == "logs":
-            return self._resolve_runtime_path(self.windows_local_log_dir)
         return self._resolve_runtime_path(self.log_dir)
 
     @property
@@ -287,12 +255,10 @@ class Settings(BaseSettings):
 
     @property
     def effective_cache_backend(self) -> Literal["memory", "diskcache"]:
-        """获取按运行版本解析后的缓存后端。"""
+        """获取解析后的缓存后端。"""
         if self.cache_backend != "auto":
             return self.cache_backend
-        if self.is_windows_edition:
-            return "diskcache"
-        return "memory"
+        return "diskcache"
 
     @property
     def is_sqlite_database(self) -> bool:
@@ -338,8 +304,8 @@ class Settings(BaseSettings):
         return list(dict.fromkeys(directories))
 
     @property
-    def windows_local_frontend_ready(self) -> bool:
-        """Windows 单机版是否已包含可直接承载的前端生产包。"""
+    def frontend_ready(self) -> bool:
+        """是否已包含可直接承载的前端生产包。"""
         return self.parsed_frontend_index_path.is_file()
 
 

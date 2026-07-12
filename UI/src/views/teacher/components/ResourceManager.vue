@@ -13,6 +13,13 @@ import {
   completeChunkUpload,
   type ResourceItem,
 } from '@/api/teacher'
+import {
+  DIRECT_UPLOAD_LIMIT_TEXT,
+  TOTAL_UPLOAD_LIMIT_TEXT,
+  buildChunkUploadInitPayload,
+  getUploadSizeExceededMessage,
+  resolveUploadMode,
+} from '@/utils/uploadLimits'
 
 // Props
 interface Props {
@@ -160,9 +167,10 @@ async function handleUpload(options: { file: File }) {
     return
   }
 
-  // 校验文件大小（最大 500MB）
-  if (file.size > 500 * 1024 * 1024) {
-    ElMessage.warning('文件大小不能超过 500MB')
+  const uploadMode = resolveUploadMode(file.size)
+
+  if (uploadMode === 'blocked') {
+    ElMessage.warning(getUploadSizeExceededMessage())
     return
   }
 
@@ -172,8 +180,7 @@ async function handleUpload(options: { file: File }) {
   try {
     let fileUrl: string
 
-    // 大于 100MB 使用分片上传
-    if (file.size > 100 * 1024 * 1024) {
+    if (uploadMode === 'chunked') {
       fileUrl = await handleChunkUpload(file, fileId)
     } else {
       // 普通上传
@@ -217,11 +224,7 @@ async function handleChunkUpload(file: File, fileId: string): Promise<string> {
   const totalChunks = Math.ceil(file.size / chunkSize)
 
   // 初始化分片上传
-  const initResult = await initChunkUpload({
-    file_name: file.name,
-    file_size: file.size,
-    chunk_size: chunkSize,
-  })
+  const initResult = await initChunkUpload(buildChunkUploadInitPayload(file, chunkSize))
 
   const uploadId = initResult.upload_id
 
@@ -300,7 +303,7 @@ async function handleDelete(resource: ResourceItem) {
           </div>
           <template #tip>
             <div class="upload-tip">
-              建议支持 MP4 / MOV，大文件走分片上传
+              建议支持 MP4 / MOV，{{ DIRECT_UPLOAD_LIMIT_TEXT }} 以内普通上传，超过 {{ DIRECT_UPLOAD_LIMIT_TEXT }} 走分片，最大 {{ TOTAL_UPLOAD_LIMIT_TEXT }}
             </div>
           </template>
         </el-upload>
@@ -350,7 +353,7 @@ async function handleDelete(resource: ResourceItem) {
           </div>
           <template #tip>
             <div class="upload-tip">
-              支持 PDF, PPT, Word, Excel, ZIP 等，最大 500MB
+              支持 PDF, PPT, Word, Excel, ZIP 等，{{ DIRECT_UPLOAD_LIMIT_TEXT }} 以内普通上传，超过 {{ DIRECT_UPLOAD_LIMIT_TEXT }} 走分片，最大 {{ TOTAL_UPLOAD_LIMIT_TEXT }}
             </div>
           </template>
         </el-upload>
