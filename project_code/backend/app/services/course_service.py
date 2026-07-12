@@ -24,6 +24,7 @@ from app.schemas.course import (
     CourseUpdate,
     MaterialCreate,
 )
+from app.services.upload_service import upload_service
 
 
 class CourseService:
@@ -65,6 +66,30 @@ class CourseService:
         required_count = required_count_result.scalar() or 0
         if required_count <= 0:
             raise ValidationException("课程至少需要一个必修资源后才能发布")
+
+    async def _collect_course_file_urls(self, db: AsyncSession, course: Course) -> list[str]:
+        """收集课程删除后需要清理的上传文件 URL。"""
+        file_urls: list[str] = []
+        if course.cover_url:
+            file_urls.append(course.cover_url)
+
+        material_result = await db.execute(
+            select(CourseMaterial.file_url).where(CourseMaterial.course_id == course.id)
+        )
+        file_urls.extend(material_result.scalars().all())
+
+        resource_result = await db.execute(select(Resource.file_url).where(Resource.course_id == course.id))
+        file_urls.extend(resource_result.scalars().all())
+
+        return list(dict.fromkeys(file_url for file_url in file_urls if file_url))
+
+    async def _collect_deletable_course_file_urls(self, db: AsyncSession, course: Course) -> list[str]:
+        """收集删除课程后可安全清理的上传文件 URL。"""
+        return await upload_service.filter_deletable_file_urls(
+            db,
+            await self._collect_course_file_urls(db, course),
+            excluded_course_id=course.id,
+        )
 
     async def get_list(
         self,
@@ -313,6 +338,7 @@ class CourseService:
             if course.status == "published":
                 raise ValidationException("已发布的课程不能删除，请先下架")
             raise ForbiddenException("无权删除此课程")
+        upload_service.queue_file_deletions(db, await self._collect_deletable_course_file_urls(db, course))
         await db.delete(course)
 
     async def batch_action(
@@ -350,6 +376,10 @@ class CourseService:
                         if course.status == "published":
                             raise ValidationException("已发布课程需先下架后才能删除")
                         raise ForbiddenException("无权删除此课程")
+                    upload_service.queue_file_deletions(
+                        db,
+                        await self._collect_deletable_course_file_urls(db, course),
+                    )
                     await db.delete(course)
 
                 response.success_ids.append(course_id)

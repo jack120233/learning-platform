@@ -6,17 +6,28 @@ import shutil
 from math import ceil
 from pathlib import Path
 from typing import NamedTuple
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from fastapi import UploadFile
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.logging import get_logger
 from app.core.exceptions import ValidationException
+from app.models.content import Resource
+from app.models.course import Course, CourseMaterial
 from app.schemas.upload import ChunkUploadCompleteRequest, ChunkUploadInitRequest
+
+
+logger = get_logger(__name__)
 
 
 class UploadService:
     """文件上传服务类。"""
+
+    pending_delete_session_key = "pending_upload_deletions"
 
     class UploadPolicy(NamedTuple):
         subdir: str
@@ -430,6 +441,118 @@ class UploadService:
             lock = asyncio.Lock()
             self._upload_locks[upload_id] = lock
         return lock
+
+    def queue_file_deletions(
+        self,
+        session: AsyncSession,
+        file_urls: list[str] | tuple[str, ...] | set[str],
+    ) -> None:
+        """登记事务提交后需要删除的上传文件 URL。"""
+        pending_urls = session.info.setdefault(self.pending_delete_session_key, set())
+        pending_urls.update(file_url for file_url in file_urls if file_url)
+
+    def consume_queued_file_deletions(self, session: AsyncSession) -> None:
+        """在事务提交成功后删除已登记的上传文件。"""
+        pending_urls = session.info.pop(self.pending_delete_session_key, set())
+        for file_url in pending_urls:
+            try:
+                self.delete_file_by_url(file_url)
+            except Exception as exc:
+                logger.warning(
+                    "提交后清理上传文件失败: file_url=%s path=%s error=%s",
+                    file_url,
+                    self._resolve_uploaded_file_path(file_url),
+                    exc,
+                )
+
+    def delete_file_by_url(self, file_url: str | None) -> bool:
+        """按上传 URL 删除本地文件。"""
+        file_path = self._resolve_uploaded_file_path(file_url)
+        if file_path is None or not file_path.is_file():
+            return False
+
+        file_path.unlink(missing_ok=True)
+        return True
+
+    async def filter_deletable_file_urls(
+        self,
+        db: AsyncSession,
+        file_urls: list[str] | tuple[str, ...] | set[str],
+        *,
+        excluded_course_id: int,
+    ) -> list[str]:
+        """过滤出在排除当前课程后已无剩余引用的本地上传 URL。"""
+        deletable_urls: list[str] = []
+        unique_urls = list(dict.fromkeys(file_url for file_url in file_urls if file_url))
+        for file_url in unique_urls:
+            if self._resolve_uploaded_file_path(file_url) is None:
+                continue
+            if await self._has_remaining_references(db, file_url, excluded_course_id):
+                continue
+            deletable_urls.append(file_url)
+        return deletable_urls
+
+    async def _has_remaining_references(
+        self,
+        db: AsyncSession,
+        file_url: str,
+        excluded_course_id: int,
+    ) -> bool:
+        """判断排除当前课程后，指定 URL 是否仍被任何课程数据引用。"""
+        course_result = await db.execute(
+            select(func.count())
+            .select_from(Course)
+            .where(Course.cover_url == file_url, Course.id != excluded_course_id)
+        )
+        if (course_result.scalar() or 0) > 0:
+            return True
+
+        material_result = await db.execute(
+            select(func.count())
+            .select_from(CourseMaterial)
+            .where(
+                CourseMaterial.file_url == file_url,
+                CourseMaterial.course_id != excluded_course_id,
+            )
+        )
+        if (material_result.scalar() or 0) > 0:
+            return True
+
+        resource_result = await db.execute(
+            select(func.count())
+            .select_from(Resource)
+            .where(
+                Resource.file_url == file_url,
+                Resource.course_id != excluded_course_id,
+            )
+        )
+        return (resource_result.scalar() or 0) > 0
+
+    def _resolve_uploaded_file_path(self, file_url: str | None) -> Path | None:
+        """将上传 URL 安全解析为本地文件路径。"""
+        if not file_url:
+            return None
+
+        parsed = urlparse(file_url)
+        url_path = parsed.path or file_url
+        prefix = settings.upload_url_prefix.rstrip("/")
+        normalized_prefix = prefix if prefix.startswith("/") else f"/{prefix}"
+
+        if not url_path.startswith(f"{normalized_prefix}/"):
+            return None
+
+        relative_path = url_path[len(normalized_prefix) :].lstrip("/")
+        if not relative_path:
+            return None
+
+        upload_root = settings.resolved_upload_dir.resolve()
+        candidate = (upload_root / relative_path).resolve()
+        try:
+            candidate.relative_to(upload_root)
+        except ValueError:
+            return None
+
+        return candidate
 
 
 upload_service = UploadService()

@@ -17,6 +17,7 @@ from app.core.sql_logging import install_sql_logging
 from app.core.runtime import install_sqlite_runtime_hooks
 from app.models.user import User
 from app.schemas.common import BusinessCode
+from app.services.upload_service import upload_service
 
 # HTTP Bearer 认证方案
 security = HTTPBearer(auto_error=False)
@@ -55,8 +56,10 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
             await session.commit()
+            upload_service.consume_queued_file_deletions(session)
         except Exception:
             await session.rollback()
+            session.info.pop(upload_service.pending_delete_session_key, None)
             raise
         finally:
             await session.close()

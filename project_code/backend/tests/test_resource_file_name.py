@@ -8,6 +8,7 @@ from pathlib import Path
 from app.models.content import Chapter, Resource, Section
 from app.models.course import Course
 from app.schemas.content import ResourceCreate, ResourceResponse
+from app.services.upload_service import upload_service
 
 
 SERVICES_DIR = Path(__file__).resolve().parents[1] / "app" / "services"
@@ -44,6 +45,9 @@ class FakeScalarResult:
     def all(self):
         return self._items
 
+    def scalar(self):
+        return self._items[0] if self._items else None
+
 
 class FakeAsyncSession:
     """覆盖当前测试所需最小 AsyncSession 能力。"""
@@ -52,12 +56,17 @@ class FakeAsyncSession:
         self._get_map = get_map or {}
         self._execute_results = list(execute_results or [])
         self.added = []
+        self.deleted = []
+        self.info = {}
 
     async def get(self, model, key):
         return self._get_map.get((model, key))
 
     def add(self, instance):
         self.added.append(instance)
+
+    async def delete(self, instance):
+        self.deleted.append(instance)
 
     async def flush(self):
         return None
@@ -232,6 +241,36 @@ def test_course_service_prefers_original_file_name_in_course_tree():
     chapters = run_async(course_service.get_chapters_with_sections(session, 1))
 
     assert chapters[0].sections[0].resources[0].file_name == "lesson-outline.pdf"
+
+
+def test_course_service_delete_queues_course_asset_files():
+    course = Course(
+        id=1,
+        title="测试课程",
+        teacher_id=99,
+        status="draft",
+        cover_url="/uploads/course-covers/course.png",
+    )
+    session = FakeAsyncSession(
+        get_map={(Course, 1): course},
+        execute_results=[
+            FakeScalarResult(["/uploads/files/outline.pdf"]),
+            FakeScalarResult(["/uploads/files/lesson.mp4", "/uploads/files/lesson.mp4"]),
+            FakeScalarResult([1]),
+            FakeScalarResult([0]),
+            FakeScalarResult([1]),
+            FakeScalarResult([0]),
+            FakeScalarResult([0]),
+            FakeScalarResult([0]),
+        ],
+    )
+
+    run_async(CourseService().delete(session, 1, type("Teacher", (), {"id": 99})()))
+
+    assert session.deleted == [course]
+    assert session.info[upload_service.pending_delete_session_key] == {
+        "/uploads/files/lesson.mp4",
+    }
 
 
 def test_learning_service_play_url_returns_original_file_name():

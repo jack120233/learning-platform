@@ -1,6 +1,7 @@
 """上传服务相关测试。"""
 
 import asyncio
+import logging
 import tempfile
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -193,3 +194,89 @@ def test_complete_chunk_upload_merges_parts_with_existing_flow(upload_settings):
     assert complete_result["file_name"] == "course.mp4"
     assert complete_result["file_size"] == 6
     assert complete_result["file_url"].startswith("/uploads/files/")
+
+
+def test_consume_queued_file_deletions_removes_local_uploaded_file(upload_settings):
+    service = UploadService()
+    stored_file = Path(settings.upload_dir) / settings.general_upload_subdir / "lesson.pdf"
+    stored_file.parent.mkdir(parents=True, exist_ok=True)
+    stored_file.write_bytes(b"lesson")
+
+    class FakeSession:
+        def __init__(self) -> None:
+            self.info = {}
+
+    session = FakeSession()
+    service.queue_file_deletions(session, ["/uploads/files/lesson.pdf"])
+
+    service.consume_queued_file_deletions(session)
+
+    assert stored_file.exists() is False
+    assert session.info == {}
+
+
+def test_filter_deletable_file_urls_skips_external_and_shared_urls(upload_settings):
+    service = UploadService()
+
+    class FakeScalarResult:
+        def __init__(self, value: int) -> None:
+            self._value = value
+
+        def scalar(self) -> int:
+            return self._value
+
+    class FakeSession:
+        def __init__(self) -> None:
+            self._results = [
+                FakeScalarResult(1),
+                FakeScalarResult(0),
+                FakeScalarResult(1),
+                FakeScalarResult(0),
+                FakeScalarResult(0),
+                FakeScalarResult(0),
+            ]
+
+        async def execute(self, _statement):
+            return self._results.pop(0)
+
+    deletable = run_async(service.filter_deletable_file_urls(
+        FakeSession(),
+        [
+            "/uploads/course-covers/shared.png",
+            "https://cdn.example.com/shared.pdf",
+            "/uploads/files/reused.pdf",
+            "/uploads/files/unique.pdf",
+            "/uploads/files/unique.pdf",
+        ],
+        excluded_course_id=1,
+    ))
+
+    assert deletable == ["/uploads/files/unique.pdf"]
+
+
+def test_consume_queued_file_deletions_logs_and_continues_on_failure(caplog):
+    service = UploadService()
+    deleted_urls: list[str] = []
+
+    def fake_delete(file_url: str | None) -> bool:
+        if file_url == "/uploads/files/broken.pdf":
+            raise OSError("file locked")
+        deleted_urls.append(str(file_url))
+        return True
+
+    service.delete_file_by_url = fake_delete  # type: ignore[method-assign]
+
+    class FakeSession:
+        def __init__(self) -> None:
+            self.info = {
+                service.pending_delete_session_key: {
+                    "/uploads/files/broken.pdf",
+                    "/uploads/files/ok.pdf",
+                }
+            }
+
+    with caplog.at_level(logging.WARNING):
+        service.consume_queued_file_deletions(FakeSession())
+
+    assert deleted_urls == ["/uploads/files/ok.pdf"]
+    assert "提交后清理上传文件失败" in caplog.text

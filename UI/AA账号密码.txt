@@ -1,12 +1,12 @@
 
        username="admin1",
-            email="admin1@test.com",
+            email="admin1@example.com",
             password_hash=hash_password("Admin123456"),
             nickname="管理员",
             role="admin",
             status="active",
-账号student1@test.com ，密码Test123456
-teacher1@test.com ，密码Test123456
+账号student1@example.com ，密码Test123456
+teacher1@example.com ，密码Test123456
 
 
 
