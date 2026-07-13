@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import gc
 import json
 import sqlite3
 from collections.abc import Callable, Iterable
@@ -14,6 +16,7 @@ from typing import Any, Literal
 from sqlalchemy import event, select, text
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
 from app.models.user import User
@@ -487,6 +490,24 @@ def _sqlite_url_for_path(database_path: Path) -> str:
     return f"sqlite+aiosqlite:///{database_path.as_posix()}"
 
 
+async def _replace_file_with_retry(source: Path, target: Path, attempts: int = 10) -> None:
+    """在 Windows 文件句柄延迟释放时重试原子替换。"""
+    last_error: OSError | None = None
+    for attempt in range(attempts):
+        try:
+            source.replace(target)
+            return
+        except OSError as exc:
+            last_error = exc
+            if getattr(exc, "winerror", None) != 32 or attempt == attempts - 1:
+                raise
+            gc.collect()
+            await asyncio.sleep(0.2)
+
+    if last_error is not None:
+        raise last_error
+
+
 async def bootstrap_sqlite_database(
     database_path: Path,
     seed_layers: tuple[str, ...] = DEFAULT_SQLITE_SEED_LAYERS,
@@ -508,6 +529,9 @@ async def bootstrap_sqlite_database(
     temporary_engine = create_async_engine(
         _sqlite_url_for_path(temporary_database_path),
         connect_args=settings.sqlalchemy_connect_args,
+        # Windows may keep pooled SQLite connections alive briefly after dispose(),
+        # which prevents the temp database file from being atomically renamed.
+        poolclass=NullPool,
     )
     install_sqlite_runtime_hooks(temporary_engine)
     temporary_session_factory = async_sessionmaker(
@@ -523,8 +547,10 @@ async def bootstrap_sqlite_database(
         messages.extend(await initialize_standard_sqlite_data(temporary_session_factory, seed_layers))
 
         await temporary_engine.dispose()
+        del temporary_session_factory
+        gc.collect()
         messages.extend(validate_standard_sqlite_database(temporary_database_path))
-        temporary_database_path.replace(database_path)
+        await _replace_file_with_retry(temporary_database_path, database_path)
         messages.append(f"已原子替换正式数据库: {database_path.name}")
         messages.extend(write_sqlite_bootstrap_manifest(manifest_path, seed_layers))
         return messages

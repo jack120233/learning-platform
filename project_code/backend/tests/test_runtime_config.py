@@ -117,6 +117,30 @@ def test_frontend_paths_point_to_ui_dist():
     assert instance.frontend_ready in {True, False}
 
 
+def test_runtime_root_dir_rebases_relative_release_paths(tmp_path):
+    runtime_root = tmp_path / "LearningPlatform"
+    instance = Settings(
+        _env_file=None,
+        runtime_root_dir=str(runtime_root),
+        local_data_dir="data",
+        local_cache_dir="data/cache",
+        upload_dir="uploads",
+        log_dir="logs",
+        frontend_dist_dir="frontend/dist",
+        frontend_index_path="frontend/dist/index.html",
+    )
+
+    assert instance.resolved_runtime_root_dir == runtime_root.resolve()
+    assert instance.resolved_local_data_dir == (runtime_root / "data").resolve()
+    assert instance.resolved_cache_dir == (runtime_root / "data" / "cache").resolve()
+    assert instance.resolved_upload_dir == (runtime_root / "uploads").resolve()
+    assert instance.resolved_log_dir == (runtime_root / "logs").resolve()
+    assert instance.parsed_frontend_dist_dir == (runtime_root / "frontend" / "dist").resolve()
+    assert instance.parsed_frontend_index_path == (
+        runtime_root / "frontend" / "dist" / "index.html"
+    ).resolve()
+
+
 def test_init_db_script_bootstraps_standard_database_from_repo_root(tmp_path):
     data_dir = tmp_path / "data"
     uploads_dir = tmp_path / "uploads"

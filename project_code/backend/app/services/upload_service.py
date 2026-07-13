@@ -176,7 +176,7 @@ class UploadService:
         if len(content) > max_size:
             raise ValidationException(self._size_limit_message(max_size))
 
-        upload_dir = Path(settings.upload_dir) / subdir
+        upload_dir = settings.resolved_upload_dir / subdir
         upload_dir.mkdir(parents=True, exist_ok=True)
 
         saved_name = f"{uuid4().hex}{extension}"
@@ -315,7 +315,7 @@ class UploadService:
                     content_type.lower() if isinstance(content_type, str) else None,
                 )
 
-                upload_dir = Path(settings.upload_dir) / policy.subdir
+                upload_dir = settings.resolved_upload_dir / policy.subdir
                 upload_dir.mkdir(parents=True, exist_ok=True)
                 saved_name = f"{uuid4().hex}{extension}"
                 save_path = upload_dir / saved_name
@@ -401,7 +401,7 @@ class UploadService:
 
     def _get_chunk_session_dir(self, upload_id: str) -> Path:
         """返回分片上传任务目录。"""
-        return Path(settings.upload_dir) / settings.chunk_upload_tmp_subdir / upload_id
+        return settings.resolved_upload_dir / settings.chunk_upload_tmp_subdir / upload_id
 
     def _get_manifest_path(self, session_dir: Path) -> Path:
         """返回 manifest 路径。"""

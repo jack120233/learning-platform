@@ -4,7 +4,9 @@
 """
 
 from functools import lru_cache
+import os
 from pathlib import Path
+import sys
 from typing import Literal
 
 from pydantic import Field, field_validator
@@ -19,6 +21,23 @@ FRONTEND_ROOT = REPOSITORY_ROOT / "UI"
 FRONTEND_DIST_DIR = FRONTEND_ROOT / "dist"
 FRONTEND_INDEX_PATH = FRONTEND_DIST_DIR / "index.html"
 DEFAULT_ENV_FILE = BASE_DIR / ".env"
+RUNTIME_ROOT_ENV_KEYS = ("LEARNING_PLATFORM_RUNTIME_ROOT", "APP_RUNTIME_ROOT")
+
+
+def detect_runtime_root() -> Path | None:
+    """检测安装版或启动器显式指定的运行时根目录。"""
+    for env_key in RUNTIME_ROOT_ENV_KEYS:
+        runtime_root = os.getenv(env_key)
+        if runtime_root and runtime_root.strip():
+            return Path(runtime_root).expanduser().resolve()
+
+    if getattr(sys, "frozen", False):
+        executable_dir = Path(sys.executable).resolve().parent
+        if executable_dir.name.lower() == "backend":
+            return executable_dir.parent
+        return executable_dir
+
+    return None
 
 
 class Settings(BaseSettings):
@@ -53,6 +72,7 @@ class Settings(BaseSettings):
     local_database_path: str | None = None
     local_database_filename: str = "windows-local.db"
     local_cache_dir: str | None = None
+    runtime_root_dir: str | None = None
 
     # 启动器与前端产物配置
     frontend_dist_dir: str = str(FRONTEND_DIST_DIR)
@@ -152,6 +172,16 @@ class Settings(BaseSettings):
             return None
         return v
 
+    @field_validator("runtime_root_dir", mode="before")
+    @classmethod
+    def normalize_runtime_root_dir(cls, v: str | None) -> str | None:
+        """兼容未配置或空字符串运行时根目录。"""
+        if v is None:
+            return None
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
     @field_validator("cors_origins", "cors_allow_methods", "cors_allow_headers")
     @classmethod
     def parse_list_from_string(cls, v: str | list[str]) -> list[str]:
@@ -160,12 +190,28 @@ class Settings(BaseSettings):
             return [item.strip() for item in v.split(",") if item.strip()]
         return v
 
+    def _resolve_runtime_base_dir(self) -> Path:
+        """返回相对运行时路径的解析基准目录。"""
+        if self.runtime_root_dir:
+            return Path(self.runtime_root_dir).expanduser().resolve()
+
+        detected_runtime_root = detect_runtime_root()
+        if detected_runtime_root is not None:
+            return detected_runtime_root
+
+        return BASE_DIR
+
     def _resolve_runtime_path(self, value: str | Path) -> Path:
-        """将相对路径统一解析到 backend 运行根目录。"""
+        """将相对路径统一解析到当前运行时根目录。"""
         path = Path(value).expanduser()
         if path.is_absolute():
             return path
-        return (BASE_DIR / path).resolve()
+        return (self._resolve_runtime_base_dir() / path).resolve()
+
+    @property
+    def resolved_runtime_root_dir(self) -> Path:
+        """解析后的运行时根目录。"""
+        return self._resolve_runtime_base_dir()
 
     def _raw_async_database_url(self) -> str:
         """返回未规范化的数据库连接字符串。"""
@@ -227,12 +273,12 @@ class Settings(BaseSettings):
     @property
     def parsed_frontend_dist_dir(self) -> Path:
         """解析后的前端生产包目录。"""
-        return Path(self.frontend_dist_dir)
+        return self._resolve_runtime_path(self.frontend_dist_dir)
 
     @property
     def parsed_frontend_index_path(self) -> Path:
         """解析后的前端首页文件。"""
-        return Path(self.frontend_index_path)
+        return self._resolve_runtime_path(self.frontend_index_path)
 
     @property
     def parsed_cors_origins(self) -> list[str]:

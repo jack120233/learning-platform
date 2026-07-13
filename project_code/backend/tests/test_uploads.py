@@ -198,7 +198,7 @@ def test_complete_chunk_upload_merges_parts_with_existing_flow(upload_settings):
 
 def test_consume_queued_file_deletions_removes_local_uploaded_file(upload_settings):
     service = UploadService()
-    stored_file = Path(settings.upload_dir) / settings.general_upload_subdir / "lesson.pdf"
+    stored_file = settings.resolved_upload_dir / settings.general_upload_subdir / "lesson.pdf"
     stored_file.parent.mkdir(parents=True, exist_ok=True)
     stored_file.write_bytes(b"lesson")
 
