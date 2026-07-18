@@ -67,12 +67,14 @@ $pyInstallerRoot = Join-Path $releaseRoot "pyinstaller"
 $pyInstallerDist = Join-Path $pyInstallerRoot "dist"
 $pyInstallerWork = Join-Path $pyInstallerRoot "build"
 $pyInstallerBundle = Join-Path $pyInstallerDist "LearningPlatformBackend"
+$controlPanelDir = Join-Path $repoRoot "desktop_control_panel"
+$controlPanelSpec = Join-Path $controlPanelDir "LearningPlatformControlPanel.spec"
+$controlPanelBundle = Join-Path $pyInstallerDist "LearningPlatformControlPanel"
 $installerScript = Join-Path $repoRoot "installer\learning-platform.iss"
 $frontendDistDir = Join-Path $uiDir "dist"
 $databaseFile = Join-Path $repoRoot "project_code\backend\data\windows-local.db"
 $databaseManifestFile = Join-Path $repoRoot "project_code\backend\data\.sqlite-bootstrap.json"
 $uploadsDir = Join-Path $repoRoot "project_code\backend\uploads"
-$launcherDir = Join-Path $repoRoot "launcher"
 $configFile = Join-Path $repoRoot "config\windows-release.env"
 
 if (-not (Test-Path -LiteralPath $venvPython)) {
@@ -89,6 +91,10 @@ if (-not (Test-Path -LiteralPath $databaseManifestFile)) {
 
 if (-not (Test-Path -LiteralPath $uploadsDir)) {
     throw "未找到课程资源目录：$uploadsDir"
+}
+
+if (-not (Test-Path -LiteralPath $controlPanelSpec)) {
+    throw "未找到控制面板 PyInstaller 配置：$controlPanelSpec"
 }
 
 if (-not $SkipFrontendBuild) {
@@ -131,7 +137,13 @@ if ($LASTEXITCODE -ne 0) {
     throw "PyInstaller 构建失败，退出码：$LASTEXITCODE"
 }
 
+& $venvPython -m PyInstaller --noconfirm --clean --distpath $pyInstallerDist --workpath (Join-Path $pyInstallerWork "control-panel") $controlPanelSpec
+if ($LASTEXITCODE -ne 0) {
+    throw "控制面板 PyInstaller 构建失败，退出码：$LASTEXITCODE"
+}
+
 Copy-Item -LiteralPath $pyInstallerBundle -Destination (Join-Path $portableRoot "backend") -Recurse
+Copy-Item -Path (Join-Path $controlPanelBundle "*") -Destination $portableRoot -Recurse
 Ensure-Directory -Path (Join-Path $portableRoot "frontend")
 Copy-Item -LiteralPath $frontendDistDir -Destination (Join-Path $portableRoot "frontend\dist") -Recurse
 
@@ -139,7 +151,6 @@ Ensure-Directory -Path (Join-Path $portableRoot "data")
 Copy-Item -LiteralPath $databaseFile -Destination (Join-Path $portableRoot "data\windows-local.db")
 Copy-Item -LiteralPath $databaseManifestFile -Destination (Join-Path $portableRoot "data\.sqlite-bootstrap.json")
 Copy-Item -LiteralPath $uploadsDir -Destination (Join-Path $portableRoot "uploads") -Recurse
-Copy-Item -LiteralPath $launcherDir -Destination (Join-Path $portableRoot "launcher") -Recurse
 
 Ensure-Directory -Path (Join-Path $portableRoot "config")
 Copy-Item -LiteralPath $configFile -Destination (Join-Path $portableRoot "config\windows-release.env")

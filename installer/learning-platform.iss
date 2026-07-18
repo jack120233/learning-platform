@@ -16,7 +16,7 @@ DefaultDirName={localappdata}\Programs\{#MyAppName}
 DefaultGroupName={#MyAppName}
 OutputDir={#OutputDir}
 OutputBaseFilename=学习平台-Setup
-UninstallDisplayIcon={app}\backend\LearningPlatformBackend.exe
+UninstallDisplayIcon={app}\LearningPlatformControlPanel.exe
 WizardStyle=modern
 Compression=lzma2
 SolidCompression=yes
@@ -32,16 +32,19 @@ ArchitecturesInstallIn64BitMode=x64compatible
 Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "{#SourceDir}\*"; Excludes: "uploads\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "{#SourceDir}\uploads\*"; DestDir: "{app}\uploads"; Flags: recursesubdirs createallsubdirs ignoreversion nocompression
 
 [Icons]
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\launcher\start-learning-platform.vbs"""; WorkingDir: "{app}"; IconFilename: "{app}\backend\LearningPlatformBackend.exe"
-Name: "{group}\{#MyAppName}"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\launcher\start-learning-platform.vbs"""; WorkingDir: "{app}"; IconFilename: "{app}\backend\LearningPlatformBackend.exe"
-Name: "{group}\停止{#MyAppName}"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\launcher\stop-learning-platform.vbs"""; WorkingDir: "{app}"; IconFilename: "{app}\backend\LearningPlatformBackend.exe"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\LearningPlatformControlPanel.exe"; WorkingDir: "{app}"; IconFilename: "{app}\LearningPlatformControlPanel.exe"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\LearningPlatformControlPanel.exe"; WorkingDir: "{app}"; IconFilename: "{app}\LearningPlatformControlPanel.exe"
 Name: "{group}\卸载{#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
-Filename: "{sys}\wscript.exe"; Parameters: """{app}\launcher\start-learning-platform.vbs"""; Description: "安装完成后立即启动学习平台"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\LearningPlatformControlPanel.exe"; Description: "安装完成后立即启动学习平台"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+Filename: "{app}\LearningPlatformControlPanel.exe"; Parameters: "--shutdown-existing"; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; RunOnceId: "StopLearningPlatform"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\data"

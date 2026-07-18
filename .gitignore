@@ -45,6 +45,7 @@ Thumbs.db
 *.swo
 
 # Temporary debug artifacts
+.tmp/
 *-requests.txt
 *-all-requests.txt
 *-console.txt

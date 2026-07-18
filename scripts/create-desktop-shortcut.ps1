@@ -22,10 +22,7 @@ $resolvedBundleRoot = if ($BundleRoot) {
 } else {
     Resolve-AbsolutePath -Path (Join-Path $repoRoot "build\windows-release\bundle")
 }
-
-$launcherDir = Join-Path $resolvedBundleRoot "launcher"
-$launcherScript = Join-Path $launcherDir "start-learning-platform.vbs"
-$backendExe = Join-Path $resolvedBundleRoot "backend\LearningPlatformBackend.exe"
+$controlPanelExe = Join-Path $resolvedBundleRoot "LearningPlatformControlPanel.exe"
 $resolvedDesktopPath = if ($DesktopPath) {
     Resolve-AbsolutePath -Path $DesktopPath
 } else {
@@ -35,32 +32,21 @@ $resolvedDesktopPath = if ($DesktopPath) {
 if (-not (Test-Path -LiteralPath $resolvedBundleRoot)) {
     throw "未找到 bundle 目录：$resolvedBundleRoot"
 }
-
-if (-not (Test-Path -LiteralPath $launcherScript)) {
-    throw "未找到启动脚本：$launcherScript"
+if (-not (Test-Path -LiteralPath $controlPanelExe)) {
+    throw "未找到控制面板：$controlPanelExe"
 }
-
 if (-not (Test-Path -LiteralPath $resolvedDesktopPath)) {
     New-Item -ItemType Directory -Path $resolvedDesktopPath -Force | Out-Null
 }
 
 $shortcutPath = Join-Path $resolvedDesktopPath "$ShortcutName.lnk"
-$wscriptPath = Join-Path $env:WINDIR "System32\wscript.exe"
-
-if (-not (Test-Path -LiteralPath $wscriptPath)) {
-    throw "未找到 Windows Script Host：$wscriptPath"
-}
-
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
-$shortcut.TargetPath = $wscriptPath
-$shortcut.Arguments = '"' + $launcherScript + '"'
-$shortcut.WorkingDirectory = $launcherDir
-$shortcut.Description = "启动课堂平台"
-if (Test-Path -LiteralPath $backendExe) {
-    $shortcut.IconLocation = $backendExe
-}
+$shortcut.TargetPath = $controlPanelExe
+$shortcut.WorkingDirectory = $resolvedBundleRoot
+$shortcut.Description = "打开学习平台控制面板"
+$shortcut.IconLocation = "$controlPanelExe,0"
 $shortcut.Save()
 
 Write-Host "桌面快捷方式已创建：$shortcutPath"
-Write-Host "目标启动器：$launcherScript"
+Write-Host "目标控制面板：$controlPanelExe"
